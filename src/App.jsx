@@ -1856,8 +1856,10 @@ function AppLayout({ isMapsLoaded }) {
             const items = rawData.products
               .filter(p => p.category_ref === category.ref)
               .map(product => {
-                const sizes = product.skus.map(sku => sku.name.charAt(0).toUpperCase() + sku.name.slice(1));
-                const prices = product.skus.reduce((acc, sku) => {
+                const sizes = Array.isArray(product.skus)
+                  ? product.skus.map(sku => sku.name.charAt(0).toUpperCase() + sku.name.slice(1))
+                  : [];
+                const prices = (Array.isArray(product.skus) ? product.skus : []).reduce((acc, sku) => {
                   const key = sku.name.charAt(0).toUpperCase() + sku.name.slice(1);
                   const toNumber = (val) =>
                     typeof val === 'number' ? val : parseFloat(String(val).replace(/[^\d.]/g, ''));
@@ -1892,8 +1894,10 @@ function AppLayout({ isMapsLoaded }) {
                 const items = rawData.products
                   .filter(p => p.category_ref === category.ref)
                   .map(product => {
-                    const sizes = product.skus.map(sku => sku.name.charAt(0).toUpperCase() + sku.name.slice(1));
-                    const prices = product.skus.reduce((acc, sku) => {
+                    const sizes = Array.isArray(product.skus)
+                      ? product.skus.map(sku => sku.name.charAt(0).toUpperCase() + sku.name.slice(1))
+                      : [];
+                    const prices = (Array.isArray(product.skus) ? product.skus : []).reduce((acc, sku) => {
                       const key = sku.name.charAt(0).toUpperCase() + sku.name.slice(1);
                       const toNumber = (val) =>
                         typeof val === 'number' ? val : parseFloat(String(val).replace(/[^\d.]/g, ''));
@@ -1917,7 +1921,7 @@ function AppLayout({ isMapsLoaded }) {
             console.error('[menu] Sample load failed:', fallbackErr);
           }
         } else {
-          try { alert("Could not load the menu from the server. Is /public/menu running?"); } catch {}
+          try { alert(`Could not load the menu from the server. Is ${MENU_URL} reachable?`); } catch {}
         }
         setIsLoading(false);
       }
