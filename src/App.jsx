@@ -1,4 +1,5 @@
 import React, { useState, createContext, useContext, useMemo, useEffect, useRef } from 'react';
+import { MENU_URL, logMenuUrlOnce } from './config/menuSource';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 // import { formatId, getImagePath } from './utils/helpers';
 import { extrasData } from './data/menuData';
@@ -9,10 +10,12 @@ import { ThemeProvider } from './context/ThemeContext';
 import ThemeSwitcher from './components/ThemeSwitcher';
 import ItemDetailPanel from './components/ItemDetailPanel';
 import OrderSummaryPanel from './components/OrderSummaryPanel';
+import FirebaseBanner from './components/FirebaseBanner';
+import ErrorBoundary from './components/ErrorBoundary';
+import { clearBadPhotoUrlIfNeeded } from './dev/repairPhotoUrl';
 // import useGoogleMaps from './hooks/useGoogleMaps';
-import { initializeApp, getApps, getApp } from "firebase/app";
+// Firebase singletons come from src/firebase
 import { 
-  getAuth, 
   onAuthStateChanged, 
   GoogleAuthProvider, 
   OAuthProvider,
@@ -21,6 +24,9 @@ import {
   signInWithPopup,
   signOut 
 } from 'firebase/auth';
+// Using helper for avatar uploads and shared Firebase instances
+import { uploadAvatarAndSaveProfile } from './lib/uploadAvatar';
+import { app, auth, db, storage, FB_READY } from './firebase';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -29,24 +35,11 @@ import {
   updateProfile
 } from 'firebase/auth';
 
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 
 
-// --- 1. FIREBASE CONFIGURATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyDijrjZtCvPQiv7x2awqcEFFUiR2L5LKZM",
-  authDomain: "pizza-peppers-website.firebaseapp.com",
-  projectId: "pizza-peppers-website",
-  storageBucket: "pizza-peppers-website.firebasestorage.app",
-  messagingSenderId: "531622783727",
-  appId: "1:531622783727:web:914452457d4a3904d7091a"
-};
-
-// Initialize Firebase and Auth (safe for HMR and clear naming)
-const fbApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(fbApp);
-const db = getFirestore(fbApp);
+// Firebase config and singletons are centralized in src/firebase.js
 
 // --- AUTH CONTEXT (Firebase + local session) ---
 const AuthContext = createContext();
@@ -62,32 +55,59 @@ function AuthProvider({ children }) {
   });
   const [loading, setLoading] = useState(true);
 
+  // Track Firebase user (guarded for missing config)
   useEffect(() => {
-    const unsub = onAuthStateChanged(getAuth(), (u) => {
+    if (!FB_READY || !auth) {
+      setFirebaseUser(null);
+      setLoading(false);
+      return;
+    }
+    const unsub = onAuthStateChanged(auth, (u) => {
       setFirebaseUser(u || null);
       setLoading(false);
     });
     return unsub;
   }, []);
 
+  // Dev-only: clear bad photoURL if using legacy firebasestorage.app links
+  useEffect(() => {
+    if (FB_READY && auth?.currentUser) {
+      clearBadPhotoUrlIfNeeded().catch(() => {});
+    }
+  }, [firebaseUser]);
+
+  // Persist local user when it changes
+  useEffect(() => {
+    if (localUser) localStorage.setItem(LOCAL_KEY, JSON.stringify(localUser));
+    else localStorage.removeItem(LOCAL_KEY);
+  }, [localUser]);
+
   // ---- public auth actions ----
-  const loginWithGoogle = () => signInWithPopup(getAuth(), new GoogleAuthProvider());
-  const loginWithApple  = () => signInWithPopup(getAuth(), new OAuthProvider('apple.com'));
+  const loginWithGoogle = () => {
+    if (!FB_READY || !auth) throw new Error("Sign-in is unavailable (Firebase not configured).");
+    return signInWithPopup(auth, new GoogleAuthProvider());
+  };
+  const loginWithApple  = () => {
+    if (!FB_READY || !auth) throw new Error("Sign-in is unavailable (Firebase not configured).");
+    return signInWithPopup(auth, new OAuthProvider('apple.com'));
+  };
 
   // Called by your password modal on success
   const loginLocal = (phone, displayName = '') => {
-    const u = { uid: `local:${phone}`, phoneNumber: phone, displayName };
+    const u = { uid: `local:${phone}`, phoneNumber: phone, displayName: displayName || phone, providerId: 'local' };
     setLocalUser(u);
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(u));
+    return u;
   };
+  const signupLocal = ({ phone, displayName }) => loginLocal(phone, displayName);
 
-  const logoutLocal = () => {
-    setLocalUser(null);
-    localStorage.removeItem(LOCAL_KEY);
-  };
+  const logoutLocal = () => setLocalUser(null);
 
   const logout = async () => {
-    try { await signOut(getAuth()); } catch {}
+    try {
+      if (FB_READY && typeof auth !== "undefined" && auth) {
+        await signOut(auth);
+      }
+    } catch {}
     logoutLocal();
   };
 
@@ -98,7 +118,8 @@ function AuthProvider({ children }) {
     currentUser,
     loginWithGoogle,
     loginWithApple,
-    loginLocal,     // <-- expose to Login modal
+    loginLocal,
+    signupLocal,
     logout,
   };
 
@@ -132,6 +153,7 @@ const PhoneIcon = () => (
 function LoginModal({ onClose, onGoogle, onApple, auth }) {
   // UI state
   const { loginLocal } = useAuth();
+  const firebaseDisabled = !FB_READY || !auth;
 
   const [view, setView] = React.useState("choices"); // "choices" | "phone"
   const [mode, setMode] = React.useState("login");   // "login" | "signup"
@@ -180,6 +202,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   }, []);
 
   const ensureRecaptcha = () => {
+    if (firebaseDisabled) throw new Error("Phone verification is unavailable right now.");
     if (recaptchaMounted.current) return;
     window.__ppRecaptcha = new RecaptchaVerifier(auth, 'recaptcha-container-modal', {
       size: 'normal',
@@ -302,9 +325,9 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
           {view === "choices" && (
             <>
               <div style={{ display: 'grid', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button style={buttonStyle} onClick={onGoogle}><GoogleIcon />Continue with Google</button>
-                <button style={buttonStyle} onClick={onApple}><AppleIcon />Continue with Apple</button>
-                <button style={buttonStyle} onClick={() => setView("phone")}><PhoneIcon />Continue with Phone</button>
+                <button style={buttonStyle} onClick={onGoogle} disabled={firebaseDisabled} title={firebaseDisabled ? 'Temporarily unavailable' : ''}><GoogleIcon />Continue with Google</button>
+                <button style={buttonStyle} onClick={onApple} disabled={firebaseDisabled} title={firebaseDisabled ? 'Temporarily unavailable' : ''}><AppleIcon />Continue with Apple</button>
+                <button style={buttonStyle} onClick={() => setView("phone")} disabled={firebaseDisabled} title={firebaseDisabled ? 'Temporarily unavailable' : ''}><PhoneIcon />Continue with Phone</button>
               </div>
               <p style={{textAlign: 'center', color: 'var(--text-medium)', fontSize: '0.85rem', marginTop: '0.5rem'}}>
                 By continuing, you agree to our Terms and Conditions.
@@ -540,6 +563,10 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
 
 function ProfileModal({ onClose }) {
   const { currentUser } = useAuth();
+  // ---- safety flags (Firebase may be disabled locally) ----
+  const authSafe = (typeof auth !== "undefined" && auth) ? auth : null;
+  const firebaseDisabled = !FB_READY || !authSafe;
+  const canUseAvatarUpload = !!authSafe?.currentUser && !firebaseDisabled;
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -550,6 +577,7 @@ function ProfileModal({ onClose }) {
     displayName: "",
     phoneNumber: "",
     photoURL: "",
+    email: "",
     addressLine1: "",
     addressLine2: "",
     suburb: "",
@@ -566,22 +594,41 @@ function ProfileModal({ onClose }) {
     let mounted = true;
     (async () => {
       try {
-        if (!currentUser) return;
-        const ref = doc(db, "users", currentUser.uid);
-        const snap = await getDoc(ref);
+        if (!currentUser) { if (mounted) setLoading(false); return; }
 
         const seed = {
           displayName: currentUser.displayName || "",
           phoneNumber: currentUser.phoneNumber || "",
           photoURL: currentUser.photoURL || "",
+          email: currentUser.email || "",
         };
 
-        if (snap.exists()) {
-          const data = snap.data();
-          if (mounted) {
-            setForm(prev => ({ ...prev, ...seed, ...data }));
+        // Local user → read from localStorage
+        if (currentUser.providerId === 'local' || (currentUser.uid && currentUser.uid.startsWith('local:'))) {
+          try {
+            const raw = localStorage.getItem(`pp_profile_${currentUser.uid}`);
+            const data = raw ? JSON.parse(raw) : {};
+            if (mounted) setForm(prev => ({ ...prev, ...seed, ...data }));
+          } catch (e) {
+            console.error(e);
+            if (mounted) setError("Failed to load local profile.");
+          } finally {
+            if (mounted) setLoading(false);
+          }
+        } else if (!firebaseDisabled && db) {
+          // Firebase user → Firestore
+          const ref = doc(db, "users", currentUser.uid);
+          const snap = await getDoc(ref);
+          if (snap.exists()) {
+            const data = snap.data();
+            if (mounted) {
+              setForm(prev => ({ ...prev, ...seed, ...data }));
+            }
+          } else {
+            if (mounted) setForm(prev => ({ ...prev, ...seed }));
           }
         } else {
+          // Firebase not available → fall back to auth seed only
           if (mounted) setForm(prev => ({ ...prev, ...seed }));
         }
       } catch (e) {
@@ -599,6 +646,32 @@ function ProfileModal({ onClose }) {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const [uploading, setUploading] = React.useState(false);
+  const [uploadPct, setUploadPct] = React.useState(null);
+  const onAvatarSelect = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (firebaseDisabled || !authSafe?.currentUser) {
+      setError('Profile photos are unavailable right now. Please try again later.');
+      return;
+    }
+    setError('');
+    setUploading(true);
+    setUploadPct(0);
+    try {
+      const url = await uploadAvatarAndSaveProfile(f);
+      setForm(prev => ({ ...prev, photoURL: url }));
+      setUploadPct(null);
+    } catch (err) {
+      console.error(err);
+      setUploadPct(null);
+      setError(err?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+      try { e.target.value = ''; } catch {}
+    }
+  };
+
   const onSave = async (e) => {
     e.preventDefault();
     setError("");
@@ -606,8 +679,44 @@ function ProfileModal({ onClose }) {
       setSaving(true);
       if (!currentUser) throw new Error("Not logged in");
       // Don’t store raw card numbers here. This is only metadata/labels.
-      const ref = doc(db, "users", currentUser.uid);
-      await setDoc(ref, { ...form }, { merge: true });
+      if (!firebaseDisabled && db) {
+        const ref = doc(db, "users", currentUser.uid);
+        await setDoc(ref, { ...form }, { merge: true });
+      }
+      onClose();
+    } catch (e) {
+      console.error(e);
+      setError(e?.message || "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Unified save handler for Firebase or local users
+  const onSaveProfile = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      setSaving(true);
+      if (!currentUser) throw new Error("Not logged in.");
+      if (!form.displayName?.trim()) throw new Error("Please enter your name.");
+      if (currentUser.providerId === 'local' || (currentUser.uid && currentUser.uid.startsWith('local:'))) {
+        localStorage.setItem(`pp_profile_${currentUser.uid}`, JSON.stringify(form));
+      } else if (!firebaseDisabled && db) {
+        const ref = doc(db, "users", currentUser.uid);
+        await setDoc(ref, { ...form }, { merge: true });
+
+        // Sync Firebase Auth profile so navbar greeting updates
+        try {
+          await updateProfile(currentUser, {
+            displayName: form.displayName,
+            photoURL: form.photoURL || currentUser.photoURL || undefined,
+          });
+        } catch {}
+      } else {
+        // Firebase not available; keep local-only data (already seeded)
+        // No-op persistence beyond local for cloud-disabled environments.
+      }
       onClose();
     } catch (e) {
       console.error(e);
@@ -624,11 +733,6 @@ function ProfileModal({ onClose }) {
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: "640px",       // larger than login modal
-          width: "92vw",
-          overflow: "hidden"
-        }}
       >
         <div className="modal-header">
           <h3 className="panel-title">Your Profile</h3>
@@ -639,71 +743,86 @@ function ProfileModal({ onClose }) {
           {loading ? (
             <p style={{ color: 'var(--text-medium)' }}>Loading...</p>
           ) : (
-            <form onSubmit={onSave} style={{ display: "grid", gap: "1rem" }}>
-              {/* Top section: avatar + basics */}
-              <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "1rem", alignItems: "center" }}>
-                <img
-                  src={avatarSrc}
-                  alt="Profile"
-                  style={{ width: 120, height: 120, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--border-color)" }}
-                />
-                <div style={{ display: "grid", gap: "0.75rem" }}>
+            <form onSubmit={onSaveProfile} className="pp-form">
+              {/* Profile header */}
+              <div className="pp-profile-grid">
+                <div className="pp-avatar-card">
+                  <img src={avatarSrc} alt="Profile" />
+                  <label
+                    htmlFor="avatarUpload"
+                    className="pp-upload-btn"
+                    style={{
+                      cursor: (!canUseAvatarUpload || uploading) ? 'not-allowed' : 'pointer',
+                      opacity: (!canUseAvatarUpload || uploading) ? 0.6 : 1
+                    }}
+                  >
+                    {
+                      firebaseDisabled
+                        ? 'Upload unavailable in this environment'
+                        : (uploading ? `Uploading… ${uploadPct ?? 0}%` : 'Upload photo')
+                    }
+                  </label>
+                  <input
+                    id="avatarUpload"
+                    type="file"
+                    accept="image/*"
+                    onChange={onAvatarSelect}
+                    style={{ display: 'none' }}
+                    disabled={!canUseAvatarUpload || uploading}
+                  />
+                  <div className="pp-upload-hint">JPG/PNG • ~1MB</div>
+                </div>
+
+                <div className="pp-row">
                   <div>
-                    <label style={{ display: "block", color: "var(--text-medium)", fontSize: "0.9rem", marginBottom: 6 }}>
-                      Profile name
-                    </label>
+                    <label className="pp-label">Profile name</label>
                     <input
                       name="displayName"
                       type="text"
                       value={form.displayName}
                       onChange={onChange}
                       placeholder="e.g. Sam Pepper"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
+                      required
                     />
                   </div>
 
                   <div>
-                    <label style={{ display: "block", color: "var(--text-medium)", fontSize: "0.9rem", marginBottom: 6 }}>
-                      Phone number
-                    </label>
+                    <label className="pp-label">Email (optional)</label>
+                    <input
+                      name="email"
+                      type="text"
+                      value={form.email}
+                      onChange={onChange}
+                      placeholder="sam@example.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="pp-label">Phone number</label>
                     <input
                       name="phoneNumber"
                       type="tel"
                       value={form.phoneNumber}
                       onChange={onChange}
                       placeholder="+61 412 345 678"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: "block", color: "var(--text-medium)", fontSize: "0.9rem", marginBottom: 6 }}>
-                      Profile photo URL (optional)
-                    </label>
-                    <input
-                      name="photoURL"
-                      type="url"
-                      value={form.photoURL}
-                      onChange={onChange}
-                      placeholder="https://…"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Address */}
-              <div className="info-box">
-                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", color: "var(--brand-neon-green)", fontFamily: "var(--font-heading)" }}>Delivery address</h4>
+              <div className="pp-section">
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", color: "var(--brand-neon-green)", fontFamily: "var(--font-heading)" }}>
+                  Delivery address
+                </h4>
 
-                <div style={{ display: "grid", gap: "0.75rem" }}>
+                <div className="pp-row">
                   <input
                     name="addressLine1"
                     type="text"
                     value={form.addressLine1}
                     onChange={onChange}
                     placeholder="Address line 1"
-                    style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                   />
                   <input
                     name="addressLine2"
@@ -711,16 +830,15 @@ function ProfileModal({ onClose }) {
                     value={form.addressLine2}
                     onChange={onChange}
                     placeholder="Address line 2 (optional)"
-                    style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                   />
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 160px", gap: "0.75rem" }}>
+
+                  <div className="pp-three">
                     <input
                       name="suburb"
                       type="text"
                       value={form.suburb}
                       onChange={onChange}
                       placeholder="Suburb"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                     />
                     <input
                       name="state"
@@ -728,7 +846,6 @@ function ProfileModal({ onClose }) {
                       value={form.state}
                       onChange={onChange}
                       placeholder="State"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                     />
                     <input
                       name="postcode"
@@ -736,36 +853,36 @@ function ProfileModal({ onClose }) {
                       value={form.postcode}
                       onChange={onChange}
                       placeholder="Postcode"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Payment (metadata only) */}
-              <div className="info-box">
-                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", color: "var(--brand-neon-green)", fontFamily: "var(--font-heading)" }}>Payment method</h4>
+              <div className="pp-section">
+                <h4 style={{ marginTop: 0, marginBottom: "0.75rem", color: "var(--brand-neon-green)", fontFamily: "var(--font-heading)" }}>
+                  Payment method
+                </h4>
                 <p style={{ marginTop: 0, color: "var(--text-medium)", fontSize: "0.9rem" }}>
-                  For security, we only store a label/summary here. (To accept online cards, wire this to Stripe or similar.)
+                  For security, we only store a label/summary here. (Hook to Stripe for real card collection.)
                 </p>
 
-                <div style={{ display: "grid", gap: "0.75rem" }}>
+                <div className="pp-row">
                   <input
                     name="paymentLabel"
                     type="text"
                     value={form.paymentLabel}
                     onChange={onChange}
                     placeholder='e.g. "Visa •••• 4242" or "Pay on pickup"'
-                    style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                   />
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+
+                  <div className="pp-three">
                     <input
                       name="paymentBrand"
                       type="text"
                       value={form.paymentBrand}
                       onChange={onChange}
                       placeholder="Brand (visa/mastercard)"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                     />
                     <input
                       name="paymentLast4"
@@ -773,7 +890,6 @@ function ProfileModal({ onClose }) {
                       value={form.paymentLast4}
                       onChange={onChange}
                       placeholder="Last 4"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                     />
                     <input
                       name="paymentExp"
@@ -781,7 +897,6 @@ function ProfileModal({ onClose }) {
                       value={form.paymentExp}
                       onChange={onChange}
                       placeholder="Expiry (MM/YY)"
-                      style={{ width: "100%", padding: "0.75rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)", background: "var(--border-color)", color: "var(--text-light)" }}
                     />
                   </div>
                 </div>
@@ -1119,57 +1234,146 @@ function AppStyles() {
     .quantity-controls { display: flex; align-items: center; gap: 0.75rem; }
     .simple-button { width: 100%; background-color: var(--border-color); color: var(--text-light); padding: 0.75rem 1rem; font-weight: 500; margin-top: 0.5rem; }
     .modal-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 100; }
-    .modal-content { 
-  background-color: var(--background-light);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  width: 92vw;
-  max-width: 640px; /* was 500px */
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* prevents side scrollbars */
-}
-.modal-body { overflow-y: auto; padding: 1rem 0; }
- { 
-  background-color: var(--background-light);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  width: 92vw;
-  max-width: 640px; /* was 500px */
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* prevents side scrollbars */
-}
-.modal-body { overflow-y: auto; padding: 1rem 0; }
- { 
-  background-color: var(--background-light);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  width: 92vw;
-  max-width: 640px; /* was 500px */
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* prevents side scrollbars */
-}
-.modal-body { overflow-y: auto; padding: 1rem 0; }
- { 
-  background-color: var(--background-light);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  width: 92vw;
-  max-width: 640px; /* was 500px */
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* prevents side scrollbars */
-}
-.modal-body { overflow-y: auto; padding: 1rem 0; }
- { background-color: var(--background-light); padding: 1.5rem; border-radius: 0.75rem; width: 90%; max-width: 500px; max-height: 80vh; display: flex; flex-direction: column; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
-    .modal-body { overflow-y: auto; padding: 1rem 0; }
+    /* --- Modal shell (replace all duplicates with this single block) --- */
+    .modal-content {
+      background-color: var(--background-light);
+      padding: 2rem;               /* more breathing room */
+      border-radius: 0.9rem;
+      width: 92vw;
+      max-width: 720px;            /* a touch wider for even grids */
+      max-height: 82vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;            /* no scrollbars on the shell itself */
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+
+    /* keep header tidy */
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+      margin-bottom: 1rem;         /* spacing from body */
+    }
+
+    /* body scrolls, with safe side gutters so focus outline never clips */
+    .modal-body {
+      overflow-y: auto;
+      padding: 0.25rem 0.5rem 0.5rem; /* small inner gutter */
+    }
+
+    /* Focus style that never “clips” against edges */
+    input[type="text"], input[type="tel"], input[type="password"], input[type="url"], select, textarea {
+      background-color: var(--border-color);
+      border: 1px solid #4b5563;
+      border-radius: 0.75rem;          /* softer corners */
+      color: var(--text-light);
+      padding: 0.85rem 0.9rem;
+      transition: box-shadow 0.15s, outline 0.15s, border-color 0.15s;
+    }
+
+    /* outline + offset is safer than huge glow; won’t get cut off */
+    input[type="text"]:focus, input[type="tel"]:focus, input[type="password"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
+      outline: 2px solid var(--brand-pink);
+      outline-offset: 3px;             /* pulls outline inward a little */
+      box-shadow: none;
+      border-color: var(--brand-pink);
+    }
+
+    /* --- Neat form utilities for even spacing --- */
+    .pp-form { display: grid; gap: 1rem; }
+    .pp-row  { display: grid; gap: 1rem; }
+    .pp-two  { grid-template-columns: 1fr 1fr; }
+    .pp-three { grid-template-columns: 1fr 160px 160px; }
+
+    @media (max-width: 720px) {
+      .pp-two, .pp-three { grid-template-columns: 1fr; }  /* stack on small screens */
+    }
+
+    /* avatar/basics row breathing room */
+    .pp-avatar-row {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 1.1rem;
+      align-items: center;
+    }
+
+    @media (max-width: 560px) {
+      .pp-avatar-row { grid-template-columns: 1fr; }
+    }
+
+    /* section card */
+    .pp-section {
+      background: var(--background-dark);
+      border: 1px solid var(--border-color);
+      border-radius: 0.75rem;
+      padding: 1rem;
+    }
+
+    /* tiny label helper */
+    .pp-label {
+      display: block;
+      color: var(--text-medium);
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+    }
+
+    /* Profile header layout */
+    .pp-profile-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr;  /* fixed avatar column */
+      gap: 1.25rem;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+
+    .pp-avatar-card {
+      display: grid;
+      grid-template-rows: auto auto;
+      justify-items: center;
+      gap: 0.6rem;
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      background: var(--background-dark);
+    }
+
+    .pp-avatar-card img {
+      width: 128px;
+      height: 128px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--border-color);
+    }
+
+    .pp-upload-btn {
+      width: 100%;
+      text-align: center;
+      padding: 0.6rem 0.8rem;
+      border: 1px solid var(--border-color);
+      border-radius: 0.5rem;
+      background: var(--background-light);
+      color: var(--text-light);
+      cursor: pointer;
+    }
+
+    .pp-upload-hint {
+      font-size: 0.8rem;
+      color: var(--text-medium);
+      text-align: center;
+    }
+
+    .pp-row { display: grid; gap: 0.9rem; }
+    .pp-label { display: block; color: var(--text-medium); font-size: 0.9rem; margin-bottom: 6px; }
+
+    /* Stack nicely on mobile */
+    @media (max-width: 640px) {
+      .pp-profile-grid {
+        grid-template-columns: 1fr;
+      }
+    }
     .quick-nav-list { list-style: none; padding: 0; margin: 0; display: flex; gap: 0.5rem; overflow-x: auto; white-space: nowrap; scrollbar-width: none; -ms-overflow-style: none; }
     .quick-nav-list::-webkit-scrollbar { display: none; }
     .quick-nav-item a { display: block; padding: 0.5rem 1rem; color: var(--text-medium); text-decoration: none; font-weight: 500; border-bottom: 2px solid transparent; }
@@ -1622,20 +1826,30 @@ function AppLayout({ isMapsLoaded }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // NEW DATA FETCHING LOGIC (USING PROXY)
+  // SERVER-FIRST menu fetch (centralized MENU_URL)
+  // Guard against React StrictMode double-invoke in dev
+  const fetchedOnce = useRef(false);
   useEffect(() => {
+    if (fetchedOnce.current) return;
+    fetchedOnce.current = true;
     const fetchMenu = async () => {
       try {
-        const MENU_URL = '/public/menu'; // DEV: force via Vite proxy (no CORS)
-        console.log('Fetching MENU_URL =', MENU_URL);
-        const response = await fetch(MENU_URL);
-
+        logMenuUrlOnce();
+        const response = await fetch(MENU_URL, { headers: { 'Accept': 'application/json' } });
         if (!response.ok) {
+          const text = await response.text().catch(() => '');
+          console.error('[menu] HTTP ' + response.status, text);
           throw new Error(`Server responded with an error: ${response.status}`);
         }
-
-        const jsonResponse = await response.json();
+        const jsonResponse = await response.json().catch(err => {
+          console.error('[menu] JSON parse error', err);
+          throw new Error(`Invalid JSON from ${MENU_URL}`);
+        });
         const rawData = jsonResponse.data;
+        if (!Array.isArray(rawData?.categories) || !Array.isArray(rawData?.products)) {
+          console.error('[menu] Unexpected shape. Got:', jsonResponse);
+          throw new Error('Menu payload missing categories/products');
+        }
 
         const transformedMenu = {
           categories: rawData.categories.map(category => {
@@ -1668,6 +1882,43 @@ function AppLayout({ isMapsLoaded }) {
 
       } catch (error) {
         console.error("Failed to fetch menu:", error);
+        const allowSample = import.meta.env.DEV && import.meta.env.VITE_ALLOW_MENU_SAMPLE === '1';
+        if (allowSample) {
+          try {
+            const sample = await import('./data/menu.sample.json');
+            const rawData = sample.default.data;
+            const transformedMenu = {
+              categories: rawData.categories.map(category => {
+                const items = rawData.products
+                  .filter(p => p.category_ref === category.ref)
+                  .map(product => {
+                    const sizes = product.skus.map(sku => sku.name.charAt(0).toUpperCase() + sku.name.slice(1));
+                    const prices = product.skus.reduce((acc, sku) => {
+                      const key = sku.name.charAt(0).toUpperCase() + sku.name.slice(1);
+                      const toNumber = (val) =>
+                        typeof val === 'number' ? val : parseFloat(String(val).replace(/[^\d.]/g, ''));
+                      acc[key] = toNumber(sku.price);
+                      return acc;
+                    }, {});
+                    return {
+                      name: product.name,
+                      description: product.description,
+                      sizes: sizes.length > 1 ? sizes : null,
+                      prices: sizes.length > 1 ? prices : { Default: prices.Default ?? Object.values(prices)[0] },
+                      ingredients: product.ingredients || []
+                    };
+                  });
+                return { name: category.name, items };
+              })
+            };
+            console.warn('[menu] DEV sample enabled (VITE_ALLOW_MENU_SAMPLE=1).');
+            setMenuData(transformedMenu);
+          } catch (fallbackErr) {
+            console.error('[menu] Sample load failed:', fallbackErr);
+          }
+        } else {
+          try { alert("Could not load the menu from the server. Is /public/menu running?"); } catch {}
+        }
         setIsLoading(false);
       }
     };
@@ -1831,7 +2082,10 @@ function App() {
         <AuthProvider>
           <CartProvider>
             <AppStyles />
-            <AppLayout isMapsLoaded={isMapsLoaded} />
+            <FirebaseBanner />
+            <ErrorBoundary>
+              <AppLayout isMapsLoaded={isMapsLoaded} />
+            </ErrorBoundary>
               <div  
                 id="recaptcha-container-root"
                 style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 1 }}

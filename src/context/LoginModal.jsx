@@ -1,0 +1,355 @@
+// --- Login modal (phone + password with optional SMS verify) ---
+import { FB_READY, auth as fbAuth } from "../firebase";
+
+function LoginModal({ onClose, onGoogle, onApple, auth }) {
+  const firebaseDisabled = !FB_READY || !fbAuth;
+  // UI state
+  const [mode, setMode] = React.useState("login"); // "login" | "signup"
+  const [loading, setLoading] = React.useState(false);
+  const [err, setErr] = React.useState("");
+
+  // Login fields
+  const [loginPhone, setLoginPhone] = React.useState("");
+  const [loginPassword, setLoginPassword] = React.useState("");
+
+  // Signup fields
+  const [suPhone, setSuPhone] = React.useState("");
+  const [suPhone2, setSuPhone2] = React.useState("");
+  const [suPassword, setSuPassword] = React.useState("");
+  const [suPassword2, setSuPassword2] = React.useState("");
+
+  // Optional phone verification (signup only)
+  const [wantsVerify, setWantsVerify] = React.useState(false);
+  const [codeSent, setCodeSent] = React.useState(false);
+  const [otp, setOtp] = React.useState("");
+  const recaptchaMounted = React.useRef(false);
+
+  // icons & shared styles
+  const buttonStyle = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: '100%', padding: '0.9rem', marginBottom: '1rem',
+    borderRadius: '0.75rem', border: '1px solid var(--border-color)',
+    backgroundColor: 'var(--background-dark)', color: 'var(--text-light)',
+    fontSize: '1rem', fontFamily: 'var(--font-heading)', cursor: 'pointer',
+    transition: 'background-color 0.2s'
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '0.85rem', borderRadius: '0.5rem',
+    border: '1px solid var(--border-color)', backgroundColor: 'var(--border-color)',
+    color: 'var(--text-light)'
+  };
+
+  // cleanup recaptcha when modal unmounts
+  React.useEffect(() => {
+    return () => {
+      if (window.__ppRecaptcha && window.__ppRecaptcha.clear) {
+        try { window.__ppRecaptcha.clear(); } catch {}
+      }
+      window.__ppRecaptcha = null;
+    };
+  }, []);
+
+  const normDigits = (p) => (p || "").replace(/\D/g, "");
+  const phoneToEmail = (p) => `${normDigits(p)}@phone.user`;
+
+  const ensureRecaptcha = () => {
+    if (recaptchaMounted.current) return;
+    window.__ppRecaptcha = new RecaptchaVerifier(auth, 'recaptcha-container-modal', {
+      size: 'normal',
+      theme: 'dark',
+    });
+    recaptchaMounted.current = true;
+  };
+
+  // --- LOGIN ---
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setErr("");
+    setLoading(true);
+    try {
+      const email = phoneToEmail(loginPhone);
+      await signInWithEmailAndPassword(auth, email, loginPassword);
+      onClose();
+    } catch (error) {
+      setErr(error?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- SIGNUP (no SMS required) ---
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setErr("");
+
+    const p1 = normDigits(suPhone);
+    const p2 = normDigits(suPhone2);
+    if (!p1 || !p2 || p1 !== p2) {
+      setErr("Phone numbers do not match.");
+      return;
+    }
+    if (!suPassword || suPassword.length < 6) {
+      setErr("Password must be at least 6 characters.");
+      return;
+    }
+    if (suPassword !== suPassword2) {
+      setErr("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Create account using synthetic email
+      const email = phoneToEmail(suPhone);
+      const cred = await createUserWithEmailAndPassword(auth, email, suPassword);
+
+      // Set a displayName like the phone (optional)
+      try { await updateProfile(cred.user, { displayName: `+${p1}` }); } catch {}
+
+      if (!wantsVerify) {
+        // Done (no verification requested)
+        onClose();
+        return;
+      }
+
+      // If user ticked "Verify phone", send SMS but don't block success if it fails
+      try {
+        ensureRecaptcha();
+        const confirmation = await signInWithPhoneNumber(auth, `+${p1}`, window.__ppRecaptcha);
+        window.__ppConfirmForLink = confirmation;
+        setCodeSent(true);
+      } catch (vErr) {
+        // We don't block account creation; they can verify later
+        console.warn("SMS verification skipped/failed:", vErr);
+        onClose();
+      }
+    } catch (error) {
+      setErr(error?.message || "Sign up failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- VERIFY OTP (link phone to the just-created account) ---
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setErr("");
+    setLoading(true);
+    try {
+      const confirmation = window.__ppConfirmForLink;
+      if (!confirmation) throw new Error("No verification session found.");
+      // Build a phone credential and link it to the current user
+      const credResult = await confirmation.confirm(otp); // signs in with phone
+      const phoneCred = PhoneAuthProvider.credential(confirmation.verificationId, otp);
+
+      // If the above sign-in replaced current user, link to that signed-in user is unnecessary,
+      // but we’ll also try to ensure the email account has the phone linked:
+      if (auth.currentUser && auth.currentUser.providerData.every(p => p.providerId !== 'phone')) {
+        await linkWithCredential(auth.currentUser, phoneCred).catch(() => {});
+      }
+
+      onClose();
+    } catch (error) {
+      setErr(error?.message || "Invalid code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '560px',
+          width: '92%',
+          padding: '2rem',
+          overflow: 'hidden',
+          boxSizing: 'border-box'
+        }}
+      >
+        <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: '0.5rem' }}>
+          <h3 className="panel-title" style={{ fontSize: '1.6rem' }}>Login or Sign Up</h3>
+          <button onClick={onClose} className="quantity-btn" style={{ width: '2.5rem', height: '2.5rem' }}>×</button>
+        </div>
+
+        {/* Small tabs */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+          <button
+            onClick={() => { setMode("login"); setErr(""); }}
+            style={{
+              ...buttonStyle,
+              marginBottom: 0,
+              padding: '0.5rem 0.75rem',
+              width: 'auto',
+              backgroundColor: mode === "login" ? 'var(--border-color)' : 'var(--background-dark)'
+            }}
+          >
+            Log in
+          </button>
+          <button
+            onClick={() => { setMode("signup"); setErr(""); }}
+            style={{
+              ...buttonStyle,
+              marginBottom: 0,
+              padding: '0.5rem 0.75rem',
+              width: 'auto',
+              backgroundColor: mode === "signup" ? 'var(--border-color)' : 'var(--background-dark)'
+            }}
+          >
+            Sign up
+          </button>
+        </div>
+
+        <div className="modal-body" style={{ paddingTop: '1rem', overflowX: 'hidden' }}>
+          {err && <p style={{ color: 'tomato', marginTop: 0 }}>{err}</p>}
+
+          {/* Socials always visible */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+            <button style={buttonStyle} onClick={onGoogle} disabled={firebaseDisabled} title={firebaseDisabled ? "Temporarily unavailable" : ""}><GoogleIcon />Continue with Google</button>
+            <button style={buttonStyle} onClick={onApple} disabled={firebaseDisabled} title={firebaseDisabled ? "Temporarily unavailable" : ""}><AppleIcon />Continue with Apple</button>
+          </div>
+
+          {mode === "login" && (
+            <form onSubmit={handleLogin} style={{ display: 'grid', gap: '0.75rem' }}>
+              <label htmlFor="login-phone" style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>
+                Phone number (with country code)
+              </label>
+              <input
+                id="login-phone"
+                type="tel"
+                placeholder="+61 412 345 678"
+                autoComplete="tel"
+                inputMode="tel"
+                required
+                value={loginPhone}
+                onChange={(e) => setLoginPhone(e.target.value)}
+                style={inputStyle}
+              />
+
+              <label htmlFor="login-pass" style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>
+                Password
+              </label>
+              <input
+                id="login-pass"
+                type="password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                style={inputStyle}
+              />
+
+              <button type="submit" className="place-order-button" disabled={loading} style={{ opacity: loading ? 0.6 : 1 }}>
+                {loading ? "Logging in..." : "Log in"}
+              </button>
+            </form>
+          )}
+
+          {mode === "signup" && (
+            <>
+              <form onSubmit={handleSignup} style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                <label htmlFor="su-phone" style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>
+                  Phone number (with country code)
+                </label>
+                <input
+                  id="su-phone"
+                  type="tel"
+                  placeholder="+61 412 345 678"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  required
+                  value={suPhone}
+                  onChange={(e) => setSuPhone(e.target.value)}
+                  style={inputStyle}
+                />
+
+                <label htmlFor="su-phone-2" style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>
+                  Confirm phone number
+                </label>
+                <input
+                  id="su-phone-2"
+                  type="tel"
+                  required
+                  value={suPhone2}
+                  onChange={(e) => setSuPhone2(e.target.value)}
+                  style={inputStyle}
+                />
+
+                <label htmlFor="su-pass" style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>
+                  Password (min 6 chars)
+                </label>
+                <input
+                  id="su-pass"
+                  type="password"
+                  required
+                  value={suPassword}
+                  onChange={(e) => setSuPassword(e.target.value)}
+                  style={inputStyle}
+                />
+
+                <label htmlFor="su-pass-2" style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>
+                  Confirm password
+                </label>
+                <input
+                  id="su-pass-2"
+                  type="password"
+                  required
+                  value={suPassword2}
+                  onChange={(e) => setSuPassword2(e.target.value)}
+                  style={inputStyle}
+                />
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={wantsVerify}
+                    onChange={(e) => {
+                      setWantsVerify(e.target.checked);
+                      setErr("");
+                    }}
+                  />
+                  Verify phone now via SMS (optional)
+                </label>
+
+                {/* recaptcha host container (only mounts when needed) */}
+                {wantsVerify && !codeSent && <div id="recaptcha-container-modal" style={{ marginTop: '0.25rem' }} />}
+
+                <button type="submit" className="place-order-button" disabled={loading} style={{ opacity: loading ? 0.6 : 1 }}>
+                  {loading ? "Creating..." : "Create account"}
+                </button>
+              </form>
+
+              {/* If they chose verify and we managed to send the SMS, show the OTP step */}
+              {wantsVerify && codeSent && (
+                <form onSubmit={handleVerifyOtp} style={{ display: 'grid', gap: '0.75rem' }}>
+                  <label htmlFor="otp" style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>
+                    Enter the 6-digit code (if you want to verify now)
+                  </label>
+                  <input
+                    id="otp"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <button type="submit" className="place-order-button" disabled={loading} style={{ opacity: loading ? 0.6 : 1 }}>
+                    {loading ? "Verifying..." : "Verify & Finish"}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+
+          <p style={{ textAlign: 'center', color: 'var(--text-medium)', fontSize: '0.8rem', marginTop: '1rem' }}>
+            By continuing, you agree to our Terms and Conditions.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

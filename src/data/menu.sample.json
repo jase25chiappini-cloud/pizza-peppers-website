@@ -1,0 +1,29 @@
+{
+  "data": {
+    "categories": [
+      { "ref": "TRADITIONAL", "name": "Traditional Pizzas" },
+      { "ref": "DRINKS", "name": "Drinks" }
+    ],
+    "products": [
+      {
+        "category_ref": "TRADITIONAL",
+        "name": "Margherita",
+        "description": "Tomato base, mozzarella, fresh basil.",
+        "ingredients": ["tomato", "mozzarella", "basil"],
+        "skus": [
+          { "name": "regular", "price": 14.5 },
+          { "name": "large", "price": 18.0 }
+        ]
+      },
+      {
+        "category_ref": "DRINKS",
+        "name": "Coke 1.25L",
+        "description": "Chilled soft drink.",
+        "skus": [
+          { "name": "default", "price": 5.0 }
+        ]
+      }
+    ]
+  }
+}
+

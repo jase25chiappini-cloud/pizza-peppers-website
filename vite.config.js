@@ -6,12 +6,29 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   server: {
+    host: true,
+    port: 5173,
+    strictPort: false,
     proxy: {
+      // Forward all /public/* calls to your Flask dev server (read-only menu API)
       '/public': {
-        target: 'https://pizzapepperspos.onrender.com',
+        target: 'http://127.0.0.1:5055',
         changeOrigin: true,
-        secure: true,
-        rewrite: (p) => p, // keep /public path
+        secure: false,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (_req, req) =>
+            console.log(`[vite-proxy] → ${req.method} ${req.url}`)
+          )
+          proxy.on('proxyRes', (res, req) =>
+            console.log(`[vite-proxy] ← ${res.statusCode} ${req.method} ${req.url}`)
+          )
+        },
+      },
+      // Forward all /api/* calls to your Flask dev server
+      '/api': {
+        target: 'http://127.0.0.1:5055',
+        changeOrigin: true,
+        secure: false,
         configure: (proxy) => {
           proxy.on('proxyReq', (_req, req) =>
             console.log(`[vite-proxy] → ${req.method} ${req.url}`)
