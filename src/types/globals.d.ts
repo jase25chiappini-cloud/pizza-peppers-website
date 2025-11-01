@@ -12,7 +12,6 @@ declare global {
     __APP_RENDER_TAP?: any;
     /** Debug/dev flag to force menu readiness in the UI bootstrap */
     __FORCE_MENU_READY?: boolean | (() => void);
-    __FORCE_MENU_READY__?: boolean | (() => void); // TEMP: remove after code replace
     google?: any;
   }
 

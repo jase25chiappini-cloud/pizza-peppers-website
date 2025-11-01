@@ -244,7 +244,7 @@ try {
     db = getFirestore(app);
     storage = getStorage(app);
   } else {
-    if (import.meta.env?.DEV) console.warn('[Firebase] Not configured � features disabled.');
+    if (import.meta.env?.DEV) console.warn('[Firebase] Not configured · features disabled.');
   }
 } catch (e) { console.error('[Firebase] Init error', e); }
 
@@ -313,85 +313,82 @@ function useApp() { return useContext(AppContext); }
 // ----------------- MENU PIPELINE (stable) -----------------
 const MENU_URL = '/pp-proxy/public/menu';
 
-async function fetchMenuRaw() {
-  const res = await fetch(MENU_URL, { headers: { accept: 'application/json' } });
-  const ct = (res.headers.get('content-type') || '').toLowerCase();
-  if (!res.ok) throw new Error(`menu fetch ${res.status}`);
-  const json = await res.json();
-  const payload = (json && json.data && (json.data.categories || json.data.products)) ? json.data : json;
-  const cats = Array.isArray(payload?.categories) ? payload.categories : [];
-  const prods = Array.isArray(payload?.products) ? payload.products : [];
-  console.log('[menu][client] content-type:', ct);
-  console.log('[menu][client] keys:', Object.keys(payload || {}));
-  return { ...payload, categories: cats, products: prods };
-}
+function transformMenu(raw) {
+  const safe = (obj) => (obj && typeof obj === 'object' ? obj : {});
+  const arr = (v) => (Array.isArray(v) ? v : []);
 
-function centsFromAny(x) {
-  if (typeof x === 'number') return Math.round(x);
-  const n = parseFloat(String(x || '0'));
-  if (Number.isNaN(n)) return 0;
-  return Math.round(n * 100);
-}
-
-function transformMenu(payload) {
-  const inCats = Array.isArray(payload?.categories) ? payload.categories : [];
-  const inProds = Array.isArray(payload?.products) ? payload.products : [];
-  console.log('[menu][transform] input counts: categories=' + inCats.length + ' products=' + inProds.length);
-  console.log('[menu][transform] keys: category.ref=ref category.name=name product.categoryRef=category_ref');
-
-  const categories = inCats.map((c) => ({
-    ref: c.ref || c.id || c.category_ref || c.slug || (c.name ? c.name.toUpperCase().replace(/\s+/g, '_') : ''),
-    name: c.name || c.title || c.label || c.ref || c.slug || 'Category',
-    sort: c.sort ?? 9999,
+  const categories = arr(raw.categories).map((c) => ({
+    ref: c.ref ?? c.id ?? c.key ?? String(c.name || '').toLowerCase().replace(/\s+/g, '_'),
+    name: c.name ?? c.title ?? c.label ?? 'Unnamed',
+    sort: typeof c.sort === 'number' ? c.sort : 0,
   }));
 
-  const products = inProds.map((p) => {
-    let sizes = [];
-    if (Array.isArray(p.skus) && p.skus.length) {
-      sizes = p.skus.map((s) => ({
-        id: s.id || s.ref || s.size || s.name || 'default',
-        name: s.name || s.size || s.id || 'Default',
-        price_cents: ('price_cents' in s) ? centsFromAny(s.price_cents) : ('price' in s) ? centsFromAny(s.price) : 0,
+  const products = arr(raw.products).map((p) => {
+    const skus = arr(p.skus).map((s) => ({
+      id: s.id ?? s.ref ?? s.size ?? s.name ?? 'default',
+      name: s.name ?? s.size ?? 'Default',
+      price_cents: typeof s.price_cents === 'number'
+        ? s.price_cents
+        : (typeof s.price === 'number' ? Math.round(s.price * 100) : 0),
+    }));
+
+    let normalized = skus;
+    if (!normalized.length && p.prices && typeof p.prices === 'object') {
+      normalized = Object.entries(p.prices).map(([k, v]) => ({
+        id: k,
+        name: k,
+        price_cents: typeof v === 'number' ? Math.round(v * 100) : 0,
       }));
-    } else if (p.prices && typeof p.prices === 'object') {
-      sizes = Object.entries(p.prices).map(([k, v]) => ({ id: k, name: k, price_cents: centsFromAny(v) }));
-    } else {
-      const pc = ('price_cents' in p) ? centsFromAny(p.price_cents) : ('price' in p) ? centsFromAny(p.price) : 0;
-      sizes = [{ id: 'default', name: 'Default', price_cents: pc }];
+    }
+    if (!normalized.length) {
+      const priceCents = typeof p.price_cents === 'number'
+        ? p.price_cents
+        : (typeof p.price === 'number' ? Math.round(p.price * 100) : 0);
+      normalized = [{ id: 'default', name: 'Default', price_cents: priceCents }];
     }
 
-    const basePrice = sizes.length ? Math.min(...sizes.map((s) => s.price_cents)) : 0;
+    const basePrice = normalized.length ? Math.min(...normalized.map((s) => s.price_cents || 0)) : 0;
 
     return {
-      id: p.id || p.product_id || p.ref || (p.name || '').toLowerCase().replace(/\s+/g, '-'),
-      category_ref: p.category_ref || p.categoryRef || p.category?.ref || p.category_id || '',
-      name: p.name || p.title || 'Unnamed',
-      description: p.description || '',
-      image: p.image || null,
-      sizes,
+      id: p.id ?? p.ref ?? p.key ?? String(p.name || '').toLowerCase().replace(/\s+/g, '_'),
+      name: p.name ?? p.title ?? 'Unnamed',
+      description: p.description ?? '',
+      category_ref: p.category_ref ?? p.categoryRef ?? p.category ?? null,
+      image: p.image ?? null,
+      extras: safe(p.extras),
+      raw: safe(p),
+      sizes: normalized,
       basePrice_cents: basePrice,
-      raw: p,
     };
   });
 
-  const catMap = new Map();
-  for (const c of categories) {
-    const key = c.ref || c.name;
-    if (!key) continue;
-    catMap.set(key, { ...c, items: [] });
+  const byCat = new Map();
+  for (const cat of categories) byCat.set(cat.ref, []);
+  for (const p of products) {
+    const cref = p.category_ref;
+    if (cref && byCat.has(cref)) {
+      byCat.get(cref).push(p);
+    }
   }
 
-  for (const prod of products) {
-    const key = prod.category_ref && catMap.has(prod.category_ref)
-      ? prod.category_ref
-      : catMap.keys().next().value;
-    if (!key) continue;
-    catMap.get(key).items.push(prod);
-  }
+  const items = categories
+    .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
+    .map((cat) => {
+      const prods = (byCat.get(cat.ref) || []).sort((a, b) => a.name.localeCompare(b.name));
+      const itemsWithPrices = prods.map((p) => ({
+        ...p,
+        prices: Object.fromEntries(p.sizes.map((s) => [s.name, (s.price_cents || 0) / 100])),
+      }));
+      return {
+        ref: cat.ref,
+        name: cat.name,
+        products: itemsWithPrices,
+        items: itemsWithPrices,
+      };
+    });
 
-  const orderedCategories = Array.from(catMap.values()).sort((a, b) => (a.sort ?? 9999) - (b.sort ?? 9999));
-  console.log('[menu][transform] output categories=' + orderedCategories.length);
-  return { categories: orderedCategories, products };
+  console.log('[menu][transform] output categories=', items.length);
+  return { categories: items, products };
 }
 // ----------------------------------------------------------
 
@@ -2546,16 +2543,17 @@ function AppLayout({ isMapsLoaded }) {
   const { addToCart, removeFromCart } = useCart();
   const [menuLoading, setMenuLoading] = useState(true);
   const [menuReady, setMenuReady] = useState(false);
-  const [menu, setMenu] = useState({ categories: [], products: [] });
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
 
-  const menuData = useMemo(() => menu || { categories: [] }, [menu]);
-  const hasMenu = useMemo(() => Array.isArray(menuData?.categories) && menuData.categories.length > 0, [menuData]);
+  const menuData = useMemo(() => ({ categories }), [categories]);
+  const hasMenu = categories.length > 0;
 
   useEffect(() => {
     try {
-      console.log('[menu][render] menuLoading=', menuLoading, ' categories=', menuData?.categories?.length || 0);
+      console.log('[menu][render] menuLoading=', menuLoading, ' categories=', categories.length);
     } catch {}
-  }, [menuLoading, menuData]);
+  }, [menuLoading, categories]);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -2657,31 +2655,40 @@ function AppLayout({ isMapsLoaded }) {
 
   useEffect(() => {
     let alive = true;
-    setMenuLoading(true);
+    const url = MENU_URL;
     console.log('[menu][effect] start');
+    console.log('MENU_URL =', url);
+    setMenuLoading(true);
+    setMenuReady(false);
     (async () => {
       try {
-        console.log('MENU_URL =', MENU_URL);
-        const raw = await fetchMenuRaw();
-        const normalized = transformMenu(raw);
+        const res = await fetch(url, { cache: 'no-store' });
+        const contentType = res.headers.get('content-type');
+        console.log('[menu][debug] status:', res.status, 'content-type:', contentType);
+        const json = await res.json();
+        console.log('[menu][client] keys:', Object.keys(json || {}));
+        console.log('[menu][transform] input counts: categories=', Array.isArray(json?.categories) ? json.categories.length : 0, 'products=', Array.isArray(json?.products) ? json.products.length : 0);
+        console.log('[menu][transform] keys: category.ref=ref category.name=name product.categoryRef=category_ref');
+        const normalized = transformMenu(json);
         if (!alive) return;
-        setMenu(normalized);
+        setCategories(normalized.categories || []);
+        setProducts(normalized.products || []);
         setMenuError(null);
-      } catch (e) {
-        console.error('[menu][effect] error', e);
+      } catch (err) {
+        console.error('[menu][effect] error', err);
         if (!alive) return;
-        setMenu({ categories: [], products: [] });
-        setMenuError(e);
+        setCategories([]);
+        setProducts([]);
+        setMenuError(err);
       } finally {
         if (!alive) return;
         setMenuLoading(false);
         setMenuReady(true);
-        console.log('[menu][effect] finally → menuReady=true');
+        console.log('[menu][effect] finally -> setMenuReady(true)');
       }
     })();
     return () => { alive = false; };
   }, []);
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const devForce = () => {
@@ -2689,31 +2696,32 @@ function AppLayout({ isMapsLoaded }) {
       setMenuReady(true);
       console.warn('[menu][dev] forced ready');
     };
+    if (window.__FORCE_MENU_READY === true) {
+      devForce();
+    }
     window.__FORCE_MENU_READY = devForce;
-    window.__FORCE_MENU_READY__ = devForce; // TEMP compatibility during rename
     return () => {
       if (window.__FORCE_MENU_READY === devForce) delete window.__FORCE_MENU_READY;
-      if (window.__FORCE_MENU_READY__ === devForce) delete window.__FORCE_MENU_READY__;
     };
   }, []);
 
   // URL-guarded debug renderer to verify menu pipeline fast
   if (menuDebug) {
-    const cats = Array.isArray(menuData?.categories) ? menuData.categories.length : 0;
+    const cats = categories.length;
     return (
       <div style={{ padding: 16 }}>
         <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16 }}>
-          loading={String(menuLoading)} · ready={String(menuReady)} · hasMenu={String(hasMenu)} · categories={cats}
+          loading={String(menuLoading)} | ready={String(menuReady)} | hasMenu={String(hasMenu)} | categories={cats}
         </div>
         {menuError ? (
           <div style={{ color: 'crimson', marginBottom: 12 }}>Menu error: {String(menuError?.message || menuError)}</div>
         ) : null}
-        {(menuData?.categories || []).map((cat) => (
+        {categories.map((cat) => (
           <section key={cat.ref || cat.name} style={{ margin: '20px 0' }}>
             <h2 style={{ margin: '6px 0' }}>{cat.name}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
-              {cat.items.map((it) => (
+              {(cat.items || []).map((it) => (
                 <div key={it.id} style={{ border: '1px solid #333', borderRadius: 8, padding: 12 }}>
                   <div style={{ fontWeight: 600 }}>{it.name}</div>
                   <div style={{ fontSize: 12, opacity: 0.7, margin: '6px 0 10px' }}>{it.description}</div>
@@ -2775,11 +2783,11 @@ function AppLayout({ isMapsLoaded }) {
 
           <main className="main-content-area">
             {/* <DebugMenuFetch /> */}  {/* TEMP widget hidden */}
-            {menuLoading ? (
+            {!menuReady ? (
               <div className="p-8 text-center opacity-80">
                 <div className="animate-pulse text-sm">Loading menu… (AppLayout)</div>
               </div>
-            ) : (menu?.categories?.length > 0 ? (
+            ) : (hasMenu ? (
               <Routes>
                 <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
                 <Route path="/terms" element={<TermsPage />} />
@@ -2865,6 +2873,18 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
