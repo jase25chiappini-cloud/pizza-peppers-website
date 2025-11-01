@@ -313,82 +313,68 @@ function useApp() { return useContext(AppContext); }
 // ----------------- MENU PIPELINE (stable) -----------------
 const MENU_URL = '/pp-proxy/public/menu';
 
-function transformMenu(raw) {
-  const safe = (obj) => (obj && typeof obj === 'object' ? obj : {});
-  const arr = (v) => (Array.isArray(v) ? v : []);
+// Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
+function unwrapMenuApi(raw) {
+  const root = raw && typeof raw === 'object' ? raw : {};
+  const maybe = root.menu || root.data || root;
+  const api = {
+    categories: Array.isArray(maybe.categories) ? maybe.categories : [],
+    products: Array.isArray(maybe.products) ? maybe.products : [],
+    option_lists: Array.isArray(maybe.option_lists) ? maybe.option_lists :
+                  Array.isArray(maybe.optionLists) ? maybe.optionLists : [],
+    globals: maybe.globals || {},
+    settings: maybe.settings || {},
+    delivery_zones: Array.isArray(maybe.delivery_zones) ? maybe.delivery_zones :
+                    Array.isArray(maybe.deliveryZones) ? maybe.deliveryZones : []
+  };
+  try { console.log('[menu][client] keys:', Object.keys(api)); } catch {}
+  return api;
+}
 
-  const categories = arr(raw.categories).map((c) => ({
-    ref: c.ref ?? c.id ?? c.key ?? String(c.name || '').toLowerCase().replace(/\s+/g, '_'),
-    name: c.name ?? c.title ?? c.label ?? 'Unnamed',
-    sort: typeof c.sort === 'number' ? c.sort : 0,
-  }));
+async function fetchMenu(url = MENU_URL) {
+  console.log('[menu] GET', url);
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  const ct = res.headers.get('content-type') || '';
+  try { console.log('[menu][debug] status:', res.status, 'content-type:', ct); } catch {}
+  const raw = await res.json();
+  return unwrapMenuApi(raw);
+}
 
-  const products = arr(raw.products).map((p) => {
-    const skus = arr(p.skus).map((s) => ({
-      id: s.id ?? s.ref ?? s.size ?? s.name ?? 'default',
-      name: s.name ?? s.size ?? 'Default',
-      price_cents: typeof s.price_cents === 'number'
-        ? s.price_cents
-        : (typeof s.price === 'number' ? Math.round(s.price * 100) : 0),
-    }));
+// cfg: choose keys from API (kept compatible with your JSON)
+const MENU_CFG = {
+  catRefKey: 'ref',
+  catNameKey: 'name',
+  productCatRefKey: 'category_ref',
+};
 
-    let normalized = skus;
-    if (!normalized.length && p.prices && typeof p.prices === 'object') {
-      normalized = Object.entries(p.prices).map(([k, v]) => ({
-        id: k,
-        name: k,
-        price_cents: typeof v === 'number' ? Math.round(v * 100) : 0,
-      }));
-    }
-    if (!normalized.length) {
-      const priceCents = typeof p.price_cents === 'number'
-        ? p.price_cents
-        : (typeof p.price === 'number' ? Math.round(p.price * 100) : 0);
-      normalized = [{ id: 'default', name: 'Default', price_cents: priceCents }];
-    }
+function transformMenu(api, cfg = MENU_CFG) {
+  const cats = Array.isArray(api?.categories) ? api.categories : [];
+  const products = Array.isArray(api?.products) ? api.products : [];
+  try {
+    console.log('[menu][transform] input counts: categories=' + cats.length + ' products=' + products.length);
+    console.log('[menu][transform] keys: category.ref=' + cfg.catRefKey + ' category.name=' + cfg.catNameKey + ' product.categoryRef=' + cfg.productCatRefKey);
+  } catch {}
 
-    const basePrice = normalized.length ? Math.min(...normalized.map((s) => s.price_cents || 0)) : 0;
-
-    return {
-      id: p.id ?? p.ref ?? p.key ?? String(p.name || '').toLowerCase().replace(/\s+/g, '_'),
-      name: p.name ?? p.title ?? 'Unnamed',
-      description: p.description ?? '',
-      category_ref: p.category_ref ?? p.categoryRef ?? p.category ?? null,
-      image: p.image ?? null,
-      extras: safe(p.extras),
-      raw: safe(p),
-      sizes: normalized,
-      basePrice_cents: basePrice,
-    };
-  });
-
-  const byCat = new Map();
-  for (const cat of categories) byCat.set(cat.ref, []);
-  for (const p of products) {
-    const cref = p.category_ref;
-    if (cref && byCat.has(cref)) {
-      byCat.get(cref).push(p);
-    }
+  const byCatRef = new Map();
+  for (const c of cats) {
+    const ref = c?.[cfg.catRefKey];
+    const name = c?.[cfg.catNameKey] ?? ref ?? 'Unnamed';
+    if (!ref) continue;
+    byCatRef.set(ref, { ref, name, items: [] });
   }
 
-  const items = categories
-    .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name))
-    .map((cat) => {
-      const prods = (byCat.get(cat.ref) || []).sort((a, b) => a.name.localeCompare(b.name));
-      const itemsWithPrices = prods.map((p) => ({
-        ...p,
-        prices: Object.fromEntries(p.sizes.map((s) => [s.name, (s.price_cents || 0) / 100])),
-      }));
-      return {
-        ref: cat.ref,
-        name: cat.name,
-        products: itemsWithPrices,
-        items: itemsWithPrices,
-      };
-    });
+  for (const p of products) {
+    const ref = p?.[cfg.productCatRefKey] ?? p?.categoryRef;
+    if (!ref) continue;
+    const bucket = byCatRef.get(ref);
+    if (!bucket) continue;
+    // keep product as-is; UI can compute sizes/prices
+    bucket.items.push(p);
+  }
 
-  console.log('[menu][transform] output categories=', items.length);
-  return { categories: items, products };
+  const normalized = { categories: Array.from(byCatRef.values()) };
+  try { console.log('[menu][transform] output categories=' + normalized.categories.length); } catch {}
+  return normalized;
 }
 // ----------------------------------------------------------
 
@@ -2541,19 +2527,10 @@ function AppLayout({ isMapsLoaded }) {
 
 
   const { addToCart, removeFromCart } = useCart();
-  const [menuLoading, setMenuLoading] = useState(true);
-  const [menuReady, setMenuReady] = useState(false);
-  const [categories, setCategories] = useState([]);
-  const [products, setProducts] = useState([]);
-
-  const menuData = useMemo(() => ({ categories }), [categories]);
-  const hasMenu = categories.length > 0;
-
-  useEffect(() => {
-    try {
-      console.log('[menu][render] menuLoading=', menuLoading, ' categories=', categories.length);
-    } catch {}
-  }, [menuLoading, categories]);
+  const [menuData, setMenuData] = React.useState({ categories: [] });
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [menuReady, setMenuReady] = React.useState(false);
+  const [menuError, setMenuError] = useState(null);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -2563,8 +2540,12 @@ function AppLayout({ isMapsLoaded }) {
   const [rightPanelView, setRightPanelView] = useState('order');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [menuError, setMenuError] = useState(null);
-  // Derived: do we have at least one category?
+
+  const forceMenuReady = React.useCallback(() => {
+    setIsLoading(false);
+    setMenuReady(true);
+    console.warn('[menu][dev] forced ready');
+  }, [setIsLoading, setMenuReady]);
 
   const prepareItemForPanel = useCallback((item) => {
     if (!item) return null;
@@ -2653,71 +2634,66 @@ function AppLayout({ isMapsLoaded }) {
     setRightPanelView('about');
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     let alive = true;
-    const url = MENU_URL;
-    console.log('[menu][effect] start');
-    console.log('MENU_URL =', url);
-    setMenuLoading(true);
+    setIsLoading(true);
     setMenuReady(false);
+    console.log('[menu][effect] start');
     (async () => {
       try {
-        const res = await fetch(url, { cache: 'no-store' });
-        const contentType = res.headers.get('content-type');
-        console.log('[menu][debug] status:', res.status, 'content-type:', contentType);
-        const json = await res.json();
-        console.log('[menu][client] keys:', Object.keys(json || {}));
-        console.log('[menu][transform] input counts: categories=', Array.isArray(json?.categories) ? json.categories.length : 0, 'products=', Array.isArray(json?.products) ? json.products.length : 0);
-        console.log('[menu][transform] keys: category.ref=ref category.name=name product.categoryRef=category_ref');
-        const normalized = transformMenu(json);
+        const api = await fetchMenu(MENU_URL);
+        const normalized = transformMenu(api);
         if (!alive) return;
-        setCategories(normalized.categories || []);
-        setProducts(normalized.products || []);
+        setMenuData(normalized);
         setMenuError(null);
       } catch (err) {
-        console.error('[menu][effect] error', err);
+        console.warn('[menu][effect] error', err);
         if (!alive) return;
-        setCategories([]);
-        setProducts([]);
+        setMenuData({ categories: [] });
         setMenuError(err);
       } finally {
         if (!alive) return;
-        setMenuLoading(false);
+        setIsLoading(false);
         setMenuReady(true);
-        console.log('[menu][effect] finally -> setMenuReady(true)');
+        console.log('[menu][effect] finally -> ready');
       }
     })();
     return () => { alive = false; };
   }, []);
-  useEffect(() => {
+
+  React.useEffect(() => {
     if (typeof window === 'undefined') return;
-    const devForce = () => {
-      setMenuLoading(false);
-      setMenuReady(true);
-      console.warn('[menu][dev] forced ready');
-    };
     if (window.__FORCE_MENU_READY === true) {
-      devForce();
+      forceMenuReady();
     }
-    window.__FORCE_MENU_READY = devForce;
+    window.__FORCE_MENU_READY = forceMenuReady;
     return () => {
-      if (window.__FORCE_MENU_READY === devForce) delete window.__FORCE_MENU_READY;
+      if (window.__FORCE_MENU_READY === forceMenuReady) delete window.__FORCE_MENU_READY;
     };
-  }, []);
+  }, [forceMenuReady]);
+
+  if (typeof window !== 'undefined') {
+    const devWindow = window;
+    devWindow.__APP_RENDER_TAP = 'ready';
+    devWindow.__FORCE_MENU_READY = forceMenuReady;
+  }
+
+  const cats = menuData?.categories ?? [];
+  const hasMenu = cats.length > 0;
+  try { console.log('[menu][render] menuLoading=', isLoading, ' categories=', cats.length); } catch {}
 
   // URL-guarded debug renderer to verify menu pipeline fast
   if (menuDebug) {
-    const cats = categories.length;
     return (
       <div style={{ padding: 16 }}>
         <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16 }}>
-          loading={String(menuLoading)} | ready={String(menuReady)} | hasMenu={String(hasMenu)} | categories={cats}
+          loading={String(isLoading)} | ready={String(menuReady)} | hasMenu={String(hasMenu)} | categories={cats.length}
         </div>
         {menuError ? (
           <div style={{ color: 'crimson', marginBottom: 12 }}>Menu error: {String(menuError?.message || menuError)}</div>
         ) : null}
-        {categories.map((cat) => (
+        {cats.map((cat) => (
           <section key={cat.ref || cat.name} style={{ margin: '20px 0' }}>
             <h2 style={{ margin: '6px 0' }}>{cat.name}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
@@ -2739,6 +2715,22 @@ function AppLayout({ isMapsLoaded }) {
             </div>
           </section>
         ))}
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center text-gray-400">
+        Loading menu… (AppLayout spinner A)
+      </div>
+    );
+  }
+
+  if (!hasMenu) {
+    return (
+      <div className="p-8 text-center text-gray-400">
+        No items to show yet (0 categories). Check /pp-proxy/public/menu.
       </div>
     );
   }
@@ -2783,26 +2775,16 @@ function AppLayout({ isMapsLoaded }) {
 
           <main className="main-content-area">
             {/* <DebugMenuFetch /> */}  {/* TEMP widget hidden */}
-            {!menuReady ? (
-              <div className="p-8 text-center opacity-80">
-                <div className="animate-pulse text-sm">Loading menu… (AppLayout)</div>
+            {menuError ? (
+              <div className="mb-4 text-center text-xs text-red-300 opacity-80">
+                Menu error: {String(menuError?.message || menuError)}
               </div>
-            ) : (hasMenu ? (
-              <Routes>
-                <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
-                <Route path="/terms" element={<TermsPage />} />
-                <Route path="*" element={<div style={{padding:16}}>Route fallback OK</div>} />
-              </Routes>
-            ) : (
-              <div className="p-8 text-center opacity-80">
-                <div className="text-sm">No items to show yet. Check your menu JSON.</div>
-                {menuError ? (
-                  <div className="text-xs" style={{ marginTop: '0.5rem', opacity: 0.6 }}>
-                    {String(menuError?.message || menuError)}
-                  </div>
-                ) : null}
-              </div>
-            ))}
+            ) : null}
+            <Routes>
+              <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="*" element={<div style={{padding:16}}>Route fallback OK</div>} />
+            </Routes>
             <Footer />
           </main>
         </div>
