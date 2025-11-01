@@ -145,7 +145,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
 
       // If the above sign-in replaced current user, link to that signed-in user is unnecessary,
       // but we’ll also try to ensure the email account has the phone linked:
-      if (auth.currentUser && auth.currentUser.providerData.every(p => p.providerId !== 'phone')) {
+      if (auth?.currentUser && auth.currentUser.providerData.every(p => p.providerId !== 'phone')) {
         await linkWithCredential(auth.currentUser, phoneCred).catch(() => {});
       }
 

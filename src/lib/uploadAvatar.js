@@ -6,7 +6,7 @@ export async function uploadAvatarAndSaveProfile(file) {
   if (!FB_READY || !auth || !storage || !db) {
     throw new Error("Uploads unavailable (Firebase not configured).");
   }
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   if (!user) throw new Error("Not signed in");
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();

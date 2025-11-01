@@ -1,5 +1,6 @@
-import React, { useState, createContext, useContext, useMemo, useEffect, useRef } from 'react';
+﻿import React, { useState, createContext, useContext, useMemo, useEffect, useRef } from 'react';
 import { fetchLiveMenu } from './lib/menuClient';
+import { transformMenu } from './lib/transformMenu';
 import { MENU_URL, logMenuUrlOnce } from './config/menuSource';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 // import { formatId, getImagePath } from './utils/helpers';
@@ -14,6 +15,14 @@ import OrderSummaryPanel from './components/OrderSummaryPanel';
 import FirebaseBanner from './components/FirebaseBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { clearBadPhotoUrlIfNeeded } from './dev/repairPhotoUrl';
+// import DebugMenuFetch from './dev/DebugMenuFetch';
+ // TEMP: runtime guard in case Vite/HMR cache is stale and misses transformMenu.js
+ let transformMenuSafeRef = transformMenu;
+ if (typeof transformMenuSafeRef !== 'function') {
+   console.warn('[menu] transformMenu missing; using pass-through fallback');
+   transformMenuSafeRef = (api) => ({ categories: Array.isArray(api?.categories) ? api.categories.map(c => ({ name: c.name, ref: c.ref ?? c.id ?? c._id ?? c.name, items: [] })) : [] });
+ }
+// import DebugMenuFetch from './dev/DebugMenuFetch';
 // import useGoogleMaps from './hooks/useGoogleMaps';
 // Firebase singletons come from src/firebase
 import { 
@@ -238,7 +247,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
       setLoading(true);
       if (!window.__ppConfirmation) throw new Error("Please send the code first.");
       const res = await window.__ppConfirmation.confirm(otp);
-      if (res?.user) setOk("Number verified ✅ (optional).");
+      if (res?.user) setOk("Number verified âœ… (optional).");
     } catch (error) {
       setErr(error?.message || "Invalid code");
     } finally {
@@ -259,7 +268,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   if (!entry) return setErr("No account found for that number. Please sign up.");
   if (entry.pw !== password) return setErr("Incorrect password.");
 
-  // ✅ create local session so Navbar sees you as logged in
+  // âœ… create local session so Navbar sees you as logged in
   loginLocal(ph);
   setOk("Welcome back!");
   setTimeout(onClose, 300);
@@ -284,9 +293,9 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   users[ph1] = { pw: password, createdAt: Date.now() };
   saveUsers(users);
 
-  // ✅ immediately sign them in locally
+  // âœ… immediately sign them in locally
   loginLocal(ph1);
-  setOk("Account created 🎉 You’re all set.");
+  setOk("Account created ðŸŽ‰ Youâ€™re all set.");
   setTimeout(onClose, 400);
 };
 
@@ -319,7 +328,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
       >
         <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
           <h3 className="panel-title" style={{ fontSize: '1.6rem' }}>Login or Sign Up</h3>
-          <button onClick={onClose} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
+          <button onClick={onClose} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>Ã—</button>
         </div>
 
         <div className="modal-body" style={{ overflowX: 'hidden', paddingTop: '0.75rem' }}>
@@ -552,7 +561,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
                 className="simple-button"
                 style={{ marginTop: '1rem', background: 'transparent', border: '1px solid var(--border-color)' }}
               >
-                ← All sign-in options
+                â† All sign-in options
               </button>
             </div>
           )}
@@ -584,10 +593,10 @@ function ProfileModal({ onClose }) {
     suburb: "",
     state: "",
     postcode: "",
-    paymentLabel: "",   // e.g. “Visa •••• 4242” or “Pay on pickup”
-    paymentBrand: "",   // e.g. “visa”
-    paymentLast4: "",   // e.g. “4242”
-    paymentExp: "",     // e.g. “12/26”
+    paymentLabel: "",   // e.g. â€œVisa â€¢â€¢â€¢â€¢ 4242â€ or â€œPay on pickupâ€
+    paymentBrand: "",   // e.g. â€œvisaâ€
+    paymentLast4: "",   // e.g. â€œ4242â€
+    paymentExp: "",     // e.g. â€œ12/26â€
   });
 
   // Load existing profile (or seed from auth)
@@ -604,7 +613,7 @@ function ProfileModal({ onClose }) {
           email: currentUser.email || "",
         };
 
-        // Local user → read from localStorage
+        // Local user â†’ read from localStorage
         if (currentUser.providerId === 'local' || (currentUser.uid && currentUser.uid.startsWith('local:'))) {
           try {
             const raw = localStorage.getItem(`pp_profile_${currentUser.uid}`);
@@ -617,7 +626,7 @@ function ProfileModal({ onClose }) {
             if (mounted) setLoading(false);
           }
         } else if (!firebaseDisabled && db) {
-          // Firebase user → Firestore
+          // Firebase user â†’ Firestore
           const ref = doc(db, "users", currentUser.uid);
           const snap = await getDoc(ref);
           if (snap.exists()) {
@@ -629,7 +638,7 @@ function ProfileModal({ onClose }) {
             if (mounted) setForm(prev => ({ ...prev, ...seed }));
           }
         } else {
-          // Firebase not available → fall back to auth seed only
+          // Firebase not available â†’ fall back to auth seed only
           if (mounted) setForm(prev => ({ ...prev, ...seed }));
         }
       } catch (e) {
@@ -679,7 +688,7 @@ function ProfileModal({ onClose }) {
     try {
       setSaving(true);
       if (!currentUser) throw new Error("Not logged in");
-      // Don’t store raw card numbers here. This is only metadata/labels.
+      // Donâ€™t store raw card numbers here. This is only metadata/labels.
       if (!firebaseDisabled && db) {
         const ref = doc(db, "users", currentUser.uid);
         await setDoc(ref, { ...form }, { merge: true });
@@ -737,7 +746,7 @@ function ProfileModal({ onClose }) {
       >
         <div className="modal-header">
           <h3 className="panel-title">Your Profile</h3>
-          <button onClick={onClose} className="quantity-btn" style={{ width: '2.5rem', height: '2.5rem' }}>×</button>
+          <button onClick={onClose} className="quantity-btn" style={{ width: '2.5rem', height: '2.5rem' }}>Ã—</button>
         </div>
 
         <div className="modal-body" style={{ paddingBottom: "0.25rem" }}>
@@ -760,7 +769,7 @@ function ProfileModal({ onClose }) {
                     {
                       firebaseDisabled
                         ? 'Upload unavailable in this environment'
-                        : (uploading ? `Uploading… ${uploadPct ?? 0}%` : 'Upload photo')
+                        : (uploading ? `Uploadingâ€¦ ${uploadPct ?? 0}%` : 'Upload photo')
                     }
                   </label>
                   <input
@@ -771,7 +780,7 @@ function ProfileModal({ onClose }) {
                     style={{ display: 'none' }}
                     disabled={!canUseAvatarUpload || uploading}
                   />
-                  <div className="pp-upload-hint">JPG/PNG • ~1MB</div>
+                  <div className="pp-upload-hint">JPG/PNG â€¢ ~1MB</div>
                 </div>
 
                 <div className="pp-row">
@@ -874,7 +883,7 @@ function ProfileModal({ onClose }) {
                     type="text"
                     value={form.paymentLabel}
                     onChange={onChange}
-                    placeholder='e.g. "Visa •••• 4242" or "Pay on pickup"'
+                    placeholder='e.g. "Visa â€¢â€¢â€¢â€¢ 4242" or "Pay on pickup"'
                   />
 
                   <div className="pp-three">
@@ -905,7 +914,7 @@ function ProfileModal({ onClose }) {
 
               {error && <p style={{ color: "tomato", margin: 0 }}>{error}</p>}
               <button type="submit" className="place-order-button" disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
-                {saving ? "Saving…" : "Save profile"}
+                {saving ? "Savingâ€¦" : "Save profile"}
               </button>
             </form>
           )}
@@ -1265,7 +1274,7 @@ function AppStyles() {
       padding: 0.25rem 0.5rem 0.5rem; /* small inner gutter */
     }
 
-    /* Focus style that never “clips” against edges */
+    /* Focus style that never â€œclipsâ€ against edges */
     input[type="text"], input[type="tel"], input[type="password"], input[type="url"], select, textarea {
       background-color: var(--border-color);
       border: 1px solid #4b5563;
@@ -1275,7 +1284,7 @@ function AppStyles() {
       transition: box-shadow 0.15s, outline 0.15s, border-color 0.15s;
     }
 
-    /* outline + offset is safer than huge glow; won’t get cut off */
+    /* outline + offset is safer than huge glow; wonâ€™t get cut off */
     input[type="text"]:focus, input[type="tel"]:focus, input[type="password"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
       outline: 2px solid var(--brand-pink);
       outline-offset: 3px;             /* pulls outline inward a little */
@@ -1403,7 +1412,7 @@ function ExtrasModal({ onSave, onCancel, initialExtras = {} }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="panel-title">Add Extras</h3>
-          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
+          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>Ã—</button>
         </div>
         <div className="modal-body">
           {Object.entries(extrasData).map(([category, extras]) => (
@@ -1447,7 +1456,7 @@ function EditIngredientsModal({ item, onSave, onCancel, initialRemoved = [] }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="panel-title">Edit Ingredients</h3>
-          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
+          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>Ã—</button>
         </div>
         <div className="modal-body">
           {item.ingredients?.map(ingredient => (
@@ -1828,79 +1837,39 @@ function AppLayout({ isMapsLoaded }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // Unified MENU fetch using VITE_MENU_URL and local fallback
   // Guard against React StrictMode double-invoke in dev
   const fetchedOnce = useRef(false);
   useEffect(() => {
     if (fetchedOnce.current) return;
     fetchedOnce.current = true;
-    const watchdog = setTimeout(() => {
-      if (isLoading) {
-        console.warn('[menu] watchdog: forcing spinner off after 15s');
-        setMenuError((m) => m || 'Menu request took too long.');
+    let mounted = true;
+
+    // Safety valve for spinner
+    const spinnerKill = setTimeout(() => {
+      if (mounted) {
+        console.warn('[menu][effect] safety timer fired; forcing spinner off')
         setIsLoading(false);
       }
-    }, 15000);
-    let mounted = true;
+    }, 8000);
+
     (async () => {
       try {
         logMenuUrlOnce();
         try { console.log('MENU_URL =', import.meta.env.VITE_MENU_URL); } catch {}
-        const raw = await fetchLiveMenu();
+        const api = await fetchLiveMenu();            // unwrapped -> {categories, products, ...}
         if (!mounted) return;
-        // —— tolerate small API shape shifts (e.g., {data:{categories,products}}) ——
-        const api = raw?.data?.menu || raw?.data || raw;
-        const cats = Array.isArray(api?.categories) ? api.categories : [];
-        const prods = Array.isArray(api?.products) ? api.products : [];
-
-        if (!cats.length || !prods.length) {
-          console.warn('[menu][debug] empty or missing cats/prods', { catsLen: cats.length, prodsLen: prods.length });
-        }
-
-        const toTitle = (s) => (s ? (s[0].toUpperCase() + s.slice(1)) : '');
-        const toNumber = (val) => typeof val === 'number' ? val : Number.parseFloat(String(val ?? '').replace(/[^\d.]/g, ''));
-
-        const transformedMenu = {
-          categories: cats.map((category) => {
-            const items = prods
-              .filter((p) => (p.category_ref ?? p.categoryRef ?? p.category_id) === (category.ref ?? category.id))
-              .map((product) => {
-                const skus = Array.isArray(product.skus) ? product.skus : [];
-                const sizeNames = skus.map((sku) => toTitle(sku.name ?? 'Default'));
-                const prices = skus.reduce((acc, sku) => {
-                  const key = toTitle(sku.name ?? 'Default');
-                  const priceNum = toNumber(sku.price);
-                  if (!Number.isNaN(priceNum)) acc[key] = priceNum;
-                  return acc;
-                }, {});
-                const sizes = sizeNames.length > 1 ? sizeNames : null;
-                const singleDefault = sizes ? undefined : (Object.values(prices)[0] ?? undefined);
-                return {
-                  name: product.name ?? '(Unnamed)',
-                  description: product.description ?? '',
-                  sizes,
-                  prices: sizes ? prices : { Default: singleDefault },
-                  ingredients: Array.isArray(product.ingredients) ? product.ingredients : []
-                };
-              });
-            return { name: category.name ?? '(Unnamed)', items };
-          })
-        };
-        const totalItems = transformedMenu.categories.reduce((n, c) => n + c.items.length, 0);
-        console.log('[menu][debug] transformed:', { categories: transformedMenu.categories.length, totalItems });
-        if (!totalItems) {
-          throw new Error('Live menu returned 0 items after transform (check API shape).');
-        }
-        setMenuData(transformedMenu);
-        setMenuError('');
+        const transformed = transformMenuSafeRef(api);       // static import, cannot silently fail to load
+        console.log('[menu] loaded: categories=', transformed.categories.length);
+        setMenuData(transformed);
       } catch (err) {
         console.error('[menu] failed:', err);
-        setMenuError(err?.message || 'Menu failed to load.');
+        setMenuData({ categories: [] });             // explicit empty-state
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted) { clearTimeout(spinnerKill); setIsLoading(false); console.log('[menu][effect] done'); }            // spinner always stops
       }
     })();
-    return () => { mounted = false; clearTimeout(watchdog); };
+
+    return () => { mounted = false; clearTimeout(spinnerKill); };
   }, []);
 
   const handleItemClick = (item) => {
@@ -2000,21 +1969,21 @@ function AppLayout({ isMapsLoaded }) {
           />
 
           <main className="main-content-area">
+            {/* <DebugMenuFetch /> */}  {/* TEMP widget hidden */}
             {isLoading ? (
-              <p style={{ textAlign: 'center', fontSize: '1.2rem', marginTop: '4rem' }}>Loading menu...</p>
-            ) : menuError ? (
-              <div className="info-box" style={{ maxWidth: 680, margin: '3rem auto', borderColor: 'tomato' }}>
-                <h3 style={{ marginTop: 0, color: 'tomato' }}>Menu unavailable</h3>
-                <p style={{ marginBottom: '0.75rem' }}>
-                  We couldn’t load the live menu. Please try again shortly.
-                </p>
-                <code style={{ display: 'block', whiteSpace: 'pre-wrap', opacity: 0.8 }}>{menuError}</code>
-              </div>
-            ) : (
+              <p style={{ textAlign:'center', fontSize:'1.2rem', marginTop:'1rem' }}>
+                Loading menu...
+              </p>
+            ) : menuData?.categories?.length ? (
               <Routes>
                 <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
                 <Route path="/terms" element={<TermsPage />} />
               </Routes>
+            ) : (
+              <div style={{ textAlign:'center', marginTop:'2rem' }}>
+                <div>No items to show. Live API returned 0 categories or failed transform.</div>
+                <div style={{opacity:.7, marginTop:6}}>Open DevTools â†’ Console for [menu][transform] logs.</div>
+              </div>
             )}
             <Footer />
           </main>
@@ -2083,3 +2052,7 @@ function App() {
 }
 
 export default App;
+
+
+
+

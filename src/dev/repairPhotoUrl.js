@@ -2,7 +2,7 @@ import { auth, db } from "../firebase";
 import { doc, updateDoc } from "firebase/firestore";
 
 export async function clearBadPhotoUrlIfNeeded() {
-  const u = auth.currentUser;
+  const u = auth?.currentUser;
   if (!u) return;
   if (u.photoURL && typeof u.photoURL === 'string' && u.photoURL.includes("firebasestorage.app")) {
     try {
@@ -13,4 +13,3 @@ export async function clearBadPhotoUrlIfNeeded() {
     }
   }
 }
-

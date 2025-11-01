@@ -18,27 +18,21 @@ export default defineConfig({
       '/pp-proxy': {
         target: TARGET,
         changeOrigin: true,
-        secure: true,
-        ws: false,
-        proxyTimeout: 30_000,
-        timeout: 30_000,
+        secure: false,
         rewrite: (p) => p.replace(/^\/pp-proxy/, ''),
-        configure: (proxy /*, options*/) => {
-          proxy.on('error', (err, req, res) => {
-            console.error('[vite-proxy] error:', err?.message || err)
-            try {
-              res.writeHead?.(502, { 'Content-Type': 'application/json' })
-              res.end?.(JSON.stringify({ error: 'Proxy error', detail: String(err?.message || err) }))
-            } catch {}
-          })
-          proxy.on('proxyReq', (proxyReq, req) => {
-            console.log(`[vite-proxy] → ${TARGET}${req.url}`)
-            proxyReq.setHeader('Origin', TARGET)
-            proxyReq.setHeader('Referer', TARGET + '/')
-          })
+        configure: (proxy) => {
           proxy.on('proxyRes', (proxyRes, req) => {
-            console.log(`[vite-proxy] ← ${proxyRes.statusCode} ${req.url}`)
-          })
+            // Allow Vite origin during dev
+            proxyRes.headers['access-control-allow-origin'] = '*';
+            proxyRes.headers['access-control-allow-credentials'] = 'true';
+            console.log('[vite-proxy] ←', proxyRes.statusCode, req.url)
+          });
+          proxy.on('proxyReq', (_, req) => {
+            console.log('[vite-proxy] →', req.url)
+          });
+          proxy.on('error', (err, req) => {
+            console.error('[vite-proxy] error', req.url, err.code || err.message)
+          });
         }
       },
       '/public': {
