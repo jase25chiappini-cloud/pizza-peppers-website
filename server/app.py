@@ -1,6 +1,13 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 import json
 import os
+import requests
+try:
+    # Load .env when running via `python app.py` (flask run does this automatically)
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv()
+except Exception:
+    pass
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
@@ -93,7 +100,34 @@ def public_menu():
     Return helpful JSON on failure.
     """
     try:
-        raw = _load_menu_json()
+        # 1) Prefer live menu via POS API when key is provided
+        pos_key = os.getenv('POS_API_KEY')
+        pos_url = os.getenv('POS_MENU_URL', 'https://pizzapepperspos.onrender.com/public/menu')
+        raw = None
+        if pos_key:
+            try:
+                res = requests.get(
+                    pos_url,
+                    headers={
+                        'Accept': 'application/json',
+                        # common patterns; server may use one of these
+                        'x-api-key': pos_key,
+                        'Authorization': f'Bearer {pos_key}',
+                    },
+                    timeout=12,
+                )
+                if res.ok:
+                    raw = res.json()
+                else:
+                    # fall back to local if remote returns non-OK
+                    raw = None
+            except Exception:
+                raw = None
+
+        # 2) Fallback to local file(s) when live fetch is unavailable
+        if raw is None:
+            raw = _load_menu_json()
+
         out = _normalize_to_minimal_catalog(raw)
         data = out.get("data", {})
         if not isinstance(data.get("categories"), list) or not isinstance(data.get("products"), list):

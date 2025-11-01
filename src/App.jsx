@@ -1,4 +1,5 @@
 import React, { useState, createContext, useContext, useMemo, useEffect, useRef } from 'react';
+import { fetchLiveMenu } from './lib/menuClient';
 import { MENU_URL, logMenuUrlOnce } from './config/menuSource';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 // import { formatId, getImagePath } from './utils/helpers';
@@ -1816,6 +1817,7 @@ function AppLayout({ isMapsLoaded }) {
   // Dynamic menu
   const [menuData, setMenuData] = useState({ categories: [] });
   const [isLoading, setIsLoading] = useState(true);
+  const [menuError, setMenuError] = useState('');
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -1826,108 +1828,79 @@ function AppLayout({ isMapsLoaded }) {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // SERVER-FIRST menu fetch (centralized MENU_URL)
+  // Unified MENU fetch using VITE_MENU_URL and local fallback
   // Guard against React StrictMode double-invoke in dev
   const fetchedOnce = useRef(false);
   useEffect(() => {
     if (fetchedOnce.current) return;
     fetchedOnce.current = true;
-    const fetchMenu = async () => {
-      try {
-        logMenuUrlOnce();
-        const response = await fetch(MENU_URL, { headers: { 'Accept': 'application/json' } });
-        if (!response.ok) {
-          const text = await response.text().catch(() => '');
-          console.error('[menu] HTTP ' + response.status, text);
-          throw new Error(`Server responded with an error: ${response.status}`);
-        }
-        const jsonResponse = await response.json().catch(err => {
-          console.error('[menu] JSON parse error', err);
-          throw new Error(`Invalid JSON from ${MENU_URL}`);
-        });
-        const rawData = jsonResponse.data;
-        if (!Array.isArray(rawData?.categories) || !Array.isArray(rawData?.products)) {
-          console.error('[menu] Unexpected shape. Got:', jsonResponse);
-          throw new Error('Menu payload missing categories/products');
-        }
-
-        const transformedMenu = {
-          categories: rawData.categories.map(category => {
-            const items = rawData.products
-              .filter(p => p.category_ref === category.ref)
-              .map(product => {
-                const sizes = Array.isArray(product.skus)
-                  ? product.skus.map(sku => sku.name.charAt(0).toUpperCase() + sku.name.slice(1))
-                  : [];
-                const prices = (Array.isArray(product.skus) ? product.skus : []).reduce((acc, sku) => {
-                  const key = sku.name.charAt(0).toUpperCase() + sku.name.slice(1);
-                  const toNumber = (val) =>
-                    typeof val === 'number' ? val : parseFloat(String(val).replace(/[^\d.]/g, ''));
-                  acc[key] = toNumber(sku.price);
-                  return acc;
-                }, {});
-
-                return {
-                  name: product.name,
-                  description: product.description,
-                  sizes: sizes.length > 1 ? sizes : null,
-                  prices: sizes.length > 1 ? prices : { Default: prices.Default ?? Object.values(prices)[0] },
-                  ingredients: product.ingredients || [],
-                };
-              });
-            return { name: category.name, items: items };
-          })
-        };
-        
-        setMenuData(transformedMenu);
-        setIsLoading(false);
-
-      } catch (error) {
-        console.error("Failed to fetch menu:", error);
-        const allowSample = import.meta.env.DEV && import.meta.env.VITE_ALLOW_MENU_SAMPLE === '1';
-        if (allowSample) {
-          try {
-            const sample = await import('./data/menu.sample.json');
-            const rawData = sample.default.data;
-            const transformedMenu = {
-              categories: rawData.categories.map(category => {
-                const items = rawData.products
-                  .filter(p => p.category_ref === category.ref)
-                  .map(product => {
-                    const sizes = Array.isArray(product.skus)
-                      ? product.skus.map(sku => sku.name.charAt(0).toUpperCase() + sku.name.slice(1))
-                      : [];
-                    const prices = (Array.isArray(product.skus) ? product.skus : []).reduce((acc, sku) => {
-                      const key = sku.name.charAt(0).toUpperCase() + sku.name.slice(1);
-                      const toNumber = (val) =>
-                        typeof val === 'number' ? val : parseFloat(String(val).replace(/[^\d.]/g, ''));
-                      acc[key] = toNumber(sku.price);
-                      return acc;
-                    }, {});
-                    return {
-                      name: product.name,
-                      description: product.description,
-                      sizes: sizes.length > 1 ? sizes : null,
-                      prices: sizes.length > 1 ? prices : { Default: prices.Default ?? Object.values(prices)[0] },
-                      ingredients: product.ingredients || []
-                    };
-                  });
-                return { name: category.name, items };
-              })
-            };
-            console.warn('[menu] DEV sample enabled (VITE_ALLOW_MENU_SAMPLE=1).');
-            setMenuData(transformedMenu);
-          } catch (fallbackErr) {
-            console.error('[menu] Sample load failed:', fallbackErr);
-          }
-        } else {
-          try { alert(`Could not load the menu from the server. Is ${MENU_URL} reachable?`); } catch {}
-        }
+    const watchdog = setTimeout(() => {
+      if (isLoading) {
+        console.warn('[menu] watchdog: forcing spinner off after 15s');
+        setMenuError((m) => m || 'Menu request took too long.');
         setIsLoading(false);
       }
-    };
+    }, 15000);
+    let mounted = true;
+    (async () => {
+      try {
+        logMenuUrlOnce();
+        try { console.log('MENU_URL =', import.meta.env.VITE_MENU_URL); } catch {}
+        const raw = await fetchLiveMenu();
+        if (!mounted) return;
+        // —— tolerate small API shape shifts (e.g., {data:{categories,products}}) ——
+        const api = raw?.data?.menu || raw?.data || raw;
+        const cats = Array.isArray(api?.categories) ? api.categories : [];
+        const prods = Array.isArray(api?.products) ? api.products : [];
 
-    fetchMenu();
+        if (!cats.length || !prods.length) {
+          console.warn('[menu][debug] empty or missing cats/prods', { catsLen: cats.length, prodsLen: prods.length });
+        }
+
+        const toTitle = (s) => (s ? (s[0].toUpperCase() + s.slice(1)) : '');
+        const toNumber = (val) => typeof val === 'number' ? val : Number.parseFloat(String(val ?? '').replace(/[^\d.]/g, ''));
+
+        const transformedMenu = {
+          categories: cats.map((category) => {
+            const items = prods
+              .filter((p) => (p.category_ref ?? p.categoryRef ?? p.category_id) === (category.ref ?? category.id))
+              .map((product) => {
+                const skus = Array.isArray(product.skus) ? product.skus : [];
+                const sizeNames = skus.map((sku) => toTitle(sku.name ?? 'Default'));
+                const prices = skus.reduce((acc, sku) => {
+                  const key = toTitle(sku.name ?? 'Default');
+                  const priceNum = toNumber(sku.price);
+                  if (!Number.isNaN(priceNum)) acc[key] = priceNum;
+                  return acc;
+                }, {});
+                const sizes = sizeNames.length > 1 ? sizeNames : null;
+                const singleDefault = sizes ? undefined : (Object.values(prices)[0] ?? undefined);
+                return {
+                  name: product.name ?? '(Unnamed)',
+                  description: product.description ?? '',
+                  sizes,
+                  prices: sizes ? prices : { Default: singleDefault },
+                  ingredients: Array.isArray(product.ingredients) ? product.ingredients : []
+                };
+              });
+            return { name: category.name ?? '(Unnamed)', items };
+          })
+        };
+        const totalItems = transformedMenu.categories.reduce((n, c) => n + c.items.length, 0);
+        console.log('[menu][debug] transformed:', { categories: transformedMenu.categories.length, totalItems });
+        if (!totalItems) {
+          throw new Error('Live menu returned 0 items after transform (check API shape).');
+        }
+        setMenuData(transformedMenu);
+        setMenuError('');
+      } catch (err) {
+        console.error('[menu] failed:', err);
+        setMenuError(err?.message || 'Menu failed to load.');
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    })();
+    return () => { mounted = false; clearTimeout(watchdog); };
   }, []);
 
   const handleItemClick = (item) => {
@@ -2029,6 +2002,14 @@ function AppLayout({ isMapsLoaded }) {
           <main className="main-content-area">
             {isLoading ? (
               <p style={{ textAlign: 'center', fontSize: '1.2rem', marginTop: '4rem' }}>Loading menu...</p>
+            ) : menuError ? (
+              <div className="info-box" style={{ maxWidth: 680, margin: '3rem auto', borderColor: 'tomato' }}>
+                <h3 style={{ marginTop: 0, color: 'tomato' }}>Menu unavailable</h3>
+                <p style={{ marginBottom: '0.75rem' }}>
+                  We couldn’t load the live menu. Please try again shortly.
+                </p>
+                <code style={{ display: 'block', whiteSpace: 'pre-wrap', opacity: 0.8 }}>{menuError}</code>
+              </div>
             ) : (
               <Routes>
                 <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
