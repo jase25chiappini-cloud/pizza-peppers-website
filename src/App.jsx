@@ -15,11 +15,13 @@ import OrderSummaryPanel from './components/OrderSummaryPanel';
 import FirebaseBanner from './components/FirebaseBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { clearBadPhotoUrlIfNeeded } from './dev/repairPhotoUrl';
+/** @type {any} */
+const w = (typeof window !== 'undefined') ? window : {};
 
 // Global taps for silent errors that might interrupt the loader "finally"
 if (typeof window !== 'undefined') {
-  if (!window.__PP_ONERROR_TAP) {
-    window.__PP_ONERROR_TAP = true;
+  if (!w.__PP_ONERROR_TAP) {
+    w.__PP_ONERROR_TAP = true;
     window.addEventListener('error', (e) => {
       console.error('[PP][window.error]', e?.message, e?.error);
     });
@@ -60,12 +62,33 @@ import {
 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+/**
+ * @typedef {Object} AuthContextType
+ * @property {any} currentUser
+ * @property {() => Promise<void>} loginWithGoogle
+ * @property {() => Promise<void>} loginWithApple
+ * @property {(phone: string, displayName?: string) => any} loginLocal
+ * @property {(args: { phone: string, displayName?: string }) => any} signupLocal
+ * @property {() => Promise<void>} logout
+ */
+
 
 
 // Firebase config and singletons are centralized in src/firebase.js
 
 // --- AUTH CONTEXT (Firebase + local session) ---
-const AuthContext = createContext();
+/** @type {import('react').Context<AuthContextType>} */
+const AuthContext = createContext(
+  /** @type {AuthContextType} */ ({
+    currentUser: null,
+    loginWithGoogle: async () => {},
+    loginWithApple: async () => {},
+    // Accept proper args in the default stubs so consumers see correct signatures:
+    loginLocal: (_phone, _displayName) => null,
+    signupLocal: ({ phone: _p = '', displayName: _d = '' } = { phone: '', displayName: '' }) => null,
+    logout: async () => {},
+  })
+);
 function useAuth() { return useContext(AuthContext); }
 
 function AuthProvider({ children }) {
@@ -106,13 +129,13 @@ function AuthProvider({ children }) {
   }, [localUser]);
 
   // ---- public auth actions ----
-  const loginWithGoogle = () => {
+  const loginWithGoogle = async () => {
     if (!FB_READY || !auth) throw new Error("Sign-in is unavailable (Firebase not configured).");
-    return signInWithPopup(auth, new GoogleAuthProvider());
+    await signInWithPopup(auth, new GoogleAuthProvider());
   };
-  const loginWithApple  = () => {
+  const loginWithApple  = async () => {
     if (!FB_READY || !auth) throw new Error("Sign-in is unavailable (Firebase not configured).");
-    return signInWithPopup(auth, new OAuthProvider('apple.com'));
+    await signInWithPopup(auth, new OAuthProvider('apple.com'));
   };
 
   // Called by your password modal on success
@@ -216,18 +239,18 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   // ---- optional: OTP via Firebase phone (not required to log in) ----
   React.useEffect(() => {
     return () => {
-      if (window.__ppRecaptcha && window.__ppRecaptcha.clear) {
-        try { window.__ppRecaptcha.clear(); } catch {}
+      if (w.__ppRecaptcha && w.__ppRecaptcha.clear) {
+        try { w.__ppRecaptcha.clear(); } catch {}
       }
-      window.__ppRecaptcha = null;
-      window.__ppConfirmation = null;
+      w.__ppRecaptcha = null;
+      w.__ppConfirmation = null;
     };
   }, []);
 
   const ensureRecaptcha = () => {
     if (firebaseDisabled) throw new Error("Phone verification is unavailable right now.");
     if (recaptchaMounted.current) return;
-    window.__ppRecaptcha = new RecaptchaVerifier(auth, 'recaptcha-container-modal', {
+    w.__ppRecaptcha = new RecaptchaVerifier(auth, 'recaptcha-container-modal', {
       size: 'normal',
       theme: 'dark',
     });
@@ -242,8 +265,8 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
       ensureRecaptcha();
       const ph = normalizePhone(phone);
       if (!ph.startsWith("+") || ph.length < 8) throw new Error("Enter a valid phone (with country code).");
-      const confirmation = await signInWithPhoneNumber(auth, ph, window.__ppRecaptcha);
-      window.__ppConfirmation = confirmation;
+      const confirmation = await signInWithPhoneNumber(auth, ph, w.__ppRecaptcha);
+      w.__ppConfirmation = confirmation;
       setCodeSent(true);
       setOk("Code sent. Check your SMS.");
     } catch (error) {
@@ -258,9 +281,9 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
     setErr(""); setOk("");
     try {
       setLoading(true);
-      if (!window.__ppConfirmation) throw new Error("Please send the code first.");
-      const res = await window.__ppConfirmation.confirm(otp);
-      if (res?.user) setOk("Number verified âœ… (optional).");
+      if (!w.__ppConfirmation) throw new Error("Please send the code first.");
+      const res = await w.__ppConfirmation?.confirm(otp);
+      if (res?.user) setOk("Number verified ✅ (optional).");
     } catch (error) {
       setErr(error?.message || "Invalid code");
     } finally {
@@ -281,7 +304,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   if (!entry) return setErr("No account found for that number. Please sign up.");
   if (entry.pw !== password) return setErr("Incorrect password.");
 
-  // âœ… create local session so Navbar sees you as logged in
+  // ✅ create local session so Navbar sees you as logged in
   loginLocal(ph);
   setOk("Welcome back!");
   setTimeout(onClose, 300);
@@ -306,9 +329,9 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   users[ph1] = { pw: password, createdAt: Date.now() };
   saveUsers(users);
 
-  // âœ… immediately sign them in locally
+  // ✅ immediately sign them in locally
   loginLocal(ph1);
-  setOk("Account created ðŸŽ‰ Youâ€™re all set.");
+  setOk("Account created 🎉 You’re all set.");
   setTimeout(onClose, 400);
 };
 
@@ -341,7 +364,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
       >
         <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
           <h3 className="panel-title" style={{ fontSize: '1.6rem' }}>Login or Sign Up</h3>
-          <button onClick={onClose} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>Ã—</button>
+          <button onClick={onClose} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
         </div>
 
         <div className="modal-body" style={{ overflowX: 'hidden', paddingTop: '0.75rem' }}>
@@ -428,8 +451,13 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
 
                   {/* Optional OTP verify (non-blocking) */}
                   <details
+                    id="pp-otp-details-login"
                     open={otpOpen}
-                    onToggle={(e) => setOtpOpen(e.currentTarget.open)}
+                    onToggle={() => {
+                      const el = document.getElementById('pp-otp-details-login');
+                      // @ts-ignore - HTMLDetailsElement type in JS
+                      setOtpOpen(!!el && el.open);
+                    }}
                     style={{ marginTop: '0.25rem' }}
                   >
                     <summary style={{ cursor: 'pointer', color: 'var(--text-medium)' }}>
@@ -529,8 +557,13 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
 
                   {/* Optional OTP verify (non-blocking) */}
                   <details
+                    id="pp-otp-details-signup"
                     open={otpOpen}
-                    onToggle={(e) => setOtpOpen(e.currentTarget.open)}
+                    onToggle={() => {
+                      const el = document.getElementById('pp-otp-details-signup');
+                      // @ts-ignore - HTMLDetailsElement type in JS
+                      setOtpOpen(!!el && el.open);
+                    }}
                     style={{ marginTop: '0.25rem' }}
                   >
                     <summary style={{ cursor: 'pointer', color: 'var(--text-medium)' }}>
@@ -574,7 +607,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
                 className="simple-button"
                 style={{ marginTop: '1rem', background: 'transparent', border: '1px solid var(--border-color)' }}
               >
-                â† All sign-in options
+                ← All sign-in options
               </button>
             </div>
           )}
@@ -606,10 +639,10 @@ function ProfileModal({ onClose }) {
     suburb: "",
     state: "",
     postcode: "",
-    paymentLabel: "",   // e.g. â€œVisa â€¢â€¢â€¢â€¢ 4242â€ or â€œPay on pickupâ€
-    paymentBrand: "",   // e.g. â€œvisaâ€
-    paymentLast4: "",   // e.g. â€œ4242â€
-    paymentExp: "",     // e.g. â€œ12/26â€
+    paymentLabel: "",   // e.g. “Visa •••• 4242” or “Pay on pickup”
+    paymentBrand: "",   // e.g. “visa”
+    paymentLast4: "",   // e.g. “4242”
+    paymentExp: "",     // e.g. “12/26”
   });
 
   // Load existing profile (or seed from auth)
@@ -626,7 +659,7 @@ function ProfileModal({ onClose }) {
           email: currentUser.email || "",
         };
 
-        // Local user â†’ read from localStorage
+        // Local user → read from localStorage
         if (currentUser.providerId === 'local' || (currentUser.uid && currentUser.uid.startsWith('local:'))) {
           try {
             const raw = localStorage.getItem(`pp_profile_${currentUser.uid}`);
@@ -639,7 +672,7 @@ function ProfileModal({ onClose }) {
             if (mounted) setLoading(false);
           }
         } else if (!firebaseDisabled && db) {
-          // Firebase user â†’ Firestore
+          // Firebase user → Firestore
           const ref = doc(db, "users", currentUser.uid);
           const snap = await getDoc(ref);
           if (snap.exists()) {
@@ -651,7 +684,7 @@ function ProfileModal({ onClose }) {
             if (mounted) setForm(prev => ({ ...prev, ...seed }));
           }
         } else {
-          // Firebase not available â†’ fall back to auth seed only
+          // Firebase not available → fall back to auth seed only
           if (mounted) setForm(prev => ({ ...prev, ...seed }));
         }
       } catch (e) {
@@ -701,7 +734,7 @@ function ProfileModal({ onClose }) {
     try {
       setSaving(true);
       if (!currentUser) throw new Error("Not logged in");
-      // Donâ€™t store raw card numbers here. This is only metadata/labels.
+      // Don’t store raw card numbers here. This is only metadata/labels.
       if (!firebaseDisabled && db) {
         const ref = doc(db, "users", currentUser.uid);
         await setDoc(ref, { ...form }, { merge: true });
@@ -759,7 +792,7 @@ function ProfileModal({ onClose }) {
       >
         <div className="modal-header">
           <h3 className="panel-title">Your Profile</h3>
-          <button onClick={onClose} className="quantity-btn" style={{ width: '2.5rem', height: '2.5rem' }}>Ã—</button>
+          <button onClick={onClose} className="quantity-btn" style={{ width: '2.5rem', height: '2.5rem' }}>×</button>
         </div>
 
         <div className="modal-body" style={{ paddingBottom: "0.25rem" }}>
@@ -782,7 +815,7 @@ function ProfileModal({ onClose }) {
                     {
                       firebaseDisabled
                         ? 'Upload unavailable in this environment'
-                        : (uploading ? `Uploadingâ€¦ ${uploadPct ?? 0}%` : 'Upload photo')
+                        : (uploading ? `Uploading… ${uploadPct ?? 0}%` : 'Upload photo')
                     }
                   </label>
                   <input
@@ -793,7 +826,7 @@ function ProfileModal({ onClose }) {
                     style={{ display: 'none' }}
                     disabled={!canUseAvatarUpload || uploading}
                   />
-                  <div className="pp-upload-hint">JPG/PNG â€¢ ~1MB</div>
+                  <div className="pp-upload-hint">JPG/PNG • ~1MB</div>
                 </div>
 
                 <div className="pp-row">
@@ -896,7 +929,7 @@ function ProfileModal({ onClose }) {
                     type="text"
                     value={form.paymentLabel}
                     onChange={onChange}
-                    placeholder='e.g. "Visa â€¢â€¢â€¢â€¢ 4242" or "Pay on pickup"'
+                    placeholder='e.g. "Visa •••• 4242" or "Pay on pickup"'
                   />
 
                   <div className="pp-three">
@@ -927,7 +960,7 @@ function ProfileModal({ onClose }) {
 
               {error && <p style={{ color: "tomato", margin: 0 }}>{error}</p>}
               <button type="submit" className="place-order-button" disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
-                {saving ? "Savingâ€¦" : "Save profile"}
+                {saving ? "Saving…" : "Save profile"}
               </button>
             </form>
           )}
@@ -1287,7 +1320,7 @@ function AppStyles() {
       padding: 0.25rem 0.5rem 0.5rem; /* small inner gutter */
     }
 
-    /* Focus style that never â€œclipsâ€ against edges */
+    /* Focus style that never “clips” against edges */
     input[type="text"], input[type="tel"], input[type="password"], input[type="url"], select, textarea {
       background-color: var(--border-color);
       border: 1px solid #4b5563;
@@ -1297,7 +1330,7 @@ function AppStyles() {
       transition: box-shadow 0.15s, outline 0.15s, border-color 0.15s;
     }
 
-    /* outline + offset is safer than huge glow; wonâ€™t get cut off */
+    /* outline + offset is safer than huge glow; won’t get cut off */
     input[type="text"]:focus, input[type="tel"]:focus, input[type="password"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
       outline: 2px solid var(--brand-pink);
       outline-offset: 3px;             /* pulls outline inward a little */
@@ -1425,7 +1458,7 @@ function ExtrasModal({ onSave, onCancel, initialExtras = {} }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="panel-title">Add Extras</h3>
-          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>Ã—</button>
+          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
         </div>
         <div className="modal-body">
           {Object.entries(extrasData).map(([category, extras]) => (
@@ -1469,7 +1502,7 @@ function EditIngredientsModal({ item, onSave, onCancel, initialRemoved = [] }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="panel-title">Edit Ingredients</h3>
-          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>Ã—</button>
+          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
         </div>
         <div className="modal-body">
           {item.ingredients?.map(ingredient => (
@@ -1549,7 +1582,9 @@ function AboutPanel({ isMapsLoaded }) {
 
   useEffect(() => {
     if (isMapsLoaded && mapRef.current && currentView === 'main') {
-      const map = new window.google.maps.Map(mapRef.current, {
+      const maps = w.google?.maps;
+      if (!maps) return;
+      const map = new maps.Map(mapRef.current, {
         center: storeLocation,
         zoom: 15,
         disableDefaultUI: true,
@@ -1574,7 +1609,7 @@ function AboutPanel({ isMapsLoaded }) {
           { "featureType": "water", "elementType": "labels.text.stroke", "stylers": [{ "lightness": -20 }] }
         ]
       });
-      new window.google.maps.Marker({ position: storeLocation, map: map, title: 'Pizza Peppers' });
+      new maps.Marker({ position: storeLocation, map: map, title: 'Pizza Peppers' });
     }
   }, [isMapsLoaded, currentView]);
 
@@ -1616,7 +1651,9 @@ function AboutPanel({ isMapsLoaded }) {
           <p>View our terms of service</p>
         </Link>
       </div>
-    </React.Fragment>\n  );\n}
+    </>
+  );
+}
 
 function TermsPage() {
   const headingStyle = { fontFamily: 'var(--font-heading)', color: 'var(--brand-neon-green)', marginTop: '2.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', scrollMarginTop: '6rem' };
@@ -1823,14 +1860,16 @@ function Home({ menuData, handleItemClick }) {
     <>
       <QuickNav menuData={menuData} activeCategory={activeCategory} />
       <Menu menuData={menuData} onItemClick={handleItemClick} />
-    </React.Fragment>\n  );\n}
+    </>
+  );
+}
 
 // --- LAYOUT COMPONENT ---
 function AppLayout({ isMapsLoaded }) {
   // --- DIAG BLOCK (prove this is the file actually rendering) ---
-  if (!window.__PP_DIAG_MARK) {
-    window.__PP_DIAG_MARK = Math.random().toString(36).slice(2, 8);
-    console.log('[PP][diag] AppLayout mount mark =', window.__PP_DIAG_MARK);
+  if (!w.__PP_DIAG_MARK) {
+    w.__PP_DIAG_MARK = Math.random().toString(36).slice(2, 8);
+    console.log('[PP][diag] AppLayout mount mark =', w.__PP_DIAG_MARK);
   }
 
   const { loginWithGoogle, loginWithApple } = useAuth();
@@ -1854,8 +1893,9 @@ function AppLayout({ isMapsLoaded }) {
   // Self-heal the spinner gate: if data is present, spinner must be off.
   useEffect(() => {
     if (hasMenu && isLoading) {
-      console.warn('[menu][autorun] data present → disabling spinner');
+      console.warn('[menu][autorun] data present ? disabling spinner');
       setIsLoading(false);
+  
     }
   }, [hasMenu, isLoading]);
 
@@ -1929,7 +1969,7 @@ function AppLayout({ isMapsLoaded }) {
           console.warn('[menu] transform failed, using fallback:', e?.message || e);
           ui = fallbackFromApi(api);
         }
-        if (!cancelled) { window.__menu_api = api; window.__menu_tx = ui; try { console.log('[menu] pre-setMenuData, cats=', ui?.categories?.length ?? 0); setMenuData(ui); } catch (e) { console.error('[menu] setMenuData threw:', e); const seed = { categories: [{ name: 'Debug', ref: 'debug', items: [] }] }; setMenuData(seed); }
+      if (!cancelled) { w.__menu_api = api; w.__menu_tx = ui; try { console.log('[menu] pre-setMenuData, cats=', ui?.categories?.length ?? 0); setMenuData(ui); } catch (e) { console.error('[menu] setMenuData threw:', e); const seed = { categories: [{ name: 'Debug', ref: 'debug', items: [] }] }; setMenuData(seed); }
           console.log('[menu] loaded: categories=', ui.categories?.length ?? 0);
         }
       } catch (err) {
@@ -1940,8 +1980,8 @@ function AppLayout({ isMapsLoaded }) {
           clearTimeout(safety);
           setIsLoading(false);
           console.log('[menu][gate] setIsLoadingMenu(false) called');
-          window.__APP_RENDER_TAP = 'ready';
-          window.__FORCE_MENU_READY = () => { console.warn('[menu][force] manual off'); setIsLoading(false); };
+          w.__APP_RENDER_TAP = 'ready';
+          w.__FORCE_MENU_READY = () => { console.warn('[menu][force] manual off'); setIsLoading(false); };
         }
       }
     })();
@@ -2019,7 +2059,7 @@ function AppLayout({ isMapsLoaded }) {
       <div style={{ padding: 16 }}>
         <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
         <div style={{ fontSize: 12, opacity: .7, marginBottom: 16 }}>
-          isLoading={String(isLoading)} · hasMenu={String(hasMenu)} · cats={cats}
+          isLoading={String(isLoading)} � hasMenu={String(hasMenu)} � cats={cats}
         </div>
         {(menuData?.categories || []).map((cat) => (
           <section key={cat.ref || cat.name} style={{ margin: "20px 0" }}>
@@ -2046,7 +2086,7 @@ function AppLayout({ isMapsLoaded }) {
       </div>
     );
     if (isLoading) {
-      return <div style={{ padding: 16 }}>Loading menu… (debug)</div>;
+      return <div style={{ padding: 16 }}>Loading menu� (debug)</div>;
     }
     if (menuError) {
       return <div style={{ padding: 16, color: 'crimson' }}>Menu error (debug): {menuError}</div>;
@@ -2090,10 +2130,11 @@ function AppLayout({ isMapsLoaded }) {
   const forceReady = (typeof window !== 'undefined') && new URLSearchParams(window.location.search).has('forceReady');
   useEffect(() => {
     if (forceReady && isLoading) {
-      console.warn('[menu][force] ?forceReady=1 detected → disabling spinner gate');
+      console.warn('[menu][force] ?forceReady=1 detected ? disabling spinner gate');
       setIsLoading(false);
     }
   }, [forceReady, isLoading]);
+  return (<>
       {isExtrasModalOpen && customizingItem && (
         <ExtrasModal
           onSave={handleSaveExtras}
@@ -2136,7 +2177,7 @@ function AppLayout({ isMapsLoaded }) {
               <>
                 
                 <p style={{ textAlign:'center', fontSize:'1.2rem', marginTop:'1rem' }}>
-                  Loading menu… (AppLayout spinner A)
+                  Loading menu� (AppLayout spinner A)
                 </p>
               </>
             ) : hasMenu ? (
@@ -2150,7 +2191,7 @@ function AppLayout({ isMapsLoaded }) {
             ) : (
               <div style={{ textAlign:'center', marginTop:'2rem' }}>
                 <div>No items to show. Live API returned 0 categories or failed transform.</div>
-                <div style={{opacity:.7, marginTop:6}}>Open DevTools â†’ Console for [menu][transform] logs.</div>
+                <div style={{opacity:.7, marginTop:6}}>Open DevTools → Console for [menu][transform] logs.</div>
               </div>
             )}
             <Footer />
@@ -2175,7 +2216,9 @@ function AppLayout({ isMapsLoaded }) {
           </div>
         </div>
       </div>
-    </React.Fragment>\n  );\n}
+    </>
+  );
+}
 
 // --- MAIN APP ---
 function App() {
@@ -2218,6 +2261,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
