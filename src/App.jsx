@@ -15,6 +15,19 @@ import OrderSummaryPanel from './components/OrderSummaryPanel';
 import FirebaseBanner from './components/FirebaseBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import { clearBadPhotoUrlIfNeeded } from './dev/repairPhotoUrl';
+
+// Global taps for silent errors that might interrupt the loader "finally"
+if (typeof window !== 'undefined') {
+  if (!window.__PP_ONERROR_TAP) {
+    window.__PP_ONERROR_TAP = true;
+    window.addEventListener('error', (e) => {
+      console.error('[PP][window.error]', e?.message, e?.error);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('[PP][unhandledrejection]', e?.reason);
+    });
+  }
+}
 // import DebugMenuFetch from './dev/DebugMenuFetch';
  // TEMP: runtime guard in case Vite/HMR cache is stale and misses transformMenu.js
  let transformMenuSafeRef = transformMenu;
@@ -1603,9 +1616,7 @@ function AboutPanel({ isMapsLoaded }) {
           <p>View our terms of service</p>
         </Link>
       </div>
-    </>
-  );
-}
+    </React.Fragment>\n  );\n}
 
 function TermsPage() {
   const headingStyle = { fontFamily: 'var(--font-heading)', color: 'var(--brand-neon-green)', marginTop: '2.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', scrollMarginTop: '6rem' };
@@ -1812,14 +1823,21 @@ function Home({ menuData, handleItemClick }) {
     <>
       <QuickNav menuData={menuData} activeCategory={activeCategory} />
       <Menu menuData={menuData} onItemClick={handleItemClick} />
-    </>
-  );
-}
+    </React.Fragment>\n  );\n}
 
 // --- LAYOUT COMPONENT ---
 function AppLayout({ isMapsLoaded }) {
+  // --- DIAG BLOCK (prove this is the file actually rendering) ---
+  if (!window.__PP_DIAG_MARK) {
+    window.__PP_DIAG_MARK = Math.random().toString(36).slice(2, 8);
+    console.log('[PP][diag] AppLayout mount mark =', window.__PP_DIAG_MARK);
+  }
 
   const { loginWithGoogle, loginWithApple } = useAuth();
+
+  // Debug-only: quick sanity renderer to verify pipeline via ?menuDebug=1
+  const menuDebug = (typeof window !== "undefined") && new URLSearchParams(window.location.search).has("menuDebug");
+
 
   const { addToCart, removeFromCart } = useCart();
 
@@ -1827,6 +1845,20 @@ function AppLayout({ isMapsLoaded }) {
   const [menuData, setMenuData] = useState({ categories: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [menuError, setMenuError] = useState('');
+  const isLoadingMenu = isLoading; // canonical spinner gate
+  // Derived: do we have at least one category?
+  const hasMenu = useMemo(() => {
+    return Array.isArray(menuData?.categories) && menuData.categories.length > 0;
+  }, [menuData]);
+
+  // Self-heal the spinner gate: if data is present, spinner must be off.
+  useEffect(() => {
+    if (hasMenu && isLoading) {
+      console.warn('[menu][autorun] data present → disabling spinner');
+      setIsLoading(false);
+    }
+  }, [hasMenu, isLoading]);
+
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -1836,40 +1868,85 @@ function AppLayout({ isMapsLoaded }) {
   const [rightPanelView, setRightPanelView] = useState('order');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  // Derived: do we have at least one category?
+
 
   // Guard against React StrictMode double-invoke in dev
+    // Guard against React StrictMode double-invoke in dev
   const fetchedOnce = useRef(false);
   useEffect(() => {
+    console.log('[menu][effect] start');
     if (fetchedOnce.current) return;
     fetchedOnce.current = true;
-    let mounted = true;
+    console.log('MENU_URL =', import.meta.env.VITE_MENU_URL || '/pp-proxy/public/menu');
+    let cancelled = false;
 
-    // Safety valve for spinner
-    const spinnerKill = setTimeout(() => {
-      if (mounted) {
-        console.warn('[menu][effect] safety timer fired; forcing spinner off')
+    // Safety valve: force-hide spinner after 1.5s if something stalls
+    const safety = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[menu][safety] forcing spinner off after 1.5s');
         setIsLoading(false);
       }
-    }, 8000);
+    }, 1500);
+
+    const fallbackFromApi = (api) => {
+      const cats = Array.isArray(api?.categories) ? api.categories : [];
+      const prods = Array.isArray(api?.products) ? api.products : [];
+      const prodCatKey = ['category_ref','categoryRef','categoryId','category_id']
+        .find(k => prods.some(p => k in p)) || 'category_ref';
+      const catRefKey  = ['ref','id','_id'].find(k => cats.some(c => k in c)) || 'ref';
+      const catNameKey = ['name','title','label'].find(k => cats.some(c => k in c)) || 'name';
+
+      const byCat = new Map();
+      for (const p of prods) {
+        const cref = p?.[prodCatKey];
+        if (!cref) continue;
+        if (!byCat.has(cref)) byCat.set(cref, []);
+        byCat.get(cref).push({
+          id: p?.id ?? p?.ref ?? p?._id ?? `${cref}:${p?.name ?? 'item'}`,
+          name: p?.name ?? p?.title ?? 'Item',
+          description: p?.description ?? '',
+          sizes: null,
+          prices: {},
+        });
+      }
+      return {
+        categories: cats.map(c => ({
+          name: String(c?.[catNameKey] ?? 'Category'),
+          ref:  String(c?.[catRefKey]  ?? ''),
+          items: byCat.get(String(c?.[catRefKey] ?? '')) || []
+        }))
+      };
+    };
 
     (async () => {
       try {
-        logMenuUrlOnce();
-        try { console.log('MENU_URL =', import.meta.env.VITE_MENU_URL); } catch {}
-        const api = await fetchLiveMenu();            // unwrapped -> {categories, products, ...}
-        if (!mounted) return;
-        const transformed = transformMenuSafeRef(api);       // static import, cannot silently fail to load
-        console.log('[menu] loaded: categories=', transformed.categories.length);
-        setMenuData(transformed);
+        const api = await fetchLiveMenu();
+        let ui;
+        try {
+          ui = transformMenuSafeRef ? transformMenuSafeRef(api) : transformMenu(api);
+        } catch (e) {
+          console.warn('[menu] transform failed, using fallback:', e?.message || e);
+          ui = fallbackFromApi(api);
+        }
+        if (!cancelled) { window.__menu_api = api; window.__menu_tx = ui; try { console.log('[menu] pre-setMenuData, cats=', ui?.categories?.length ?? 0); setMenuData(ui); } catch (e) { console.error('[menu] setMenuData threw:', e); const seed = { categories: [{ name: 'Debug', ref: 'debug', items: [] }] }; setMenuData(seed); }
+          console.log('[menu] loaded: categories=', ui.categories?.length ?? 0);
+        }
       } catch (err) {
-        console.error('[menu] failed:', err);
-        setMenuData({ categories: [] });             // explicit empty-state
+        console.error('[menu] load error:', err);
+        if (!cancelled) { setMenuError(String(err?.message || err)); setMenuData({ categories: [] }); }
       } finally {
-        if (mounted) { clearTimeout(spinnerKill); setIsLoading(false); console.log('[menu][effect] done'); }            // spinner always stops
+        if (!cancelled) {
+          clearTimeout(safety);
+          setIsLoading(false);
+          console.log('[menu][gate] setIsLoadingMenu(false) called');
+          window.__APP_RENDER_TAP = 'ready';
+          window.__FORCE_MENU_READY = () => { console.warn('[menu][force] manual off'); setIsLoading(false); };
+        }
       }
     })();
 
-    return () => { mounted = false; clearTimeout(spinnerKill); };
+    return () => { cancelled = true; };
   }, []);
 
   const handleItemClick = (item) => {
@@ -1930,8 +2007,93 @@ function AppLayout({ isMapsLoaded }) {
     setRightPanelView('about');
   };
 
-  return (
-    <>
+  // URL-guarded debug renderer to verify menu pipeline fast
+  if (menuDebug) {
+  // Log on each shell render (outside JSX to avoid parser weirdness)
+  useEffect(() => {
+    try { console.log("[menu][render] shell; isLoading=", isLoading, " cats=", menuData?.categories?.length || 0); } catch {}
+  });
+    console.log('[menu][render] debug bypass branch');
+    const cats = Array.isArray(menuData?.categories) ? menuData.categories.length : 0;
+    return (
+      <div style={{ padding: 16 }}>
+        <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
+        <div style={{ fontSize: 12, opacity: .7, marginBottom: 16 }}>
+          isLoading={String(isLoading)} · hasMenu={String(hasMenu)} · cats={cats}
+        </div>
+        {(menuData?.categories || []).map((cat) => (
+          <section key={cat.ref || cat.name} style={{ margin: "20px 0" }}>
+            <h2 style={{ margin: "6px 0" }}>{cat.name}</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
+              {cat.items.map((it) => (
+                <div key={it.id} style={{ border: "1px solid #333", borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontWeight: 600 }}>{it.name}</div>
+                  <div style={{ fontSize: 12, opacity: .7, margin: "6px 0 10px" }}>{it.description}</div>
+                  {it.prices && Object.keys(it.prices).length ? (
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {Object.entries(it.prices).map(([size, price]) => (
+                        <li key={size}>{size}: ${Number(price).toFixed(2)}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div style={{ fontSize: 12, opacity: .7 }}>No prices</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+    if (isLoading) {
+      return <div style={{ padding: 16 }}>Loading menu… (debug)</div>;
+    }
+    if (menuError) {
+      return <div style={{ padding: 16, color: 'crimson' }}>Menu error (debug): {menuError}</div>;
+    }
+    if (!menuData?.categories?.length) {
+      return <div style={{ padding: 16 }}>No categories (debug)</div>;
+    }
+    return (
+      <div style={{ padding: 16 }}>
+        <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
+        <div style={{ fontSize: 12, opacity: .7, marginBottom: 16 }}>
+          cats={menuData.categories.length}
+        </div>
+        {menuData.categories.map((cat) => (
+          <section key={cat.ref || cat.name} style={{ margin: '20px 0' }}>
+            <h2 style={{ margin: '6px 0' }}>{cat.name}</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
+              {cat.items.map((it) => (
+                <div key={it.id} style={{ border: '1px solid #333', borderRadius: 8, padding: 12 }}>
+                  <div style={{ fontWeight: 600 }}>{it.name}</div>
+                  <div style={{ fontSize: 12, opacity: .7, margin: '6px 0 10px' }}>{it.description}</div>
+                  {it.prices && Object.keys(it.prices).length ? (
+                    <ul style={{ margin: 0, paddingLeft: 18 }}>
+                      {Object.entries(it.prices).map(([size, price]) => (
+                        <li key={size}>{size}: ${Number(price).toFixed(2)}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div style={{ fontSize: 12, opacity: .7 }}>No prices</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+  }
+
+    // Manual override (?forceReady=1) to kill spinner no matter what
+  const forceReady = (typeof window !== 'undefined') && new URLSearchParams(window.location.search).has('forceReady');
+  useEffect(() => {
+    if (forceReady && isLoading) {
+      console.warn('[menu][force] ?forceReady=1 detected → disabling spinner gate');
+      setIsLoading(false);
+    }
+  }, [forceReady, isLoading]);
       {isExtrasModalOpen && customizingItem && (
         <ExtrasModal
           onSave={handleSaveExtras}
@@ -1970,14 +2132,20 @@ function AppLayout({ isMapsLoaded }) {
 
           <main className="main-content-area">
             {/* <DebugMenuFetch /> */}  {/* TEMP widget hidden */}
-            {isLoading ? (
-              <p style={{ textAlign:'center', fontSize:'1.2rem', marginTop:'1rem' }}>
-                Loading menu...
-              </p>
-            ) : menuData?.categories?.length ? (
+            {(isLoadingMenu && !hasMenu) ? (
+              <>
+                
+                <p style={{ textAlign:'center', fontSize:'1.2rem', marginTop:'1rem' }}>
+                  Loading menu… (AppLayout spinner A)
+                </p>
+              </>
+            ) : hasMenu ? (
               <Routes>
+                
                 <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
                 <Route path="/terms" element={<TermsPage />} />
+                <Route path="*" element={<div style={{padding:16}}>Route fallback OK</div>} />
+                {/* <Route path="*" element={<div style={{padding:16}}>Route fallback OK</div>} />  */}
               </Routes>
             ) : (
               <div style={{ textAlign:'center', marginTop:'2rem' }}>
@@ -2007,9 +2175,7 @@ function AppLayout({ isMapsLoaded }) {
           </div>
         </div>
       </div>
-    </>
-  );
-}
+    </React.Fragment>\n  );\n}
 
 // --- MAIN APP ---
 function App() {
@@ -2052,6 +2218,16 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
 
 
 
