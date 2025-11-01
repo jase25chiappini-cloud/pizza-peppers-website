@@ -1,11 +1,275 @@
+﻿// Extras data
+const extrasData = {
+  "Popular": [{ "name": "fresh basil", "price": 0.50 }, { "name": "mint yoghurt", "price": 1.00 }],
+  "Cheese": [{ "name": "feta cheese", "price": 1.00 }, { "name": "mozzarella cheese", "price": 1.00 }, { "name": "bocconcini cheese", "price": 1.50 }],
+  "Meat": [{ "name": "bacon", "price": 1.00 }, { "name": "chicken", "price": 2.00 }, { "name": "ham", "price": 1.00 }, { "name": "salami", "price": 1.00 }, { "name": "pepperoni", "price": 1.00 }],
+  "Veggies": [{ "name": "capsicum", "price": 1.00 }, { "name": "onion", "price": 1.00 }, { "name": "mushrooms", "price": 1.00 }, { "name": "olives", "price": 1.00 }, { "name": "jalapenos", "price": 1.00 }, { "name": "pineapple", "price": 1.00 }],
+"Sauce": [{ "name": "aioli", "price": 1.00 }, { "name": "bbq sauce", "price": 0.00 }, { "name": "garlic sauce", "price": 1.00 }]
+};
+
 import React, { useState, createContext, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
-import { MENU_URL, logMenuUrlOnce } from './config/menuSource';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { currency } from './data/normalizeMenu.js';
+
+// Inline CSS from src/App.css so App.jsx is self-contained
+const INLINE_CSS = `/* ===============================
+   Pizza Peppers - App.css (inline)
+   =============================== */
+
+/* 1) Design tokens */
+:root {
+  --brand-pink: #D92682;
+  --brand-green-cta: #00A756;
+  --brand-neon-green: #ADF000;
+  --background-dark: #111827;
+  --background-light: #1f2937;
+  --border-color: #374151;
+  --text-light: #f3f4f6;
+  --text-medium: #9ca3af;
+}
+
+/* 2) Base */
+html { scroll-behavior: smooth; }
+body {
+  background-color: var(--background-dark);
+  color: var(--text-light);
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  margin: 0;
+}
+
+.app-container {
+  display: grid;
+  grid-template-columns: 1fr; /* mobile default */
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+@media (min-width: 1024px) {
+  .app-container { grid-template-columns: 65% 35%; }
+}
+
+.page-container {
+  padding: 2rem;
+  max-width: 600px;
+  margin: auto;
+}
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-light);
+  color: var(--text-light);
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+/* 3) Menu (left column) */
+.menu-category { margin-bottom: 3rem; }
+.category-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  color: var(--brand-neon-green);
+  scroll-margin-top: 9rem; /* offset for sticky navs */
+}
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1rem;
+}
+@media (min-width: 640px) { .menu-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1280px) { .menu-grid { grid-template-columns: repeat(3, 1fr); } }
+.menu-item-card {
+  background-color: var(--background-light);
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: border-color 0.2s;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.menu-item-card:hover { border-color: var(--brand-neon-green); }
+.card-image-container { height: 8rem; width: 100%; background-color: var(--border-color); }
+.card-image { width: 100%; height: 100%; object-fit: cover; }
+.card-text-container { padding: 0.75rem; flex-grow: 1; }
+.card-item-name { font-size: 1rem; font-weight: 700; color: var(--brand-neon-green); }
+.card-item-description { font-size: 0.75rem; color: var(--text-medium); margin-top: 0.25rem; }
+.card-item-price { font-size: 0.85rem; color: var(--brand-neon-green); margin-top: 0.5rem; font-weight: 600; }
+
+/* 4) Quick Nav (category chips) */
+.quick-nav-container {
+  position: sticky;
+  top: 5.5rem;
+  background-color: var(--background-dark);
+  z-index: 10;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.quick-nav-container::-webkit-scrollbar { display: none; }
+.quick-nav-list { list-style: none; padding: 0; margin: 0; display: flex; gap: 0.5rem; }
+.quick-nav-item a {
+  display: block;
+  padding: 0.5rem 1rem;
+  color: var(--text-medium);
+  text-decoration: none;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+.quick-nav-item a:hover { color: white; }
+.quick-nav-item a.active-nav-link { color: var(--brand-neon-green); border-bottom-color: var(--brand-neon-green); }
+
+/* 5) Order panel (right column) */
+.order-panel-container {
+  background-color: var(--background-light);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  position: sticky;
+  top: 1.5rem;
+  height: calc(100vh - 3rem);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+}
+.panel-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: var(--brand-neon-green); }
+.detail-panel-body, .cart-items-list { flex-grow: 1; overflow-y: auto; padding-right: 0.5rem; }
+.cart-item {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.875rem; border-bottom: 1px solid var(--border-color);
+  padding: 0.75rem 0.25rem; cursor: pointer;
+}
+.cart-item:hover { background-color: var(--border-color); }
+.cart-item-details { font-size: 0.75rem; color: var(--text-medium); padding-left: 1rem; margin-top: 0.25rem; }
+.cart-item-details.removed { color: #fca5a5; }
+.cart-total-section { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color); }
+.total-price-display { display: flex; justify-content: space-between; align-items: center; font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; }
+.place-order-button, .simple-button, .quantity-btn { cursor: pointer; border: none; border-radius: 0.5rem; transition: opacity 0.2s; }
+.place-order-button:hover, .simple-button:hover { opacity: 0.9; }
+.place-order-button { width: 100%; background-color: var(--brand-green-cta); color: white; padding: 0.75rem 1rem; font-weight: 700; }
+
+/* 6) Item detail panel */
+.detail-image { width: 100%; height: 12rem; object-fit: cover; border-radius: 0.5rem; background-color: var(--border-color); }
+.size-quantity-row, .gluten-free-toggle {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);
+}
+.quantity-controls { display: flex; align-items: center; gap: 0.75rem; }
+.quantity-btn { background-color: var(--border-color); color: white; width: 2rem; height: 2rem; font-size: 1.25rem; }
+.quantity-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.simple-button { width: 100%; background-color: var(--border-color); color: white; padding: 0.75rem 1rem; font-weight: 500; margin-top: 0.5rem; }
+.add-to-order-btn { background-color: var(--brand-neon-green); color: black; }
+.cancel-btn { margin-top: 0.5rem; }
+
+/* 7) Modals */
+.modal-overlay {
+  position: fixed; inset: 0; background-color: rgba(0,0,0,0.7);
+  display: flex; justify-content: center; align-items: center; z-index: 100;
+}
+.modal-content {
+  background-color: var(--background-light); padding: 1.5rem; border-radius: 0.75rem;
+  width: 90%; max-width: 500px; max-height: 80vh; display: flex; flex-direction: column;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+.modal-body { overflow-y: auto; padding: 1rem 0; }
+.modal-footer { padding-top: 1rem; border-top: 1px solid var(--border-color); }
+.modal-category-title { color: var(--brand-neon-green); font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+.modal-item-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; }
+.modal-close-btn { width: 2.5rem; height: 2.5rem; }
+
+/* 8) Navbar */
+.navbar {
+  background-color: var(--background-dark);
+  padding: 0.5rem 1.5rem;
+  border-bottom: 1px solid var(--brand-pink);
+  position: sticky; top: 0; z-index: 20;
+}
+.navbar-container { display: flex; justify-content: space-between; align-items: center; }
+.logo-link { text-decoration: none; display: flex; align-items: center; }
+.logo-image { height: 3.5rem; margin-right: 1rem; }
+.nav-links a { color: white; text-decoration: none; font-weight: 500; }
+.nav-links a:first-child { margin-right: 1.5rem; }
+
+/* 9) Order summary extras */
+.order-summary-options { margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+.voucher-input {
+  width: 100%; padding: 0.5rem; border-radius: 0.25rem;
+  border: 1px solid #4b5563; background-color: #374151; color: white; box-sizing: border-box;
+}
+.voucher-container { margin: 1rem 0; }
+`;
+
+if (typeof document !== 'undefined') {
+  const STYLE_ID = 'pp-inline-css';
+  if (!document.getElementById(STYLE_ID)) {
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = INLINE_CSS;
+    document.head.appendChild(style);
+  }
+}
+
+/*** -------------------------------------------------------------
+ *  INLINE FIREBASE (guarded initializer) + upload helper + repair util
+ *  ------------------------------------------------------------ */
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, OAuthProvider, RecaptchaVerifier, signInWithPhoneNumber, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, PhoneAuthProvider, updateProfile } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+/** @type {Record<string, any>} */
+const envFB = import.meta.env || {};
+const fbCfg = {
+  apiKey: envFB.VITE_FB_API_KEY,
+  authDomain: envFB.VITE_FB_AUTH_DOMAIN || "pizza-peppers-website.firebaseapp.com",
+  projectId: envFB.VITE_FB_PROJECT_ID || "pizza-peppers-website",
+  storageBucket: envFB.VITE_FB_BUCKET || "pizza-peppers-website.appspot.com",
+  messagingSenderId: envFB.VITE_FB_MSG_SENDER_ID,
+  appId: envFB.VITE_FB_APP_ID,
+};
+const FB_REQUIRED = ["VITE_FB_API_KEY","VITE_FB_APP_ID","VITE_FB_MSG_SENDER_ID"];
+export const FB_READY = FB_REQUIRED.every((k) => !!envFB[k]);
+let app, auth, db, storage;
+try {
+  if (FB_READY) {
+    app = initializeApp(fbCfg);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  } else {
+    if (import.meta.env?.DEV) console.warn('[Firebase] Not configured � features disabled.');
+  }
+} catch (e) { console.error('[Firebase] Init error', e); }
+
+async function uploadAvatarAndSaveProfile(file) {
+  if (!FB_READY || !auth || !storage || !db) throw new Error('Uploads unavailable (Firebase not configured).');
+  const user = auth?.currentUser; if (!user) throw new Error('Not signed in');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const key = `users/${user.uid}/avatar_${Date.now()}.${ext}`;
+  const r = storageRef(storage, key);
+  const snap = await uploadBytes(r, file, { contentType: file.type || 'image/jpeg' });
+  const url = await getDownloadURL(snap.ref);
+  await updateDoc(doc(db, 'users', user.uid), { photoURL: url });
+  return url;
+}
+
+async function clearBadPhotoUrlIfNeeded() {
+  const u = auth?.currentUser; if (!u) return;
+  if (u.photoURL && typeof u.photoURL === 'string' && u.photoURL.includes('firebasestorage.app')) {
+    try { await updateDoc(doc(db, 'users', u.uid), { photoURL: null }); }
+    catch (e) { console.warn('Failed to clear bad photoURL:', e); }
+  }
+}
 /*** -------------------------------------------------------------
  *  INLINE MODULES (moved from /context and /menu)
- *  1) AppContext (Provider + hook)
- *  2) Menu client (fetchMenu)
- *  3) Menu transformer (transformMenu)
+ *  - AppContext (Provider + hook)
  *  Keep these above components so everything can use them.
  *  ------------------------------------------------------------ */
 
@@ -46,90 +310,92 @@ function AppProvider({ children }) {
 
 function useApp() { return useContext(AppContext); }
 
-/* 2) Menu client */
-const MENU_URL_INLINE = '/pp-proxy/public/menu';
-async function fetchMenu() {
-  console.log('[menu] GET', MENU_URL_INLINE);
-  const res = await fetch(MENU_URL_INLINE, { headers: { Accept: 'application/json' } });
-  const contentType = res.headers.get('content-type') || '';
-  console.log('[menu][debug] status:', res.status, 'content-type:', contentType);
-  const data = await res.json();
-  return {
-    categories: data.categories || [],
-    products: data.products || [],
-    option_lists: data.option_lists || [],
-    settings: data.settings || {},
-    globals: data.globals || {},
-    delivery_zones: data.delivery_zones || [],
-  };
+// ----------------- MENU PIPELINE (stable) -----------------
+const MENU_URL = '/pp-proxy/public/menu';
+
+async function fetchMenuRaw() {
+  const res = await fetch(MENU_URL, { headers: { accept: 'application/json' } });
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (!res.ok) throw new Error(`menu fetch ${res.status}`);
+  const json = await res.json();
+  const payload = (json && json.data && (json.data.categories || json.data.products)) ? json.data : json;
+  const cats = Array.isArray(payload?.categories) ? payload.categories : [];
+  const prods = Array.isArray(payload?.products) ? payload.products : [];
+  console.log('[menu][client] content-type:', ct);
+  console.log('[menu][client] keys:', Object.keys(payload || {}));
+  return { ...payload, categories: cats, products: prods };
 }
 
-/* 3) Menu transformer */
-function transformMenu(api) {
-  const categories = Array.isArray(api.categories) ? api.categories : [];
-  const products = Array.isArray(api.products) ? api.products : [];
+function centsFromAny(x) {
+  if (typeof x === 'number') return Math.round(x);
+  const n = parseFloat(String(x || '0'));
+  if (Number.isNaN(n)) return 0;
+  return Math.round(n * 100);
+}
 
-  console.log('[menu][transform] input counts:', 'categories=' + categories.length, 'products=' + products.length);
-  const cfg = { catRefKey: 'ref', catNameKey: 'name', prodCatRefKey: 'category_ref' };
-  console.log('[menu][transform] keys: category.ref=' + cfg.catRefKey + ' category.name=' + cfg.catNameKey + ' product.categoryRef=' + cfg.prodCatRefKey);
+function transformMenu(payload) {
+  const inCats = Array.isArray(payload?.categories) ? payload.categories : [];
+  const inProds = Array.isArray(payload?.products) ? payload.products : [];
+  console.log('[menu][transform] input counts: categories=' + inCats.length + ' products=' + inProds.length);
+  console.log('[menu][transform] keys: category.ref=ref category.name=name product.categoryRef=category_ref');
 
-  const byCat = new Map();
-  for (const c of categories) {
-    const ref = c?.[cfg.catRefKey];
-    const name = c?.[cfg.catNameKey];
-    if (!ref) continue;
-    byCat.set(ref, { ref, name, items: [] });
-  }
+  const categories = inCats.map((c) => ({
+    ref: c.ref || c.id || c.category_ref || c.slug || (c.name ? c.name.toUpperCase().replace(/\s+/g, '_') : ''),
+    name: c.name || c.title || c.label || c.ref || c.slug || 'Category',
+    sort: c.sort ?? 9999,
+  }));
 
-  const toSizes = (p) => {
-    if (Array.isArray(p?.skus) && p.skus.length) {
-      return p.skus.map((s) => ({
-        id: s.id ?? s.ref ?? s.name ?? 'default',
-        name: s.name ?? s.ref ?? 'Default',
-        price_cents: Number(s.price_cents ?? Math.round((s.price ?? 0) * 100)) || 0,
+  const products = inProds.map((p) => {
+    let sizes = [];
+    if (Array.isArray(p.skus) && p.skus.length) {
+      sizes = p.skus.map((s) => ({
+        id: s.id || s.ref || s.size || s.name || 'default',
+        name: s.name || s.size || s.id || 'Default',
+        price_cents: ('price_cents' in s) ? centsFromAny(s.price_cents) : ('price' in s) ? centsFromAny(s.price) : 0,
       }));
+    } else if (p.prices && typeof p.prices === 'object') {
+      sizes = Object.entries(p.prices).map(([k, v]) => ({ id: k, name: k, price_cents: centsFromAny(v) }));
+    } else {
+      const pc = ('price_cents' in p) ? centsFromAny(p.price_cents) : ('price' in p) ? centsFromAny(p.price) : 0;
+      sizes = [{ id: 'default', name: 'Default', price_cents: pc }];
     }
-    if (Array.isArray(p?.sizes) && p.sizes.length) {
-      return p.sizes.map((s) => ({
-        id: s.id ?? s.ref ?? s.name ?? 'default',
-        name: s.name ?? s.ref ?? 'Default',
-        price_cents: Number(s.price_cents ?? Math.round((s.price ?? 0) * 100)) || 0,
-      }));
-    }
-    const single = Number(p?.price_cents ?? Math.round((p?.price ?? 0) * 100)) || 0;
-    return [{ id: 'default', name: 'Default', price_cents: single }];
-  };
 
-  for (const p of products) {
-    const catRef = p?.[cfg.prodCatRefKey];
-    if (!catRef || !byCat.has(catRef)) continue;
-    const item = {
-      id: p.id || p.ref || ('p_' + Math.random().toString(36).slice(2)),
-      name: p.name || 'Unnamed',
-      description: p.description ?? '',
-      sizes: toSizes(p),
+    const basePrice = sizes.length ? Math.min(...sizes.map((s) => s.price_cents)) : 0;
+
+    return {
+      id: p.id || p.product_id || p.ref || (p.name || '').toLowerCase().replace(/\s+/g, '-'),
+      category_ref: p.category_ref || p.categoryRef || p.category?.ref || p.category_id || '',
+      name: p.name || p.title || 'Unnamed',
+      description: p.description || '',
       image: p.image || null,
+      sizes,
+      basePrice_cents: basePrice,
       raw: p,
     };
-    byCat.get(catRef).items.push(item);
+  });
+
+  const catMap = new Map();
+  for (const c of categories) {
+    const key = c.ref || c.name;
+    if (!key) continue;
+    catMap.set(key, { ...c, items: [] });
   }
 
-  const out = Array.from(byCat.values()).map(c => ({ ...c, products: c.items }));
-  console.log('[menu][transform] output categories=' + out.length);
-  return { categories: out };
+  for (const prod of products) {
+    const key = prod.category_ref && catMap.has(prod.category_ref)
+      ? prod.category_ref
+      : catMap.keys().next().value;
+    if (!key) continue;
+    catMap.get(key).items.push(prod);
+  }
+
+  const orderedCategories = Array.from(catMap.values()).sort((a, b) => (a.sort ?? 9999) - (b.sort ?? 9999));
+  console.log('[menu][transform] output categories=' + orderedCategories.length);
+  return { categories: orderedCategories, products };
 }
+// ----------------------------------------------------------
+
 // import { formatId, getImagePath } from './utils/helpers';
-import { extrasData } from './data/menuData';
-import Menu from './components/Menu';
-import { CartProvider, useCart } from './context/CartContext';
-import QuickNav from './components/QuickNav';
-import { ThemeProvider } from './context/ThemeContext';
-import ThemeSwitcher from './components/ThemeSwitcher';
-import ItemDetailPanel from './components/ItemDetailPanel';
-import OrderSummaryPanel from './components/OrderSummaryPanel';
-import FirebaseBanner from './components/FirebaseBanner';
-import ErrorBoundary from './components/ErrorBoundary';
-import { clearBadPhotoUrlIfNeeded } from './dev/repairPhotoUrl';
 /** @type {any} */
 const w = (typeof window !== 'undefined') ? window : {};
 
@@ -147,35 +413,11 @@ if (typeof window !== 'undefined') {
 }
 // import DebugMenuFetch from './dev/DebugMenuFetch';
  // TEMP: runtime guard in case Vite/HMR cache is stale and misses transformMenu.js
- let transformMenuSafeRef = transformMenu;
- if (typeof transformMenuSafeRef !== 'function') {
-   console.warn('[menu] transformMenu missing; using pass-through fallback');
-   transformMenuSafeRef = (api) => ({ categories: Array.isArray(api?.categories) ? api.categories.map(c => ({ name: c.name, ref: c.ref ?? c.id ?? c._id ?? c.name, items: [] })) : [] });
- }
 // import DebugMenuFetch from './dev/DebugMenuFetch';
 // import useGoogleMaps from './hooks/useGoogleMaps';
-// Firebase singletons come from src/firebase
-import { 
-  onAuthStateChanged, 
-  GoogleAuthProvider, 
-  OAuthProvider,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  signInWithPopup,
-  signOut 
-} from 'firebase/auth';
 // Using helper for avatar uploads and shared Firebase instances
-import { uploadAvatarAndSaveProfile } from './lib/uploadAvatar';
-import { app, auth, db, storage, FB_READY } from './firebase';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  linkWithCredential,
-  PhoneAuthProvider,
-  updateProfile
-} from 'firebase/auth';
+// (Firebase app/auth/db/storage are initialized at the top of this file.)
 
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 /**
  * @typedef {Object} AuthContextType
@@ -285,6 +527,314 @@ function AuthProvider({ children }) {
   };
 
   return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+}
+
+/*** -------------------------------------------------------------
+ *  INLINE CONTEXTS + HELPERS + COMPONENTS (from /context, /components, /utils)
+ *  - CartContext (CartProvider, useCart)
+ *  - ThemeContext (ThemeProvider, useTheme)
+ *  - Helpers: getImagePath, formatId
+ *  - ErrorBoundary, FirebaseBanner, QuickNav, Menu, ItemDetailPanel, OrderSummaryPanel, ThemeSwitcher
+ *  Place above the rest so App can reference them without imports.
+ *  ------------------------------------------------------------ */
+
+// CartContext
+// Default functions accept parameters so TS doesn't infer zero-arg signatures
+const CartContext = createContext({
+  cart: [],
+  addToCart: (_items) => {},
+  removeFromCart: (_index) => {},
+  totalPrice: 0,
+});
+function CartProvider({ children }) {
+  const [cart, setCart] = useState([]);
+  const addToCart = (itemsToAdd) => {
+    setCart((prevCart) => {
+      const newCart = [...prevCart];
+      itemsToAdd.forEach((itemToAdd) => {
+        const idx = newCart.findIndex((cartItem) =>
+          cartItem.name === itemToAdd.name &&
+          cartItem.size === itemToAdd.size &&
+          cartItem.isGlutenFree === itemToAdd.isGlutenFree &&
+          JSON.stringify(cartItem.extras) === JSON.stringify(itemToAdd.extras) &&
+          JSON.stringify(cartItem.removedIngredients) === JSON.stringify(itemToAdd.removedIngredients)
+        );
+        if (idx > -1) newCart[idx].qty += itemToAdd.qty; else newCart.push(itemToAdd);
+      });
+      return newCart;
+    });
+  };
+  const removeFromCart = (index) => setCart((prev) => prev.filter((_, i) => i !== index));
+  const totalPrice = useMemo(() => cart.reduce((sum, it) => sum + (it.price * it.qty), 0), [cart]);
+  return <CartContext.Provider value={{ cart, addToCart, removeFromCart, totalPrice }}>{children}</CartContext.Provider>;
+}
+function useCart() { return useContext(CartContext); }
+
+// ThemeContext
+// Make default setTheme accept an argument so TS infers (v:any)=>void, not ()=>void
+const ThemeContext = createContext({
+  theme: 'standard',
+  setTheme: (_v) => {},
+});
+function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState('standard');
+  useEffect(() => { try { document.body.setAttribute('data-theme', theme); } catch {} }, [theme]);
+  return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
+}
+function useTheme() { return useContext(ThemeContext); }
+
+// Helpers
+function getImagePath(imageName) {
+  const formattedName = String(imageName || '').replace(/ /g, '-');
+  return `/assets/pizzas/${formattedName}.jpg`;
+}
+function formatId(name) {
+  return String(name || '').toLowerCase().replace(/ & /g, '-and-').replace(/ /g, '-');
+}
+
+// ErrorBoundary
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err, info) { console.error('Boundary caught:', err, info); }
+  render() { return this.state.hasError ? (<div style={{padding:'2rem'}}>Something went wrong.</div>) : this.props.children; }
+}
+
+// FirebaseBanner (uses FB_READY from firebase import already in this file)
+function FirebaseBanner() {
+  if (typeof FB_READY !== 'undefined' && FB_READY) return null;
+  return (
+    <div style={{
+      background: '#3b82f6', color: 'white', padding: '8px 12px',
+      fontSize: 13, position: 'fixed', left: 8, bottom: 8, borderRadius: 8, zIndex: 9999
+    }}>
+      Firebase not configured — sign-in & uploads disabled in dev.
+    </div>
+  );
+}
+
+// QuickNav
+function QuickNav({ menuData, activeCategory }) {
+  return (
+    <div className="quick-nav-container">
+      <ul className="quick-nav-list">
+        {(menuData?.categories || []).map((category) => {
+          const categoryId = formatId(category.name);
+          const isActive = activeCategory === categoryId;
+          return (
+            <li key={category.name} className="quick-nav-item">
+              <a href={`#${categoryId}`} className={isActive ? 'active-nav-link' : ''}>{category.name}</a>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// Menu
+function Menu({ menuData, onItemClick }) {
+  return (
+    <div className="menu-content">
+      {(menuData?.categories || []).map((category) => (
+        <div key={category.name} className="menu-category" id={formatId(category.name)}>
+          <h2 className="category-title">{category.name}</h2>
+          <div className="menu-grid">
+            {(category.items || []).map((item) => {
+              const displayImage = item.image || getImagePath(item.name);
+              return (
+                <div key={item.name} className="menu-item-card" onClick={() => onItemClick(item)}>
+                  <div className="card-image-container">
+                    {displayImage ? (
+                      <img
+                        src={displayImage}
+                        alt={item.name}
+                        className="card-image"
+                        onError={(e) => {
+                          try {
+                            const t = e.currentTarget;
+                            t.style.display = 'none';
+                            if (t.parentElement) t.parentElement.style.backgroundColor = '#374151';
+                          } catch {}
+                        }}
+                      />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', backgroundColor: '#1f2937' }} />
+                    )}
+                  </div>
+                  <div className="card-text-container">
+                    <h3 className="card-item-name">{item.name}</h3>
+                    <p className="card-item-description">{item.description}</p>
+                    <div className="card-item-price">from {currency(item.basePrice_cents)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ItemDetailPanel (simplified to match current props)
+function ItemDetailPanel({ item, onClose, editingIndex, editingItem, onOpenExtras, onOpenIngredients }) {
+  const [quantities, setQuantities] = useState(() => {
+    const q = {};
+    if (Array.isArray(item?.sizes) && item.sizes.length) { item.sizes.forEach((s) => q[s] = 0); }
+    else { q.Default = 0; }
+    if (editingItem) { const k = editingItem.size || 'Default'; q[k] = editingItem.qty; }
+    return q;
+  });
+  const [isGlutenFree, setIsGlutenFree] = useState(editingItem?.isGlutenFree || false);
+  const handleQuantityChange = (size, amount) => setQuantities((prev) => ({ ...prev, [size]: Math.max(0, (prev[size] || 0) + amount) }));
+  const handleGlutenFreeToggle = () => setIsGlutenFree((p) => p === true ? false : true);
+  const getPrice = (size) => {
+    const raw = item?.prices?.[size];
+    if (raw == null) return 0;
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'string') { const n = parseFloat(raw.replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : n; }
+    return 0;
+  };
+  const totalItems = Object.values(quantities).reduce((sum, v) => sum + (v || 0), 0);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+      <button onClick={() => onClose()} className="quantity-btn" style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', zIndex: 10 }} title="Close">&times;</button>
+      <img src={item.image || getImagePath(item.name)} alt={item.name} className="detail-image" />
+      <h3 className="panel-title" style={{ marginTop: '1rem' }}>{item.name}</h3>
+      <p style={{ color: 'var(--text-medium)', fontSize: '0.875rem', marginTop: 0 }}>{item.description}</p>
+      <div className="detail-panel-body">
+        {Array.isArray(item?.sizes) && item.sizes.length ? (
+          item.sizes.map((size) => (
+            <div key={size} className="size-quantity-row">
+              <div><span style={{fontWeight:500}}>{size}</span><span style={{color:'var(--text-medium)', marginLeft:'0.5rem'}}>${(getPrice(size) + (isGlutenFree && size === 'Large' ? 4 : 0)).toFixed(2)}</span></div>
+              <div className="quantity-controls">
+                <button className="quantity-btn" onClick={() => handleQuantityChange(size, -1)} disabled={(quantities[size] || 0) === 0}>-</button>
+                <span>{quantities[size] || 0}</span>
+                <button className="quantity-btn" onClick={() => handleQuantityChange(size, 1)}>+</button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="size-quantity-row">
+            <div><span style={{fontWeight:500}}>Price</span><span style={{color:'var(--text-medium)', marginLeft:'0.5rem'}}>${(getPrice('Default')).toFixed(2)}</span></div>
+            <div className="quantity-controls">
+              <button className="quantity-btn" onClick={() => handleQuantityChange('Default', -1)} disabled={(quantities.Default || 0) === 0}>-</button>
+              <span>{quantities.Default || 0}</span>
+              <button className="quantity-btn" onClick={() => handleQuantityChange('Default', 1)}>+</button>
+            </div>
+          </div>
+        )}
+        {Array.isArray(item?.sizes) && item.sizes.length ? (
+          <div className="gluten-free-toggle"><label htmlFor="gf-checkbox">Gluten Free (Large Only) +$4.00</label><input type="checkbox" id="gf-checkbox" checked={isGlutenFree} onChange={handleGlutenFreeToggle} /></div>
+        ) : null}
+        {item.sizes && <button className="simple-button" onClick={onOpenExtras}>Add Extras</button>}
+        {item.ingredients && <button className="simple-button" onClick={onOpenIngredients}>Edit Ingredients</button>}
+      </div>
+      <div className="cart-total-section">
+        <button onClick={() => {
+          const itemsToAdd = [];
+          for (const size in quantities) { if (quantities[size] > 0) itemsToAdd.push({ size: item.sizes ? size : 'Default', qty: quantities[size] }); }
+          onClose(itemsToAdd, isGlutenFree);
+        }} className="place-order-button">{editingIndex != null ? 'Update Item' : `Add ${totalItems} to Order`}</button>
+        <button onClick={() => onClose()} className="simple-button" style={{ marginTop: '0.5rem' }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// OrderSummaryPanel
+function OrderSummaryPanel({ onEditItem, isMapsLoaded }) {
+  const { cart, totalPrice } = useCart();
+  const [orderType, setOrderType] = useState('Pickup');
+  const [address, setAddress] = useState('');
+  const [estimatedTime, setEstimatedTime] = useState(0);
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [addressError, setAddressError] = useState('');
+  const addressInputRef = useRef(null);
+  const finalTotal = totalPrice + deliveryFee;
+  useEffect(() => {
+    const base = 20; const itemsCount = cart.reduce((sum, it) => sum + it.qty, 0);
+    const extra = itemsCount > 1 ? (itemsCount - 1) * 2 : 0; const cookTime = base + extra;
+    if (orderType === 'Pickup') setEstimatedTime(cookTime); else setEstimatedTime(address ? cookTime + Math.floor(Math.random() * 21) + 15 : 0);
+  }, [orderType, address, cart]);
+  useEffect(() => {
+    if (orderType !== 'Delivery' || !isMapsLoaded || !addressInputRef.current || !w.google?.maps?.places) return;
+    const bounds = new w.google.maps.LatLngBounds(new w.google.maps.LatLng(-35.15, 138.45), new w.google.maps.LatLng(-35.00, 138.65));
+    const autocomplete = new w.google.maps.places.Autocomplete(addressInputRef.current, { componentRestrictions: { country: 'AU' }, types: ['address'], fields: ['formatted_address', 'address_components'], bounds, strictBounds: true });
+    const onPlaceChanged = () => {
+      const place = autocomplete.getPlace();
+      if (!place || !place.address_components) { setAddressError('Please select a valid address from the suggestions.'); setDeliveryFee(0); return; }
+      const suburbComponent = place.address_components.find((c) => c.types.includes('locality'));
+      if (suburbComponent) {
+        const zones = { 'sheidow park': 8.40, 'woodcroft': 8.40, 'christie downs': 12.60, 'trott park': 8.40, 'happy valley': 8.40, "o'halloran hill": 8.40, 'hallett cove': 12.60, 'hackham west': 12.60, 'huntfield heights': 12.60, 'morphett vale': 8.40, 'lonsdale': 12.60, 'old reynella': 8.40, 'hackham': 12.60, 'reynella': 8.40, 'onkaparinga hills': 12.60, 'reynella east': 8.40, 'aberfoyle park': 12.60 };
+        const suburb = suburbComponent.long_name.toLowerCase();
+        if (zones[suburb]) { setAddress(place.formatted_address); setDeliveryFee(zones[suburb]); setAddressError(''); }
+        else { setAddress(place.formatted_address); setDeliveryFee(0); setAddressError('Sorry, we do not deliver to this suburb.'); }
+      } else { setAddressError('Could not determine suburb. Please try a different address.'); setDeliveryFee(0); }
+    };
+    autocomplete.addListener('place_changed', onPlaceChanged);
+    return () => { try { w.google.maps.event.clearInstanceListeners(autocomplete); } catch {} };
+  }, [isMapsLoaded, orderType]);
+  const activeBtn = { backgroundColor: 'var(--brand-neon-green)', color: 'var(--background-dark)', border: 'none', padding: '0.75rem 1rem', borderRadius: '0.5rem', fontWeight: 700, cursor: 'pointer', width: '50%' };
+  const inactiveBtn = { ...activeBtn, backgroundColor: 'var(--border-color)', color: 'var(--text-light)' };
+  return (
+    <>
+      <h2 className="panel-title">Your Order</h2>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+        <button style={orderType === 'Pickup' ? activeBtn : inactiveBtn} onClick={() => { setOrderType('Pickup'); setAddress(''); setDeliveryFee(0); setAddressError(''); }}>Pickup</button>
+        <button style={orderType === 'Delivery' ? activeBtn : inactiveBtn} onClick={() => setOrderType('Delivery')}>Delivery</button>
+      </div>
+      <div className="info-box">
+        {orderType === 'Pickup' ? (
+          <>
+            <p>Pickup from: <strong>Pizza Peppers Store</strong></p>
+            <p>Pickup time: <strong>ASAP (Approx. {estimatedTime} mins)</strong></p>
+          </>
+        ) : (
+          <>
+            <label htmlFor="address" style={{ fontWeight: 500, marginBottom: '0.5rem', display: 'block' }}>Delivery Address</label>
+            <input ref={addressInputRef} type="text" id="address" onChange={(e) => { setAddress(e.target.value); setDeliveryFee(0); setAddressError(''); }} value={address} placeholder={isMapsLoaded ? 'Start typing your address…' : 'Loading address helper…'} disabled={!isMapsLoaded} style={{ width: 'calc(100% - 1.5rem)'}} />
+            {addressError && <p style={{ color: '#fca5a5', marginTop: '0.5rem', fontSize: '0.875rem' }}>{addressError}</p>}
+            {estimatedTime > 0 && deliveryFee > 0 && <p style={{ marginTop: '1rem' }}>Estimated delivery time: <strong>ASAP (Approx. {estimatedTime} mins)</strong></p>}
+          </>
+        )}
+      </div>
+      <div className="cart-items-list">
+        {cart.length > 0 ? cart.map((it, idx) => (
+          <div key={idx} className="cart-item" onClick={() => onEditItem(it, idx)}>
+            <div>
+              <span>{it.qty} x {it.name} {it.size !== 'Default' ? `(${it.size})` : ''}</span>
+              {it.isGlutenFree && <span style={{color:'#facc15', marginLeft:'0.5rem', fontSize:'0.75rem'}}>GF</span>}
+              <div className="cart-item-details">{Object.values(it.extras || {}).map((ex) => `${ex.qty}x ${ex.name}`).join(', ')}</div>
+              <div className="cart-item-details" style={{color:'#fca5a5'}}>{it.removedIngredients?.length > 0 ? `No ${it.removedIngredients.join(', ')}` : ''}</div>
+            </div>
+            <span>${(it.price * it.qty).toFixed(2)}</span>
+          </div>
+        )) : <p style={{ color: 'var(--text-medium)', textAlign: 'center', marginTop: '2rem' }}>Your cart is empty.</p>}
+      </div>
+      <div className="cart-total-section">
+        <div style={{marginBottom:'1rem'}}><input type="text" placeholder="Add voucher code" style={{width: 'calc(100% - 1.5rem)'}} /></div>
+        {deliveryFee > 0 && (<div style={{ display: 'flex', justifyContent: 'space-between', marginBottom:'0.5rem', color:'var(--text-medium)'}}><span>Delivery Fee</span><span>${deliveryFee.toFixed(2)}</span></div>)}
+        <div className="total-price-display"><span>Total:</span><span>${finalTotal.toFixed(2)}</span></div>
+        <button className="place-order-button" disabled={orderType === 'Delivery' && (!address || !!addressError)}>Continue</button>
+      </div>
+    </>
+  );
+}
+
+// ThemeSwitcher
+function ThemeSwitcher() {
+  const { theme, setTheme } = useTheme();
+  const btn = { width:'2rem', height:'2rem', borderRadius:'50%', cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center', fontSize:'1.2rem', backgroundColor:'var(--background-light)', borderWidth:'2px', borderStyle:'solid', borderColor:'var(--border-color)' };
+  const active = { ...btn, borderColor:'var(--brand-neon-green)' };
+  return (
+    <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
+      <button style={theme === 'standard' ? active : btn} onClick={() => setTheme('standard')} title="Standard Theme">S</button>
+      <button style={theme === 'light' ? active : btn} onClick={() => setTheme('light')} title="Light Theme">L</button>
+      <button style={theme === 'dark' ? active : btn} onClick={() => setTheme('dark')} title="Dark Theme">D</button>
+    </div>
+  );
 }
 
 // --- Icons (place ABOVE LoginModal) ---
@@ -1994,26 +2544,18 @@ function AppLayout({ isMapsLoaded }) {
 
 
   const { addToCart, removeFromCart } = useCart();
-
-  // Dynamic menu
-  const [menuData, setMenuData] = useState({ categories: [] });
-  const [isLoading, setIsLoading] = useState(true);
+  const [menuLoading, setMenuLoading] = useState(true);
   const [menuReady, setMenuReady] = useState(false);
-  const [menuError, setMenuError] = useState('');
-  const isLoadingMenu = isLoading; // canonical spinner gate
-  // Derived: do we have at least one category?
-  const hasMenu = useMemo(() => {
-    return Array.isArray(menuData?.categories) && menuData.categories.length > 0;
-  }, [menuData]);
+  const [menu, setMenu] = useState({ categories: [], products: [] });
 
-  // Self-heal: if data is present, consider menu ready.
+  const menuData = useMemo(() => menu || { categories: [] }, [menu]);
+  const hasMenu = useMemo(() => Array.isArray(menuData?.categories) && menuData.categories.length > 0, [menuData]);
+
   useEffect(() => {
-    if (hasMenu && !menuReady) {
-      console.warn('[menu][autorun] data present ? setting menuReady');
-      setMenuReady(true);
-    }
-  }, [hasMenu, menuReady]);
-
+    try {
+      console.log('[menu][render] menuLoading=', menuLoading, ' categories=', menuData?.categories?.length || 0);
+    } catch {}
+  }, [menuLoading, menuData]);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -2023,105 +2565,53 @@ function AppLayout({ isMapsLoaded }) {
   const [rightPanelView, setRightPanelView] = useState('order');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [menuError, setMenuError] = useState(null);
   // Derived: do we have at least one category?
 
-
-  // Guard against React StrictMode double-invoke in dev
-    // Guard against React StrictMode double-invoke in dev
-  const fetchedOnce = useRef(false);
-  useEffect(() => {
-    console.log('[menu][effect] start');
-    if (fetchedOnce.current) return;
-    fetchedOnce.current = true;
-    console.log('MENU_URL =', import.meta.env.VITE_MENU_URL || '/pp-proxy/public/menu');
-    let cancelled = false;
-
-    // Safety valve: force-hide spinner after 1.5s if something stalls
-    const safety = setTimeout(() => {
-      if (!cancelled) {
-        console.warn('[menu][safety] forcing spinner off after 1.5s');
-        setIsLoading(false);
-        setMenuReady(true);
-      }
-    }, 1500);
-
-    const fallbackFromApi = (api) => {
-      const cats = Array.isArray(api?.categories) ? api.categories : [];
-      const prods = Array.isArray(api?.products) ? api.products : [];
-      const prodCatKey = ['category_ref','categoryRef','categoryId','category_id']
-        .find(k => prods.some(p => k in p)) || 'category_ref';
-      const catRefKey  = ['ref','id','_id'].find(k => cats.some(c => k in c)) || 'ref';
-      const catNameKey = ['name','title','label'].find(k => cats.some(c => k in c)) || 'name';
-
-      const byCat = new Map();
-      for (const p of prods) {
-        const cref = p?.[prodCatKey];
-        if (!cref) continue;
-        if (!byCat.has(cref)) byCat.set(cref, []);
-        byCat.get(cref).push({
-          id: p?.id ?? p?.ref ?? p?._id ?? `${cref}:${p?.name ?? 'item'}`,
-          name: p?.name ?? p?.title ?? 'Item',
-          description: p?.description ?? '',
-          sizes: null,
-          prices: {},
-        });
-      }
-      return {
-        categories: cats.map(c => ({
-          name: String(c?.[catNameKey] ?? 'Category'),
-          ref:  String(c?.[catRefKey]  ?? ''),
-          items: byCat.get(String(c?.[catRefKey] ?? '')) || []
-        }))
-      };
+  const prepareItemForPanel = useCallback((item) => {
+    if (!item) return null;
+    const sizeEntries = Array.isArray(item.sizes) && item.sizes.length
+      ? item.sizes
+      : [{ id: item.id || 'default', name: 'Regular', price_cents: item.basePrice_cents ?? 0 }];
+    const sizeNames = sizeEntries.map((s) => s.name || 'Regular');
+    const priceMap = {};
+    const priceCentsMap = {};
+    for (const entry of sizeEntries) {
+      const label = entry.name || 'Regular';
+      const cents = typeof entry.price_cents === 'number' ? entry.price_cents : 0;
+      priceCentsMap[label] = cents;
+      priceMap[label] = cents / 100;
+    }
+    return {
+      ...item,
+      image: item.image || getImagePath(item.name),
+      rawSizes: sizeEntries,
+      sizes: sizeNames,
+      prices: priceMap,
+      priceCents: priceCentsMap,
+      basePrice: (item.basePrice_cents ?? 0) / 100,
     };
-
-    (async () => {
-      try {
-        const api = await fetchMenu();
-        let ui;
-        try {
-          ui = transformMenuSafeRef ? transformMenuSafeRef(api) : transformMenu(api);
-        } catch (e) {
-          console.warn('[menu] transform failed, using fallback:', e?.message || e);
-          ui = fallbackFromApi(api);
-        }
-      if (!cancelled) { w.__menu_api = api; w.__menu_tx = ui; try { console.log('[menu] pre-setMenuData, cats=', ui?.categories?.length ?? 0); setMenuData(ui); } catch (e) { console.error('[menu] setMenuData threw:', e); const seed = { categories: [{ name: 'Debug', ref: 'debug', items: [] }] }; setMenuData(seed); }
-          console.log('[menu] loaded: categories=', ui.categories?.length ?? 0);
-        }
-      } catch (err) {
-        console.error('[menu] load error:', err);
-        if (!cancelled) { setMenuError(String(err?.message || err)); setMenuData({ categories: [] }); }
-      } finally {
-        if (!cancelled) {
-          clearTimeout(safety);
-          setIsLoading(false);
-          console.log('[menu][effect] finally -> setMenuReady(true)');
-          setMenuReady(true);
-          console.log('[menu][gate] setIsLoadingMenu(false) called');
-          w.__APP_RENDER_TAP = 'ready';
-          w.__FORCE_MENU_READY = () => { console.warn('[menu][force] manual off'); setIsLoading(false); setMenuReady(true); };
-        }
-      }
-    })();
-
-    return () => { cancelled = true; };
   }, []);
 
   const handleItemClick = (item) => {
-    if (selectedItem && selectedItem.name === item.name) {
+    const prepared = prepareItemForPanel(item);
+    if (!prepared) return;
+    if (selectedItem && selectedItem.name === prepared.name) {
       setSelectedItem(null);
       setCustomizingItem(null);
       setEditingIndex(null);
     } else {
-      setSelectedItem(item);
-      setCustomizingItem({ ...item, extras: {}, removedIngredients: [] });
+      setSelectedItem(prepared);
+      setCustomizingItem({ ...prepared, extras: {}, removedIngredients: [] });
       setEditingIndex(null);
     }
   };
 
   const handleEditItem = (item, index) => {
-    setSelectedItem(item);
-    setCustomizingItem({ ...item });
+    const prepared = item?.prices ? { ...item } : prepareItemForPanel(item);
+    if (!prepared) return;
+    setSelectedItem(prepared);
+    setCustomizingItem({ ...prepared });
     setEditingIndex(index);
   };
 
@@ -2132,7 +2622,7 @@ function AppLayout({ isMapsLoaded }) {
         ...selectedItem,
         size,
         qty,
-        price: selectedItem.prices[size] + (isGlutenFree && size === 'Large' ? 4.00 : 0) + extrasPrice,
+        price: (selectedItem.prices?.[size] ?? selectedItem.basePrice ?? 0) + (isGlutenFree && size === 'Large' ? 4.00 : 0) + extrasPrice,
         isGlutenFree: isGlutenFree && size === 'Large',
         extras: customizingItem.extras,
         removedIngredients: customizingItem.removedIngredients
@@ -2165,75 +2655,76 @@ function AppLayout({ isMapsLoaded }) {
     setRightPanelView('about');
   };
 
+  useEffect(() => {
+    let alive = true;
+    setMenuLoading(true);
+    console.log('[menu][effect] start');
+    (async () => {
+      try {
+        console.log('MENU_URL =', MENU_URL);
+        const raw = await fetchMenuRaw();
+        const normalized = transformMenu(raw);
+        if (!alive) return;
+        setMenu(normalized);
+        setMenuError(null);
+      } catch (e) {
+        console.error('[menu][effect] error', e);
+        if (!alive) return;
+        setMenu({ categories: [], products: [] });
+        setMenuError(e);
+      } finally {
+        if (!alive) return;
+        setMenuLoading(false);
+        setMenuReady(true);
+        console.log('[menu][effect] finally → menuReady=true');
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const devForce = () => {
+      setMenuLoading(false);
+      setMenuReady(true);
+      console.warn('[menu][dev] forced ready');
+    };
+    window.__FORCE_MENU_READY = devForce;
+    window.__FORCE_MENU_READY__ = devForce; // TEMP compatibility during rename
+    return () => {
+      if (window.__FORCE_MENU_READY === devForce) delete window.__FORCE_MENU_READY;
+      if (window.__FORCE_MENU_READY__ === devForce) delete window.__FORCE_MENU_READY__;
+    };
+  }, []);
+
   // URL-guarded debug renderer to verify menu pipeline fast
   if (menuDebug) {
-  // Log on each shell render (outside JSX to avoid parser weirdness)
-  useEffect(() => {
-    try { console.log("[menu][render] shell; isLoading=", isLoading, " cats=", menuData?.categories?.length || 0); } catch {}
-  });
-    console.log('[menu][render] debug bypass branch');
     const cats = Array.isArray(menuData?.categories) ? menuData.categories.length : 0;
     return (
       <div style={{ padding: 16 }}>
         <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
-        <div style={{ fontSize: 12, opacity: .7, marginBottom: 16 }}>
-          isLoading={String(isLoading)} ? hasMenu={String(hasMenu)} ? cats={cats}
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16 }}>
+          loading={String(menuLoading)} · ready={String(menuReady)} · hasMenu={String(hasMenu)} · categories={cats}
         </div>
+        {menuError ? (
+          <div style={{ color: 'crimson', marginBottom: 12 }}>Menu error: {String(menuError?.message || menuError)}</div>
+        ) : null}
         {(menuData?.categories || []).map((cat) => (
-          <section key={cat.ref || cat.name} style={{ margin: "20px 0" }}>
-            <h2 style={{ margin: "6px 0" }}>{cat.name}</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
-              {cat.items.map((it) => (
-                <div key={it.id} style={{ border: "1px solid #333", borderRadius: 8, padding: 12 }}>
-                  <div style={{ fontWeight: 600 }}>{it.name}</div>
-                  <div style={{ fontSize: 12, opacity: .7, margin: "6px 0 10px" }}>{it.description}</div>
-                  {it.prices && Object.keys(it.prices).length ? (
-                    <ul style={{ margin: 0, paddingLeft: 18 }}>
-                      {Object.entries(it.prices).map(([size, price]) => (
-                        <li key={size}>{size}: ${Number(price).toFixed(2)}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div style={{ fontSize: 12, opacity: .7 }}>No prices</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    );
-    if (isLoading) {
-      return <div style={{ padding: 16 }}>Loading menu? (debug)</div>;
-    }
-    if (menuError) {
-      return <div style={{ padding: 16, color: 'crimson' }}>Menu error (debug): {menuError}</div>;
-    }
-    if (!menuData?.categories?.length) {
-      return <div style={{ padding: 16 }}>No categories (debug)</div>;
-    }
-    return (
-      <div style={{ padding: 16 }}>
-        <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
-        <div style={{ fontSize: 12, opacity: .7, marginBottom: 16 }}>
-          cats={menuData.categories.length}
-        </div>
-        {menuData.categories.map((cat) => (
           <section key={cat.ref || cat.name} style={{ margin: '20px 0' }}>
             <h2 style={{ margin: '6px 0' }}>{cat.name}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
               {cat.items.map((it) => (
                 <div key={it.id} style={{ border: '1px solid #333', borderRadius: 8, padding: 12 }}>
                   <div style={{ fontWeight: 600 }}>{it.name}</div>
-                  <div style={{ fontSize: 12, opacity: .7, margin: '6px 0 10px' }}>{it.description}</div>
-                  {it.prices && Object.keys(it.prices).length ? (
+                  <div style={{ fontSize: 12, opacity: 0.7, margin: '6px 0 10px' }}>{it.description}</div>
+                  {Array.isArray(it.sizes) && it.sizes.length ? (
                     <ul style={{ margin: 0, paddingLeft: 18 }}>
-                      {Object.entries(it.prices).map(([size, price]) => (
-                        <li key={size}>{size}: ${Number(price).toFixed(2)}</li>
+                      {it.sizes.map((sz) => (
+                        <li key={sz.id || sz.name}>{sz.name}: {currency(sz.price_cents)}</li>
                       ))}
                     </ul>
                   ) : (
-                    <div style={{ fontSize: 12, opacity: .7 }}>No prices</div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>No sizes</div>
                   )}
                 </div>
               ))}
@@ -2244,14 +2735,6 @@ function AppLayout({ isMapsLoaded }) {
     );
   }
 
-    // Manual override (?forceReady=1) to kill spinner no matter what
-  const forceReady = (typeof window !== 'undefined') && new URLSearchParams(window.location.search).has('forceReady');
-  useEffect(() => {
-    if (forceReady && isLoading) {
-      console.warn('[menu][force] ?forceReady=1 detected ? disabling spinner gate');
-      setIsLoading(false);
-    }
-  }, [forceReady, isLoading]);
   return (<>
 
       {isExtrasModalOpen && customizingItem && (
@@ -2292,27 +2775,26 @@ function AppLayout({ isMapsLoaded }) {
 
           <main className="main-content-area">
             {/* <DebugMenuFetch /> */}  {/* TEMP widget hidden */}
-            {!menuReady ? (
-              <>
-                
-                <p style={{ textAlign:'center', fontSize:'1.2rem', marginTop:'1rem' }}>
-                  Loading menu? (AppLayout spinner A)
-                </p>
-              </>
-            ) : hasMenu ? (
+            {menuLoading ? (
+              <div className="p-8 text-center opacity-80">
+                <div className="animate-pulse text-sm">Loading menu… (AppLayout)</div>
+              </div>
+            ) : (menu?.categories?.length > 0 ? (
               <Routes>
-                
                 <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
                 <Route path="/terms" element={<TermsPage />} />
                 <Route path="*" element={<div style={{padding:16}}>Route fallback OK</div>} />
-                {/* <Route path="*" element={<div style={{padding:16}}>Route fallback OK</div>} />  */}
               </Routes>
             ) : (
-              <div style={{ textAlign:'center', marginTop:'2rem' }}>
-                <div>No items to show. Live API returned 0 categories or failed transform.</div>
-                <div style={{opacity:.7, marginTop:6}}>Open DevTools ? Console for [menu][transform] logs.</div>
+              <div className="p-8 text-center opacity-80">
+                <div className="text-sm">No items to show yet. Check your menu JSON.</div>
+                {menuError ? (
+                  <div className="text-xs" style={{ marginTop: '0.5rem', opacity: 0.6 }}>
+                    {String(menuError?.message || menuError)}
+                  </div>
+                ) : null}
               </div>
-            )}
+            ))}
             <Footer />
           </main>
         </div>
@@ -2361,28 +2843,34 @@ function App() {
 
   return (
     <AppProvider>
-    <Router>
-      <ThemeProvider>
-        <AuthProvider>
-          <CartProvider>
-            <AppStyles />
-            <FirebaseBanner />
-            <ErrorBoundary>
-              <AppLayout isMapsLoaded={isMapsLoaded} />
-            </ErrorBoundary>
-              <div  
+      <Router>
+        <ThemeProvider>
+          <AuthProvider>
+            <CartProvider>
+              <AppStyles />
+              <FirebaseBanner />
+              <ErrorBoundary>
+                <AppLayout isMapsLoaded={isMapsLoaded} />
+              </ErrorBoundary>
+              <div
                 id="recaptcha-container-root"
                 style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 1 }}
               />
-          </CartProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </Router>
+            </CartProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </Router>
     </AppProvider>
   );
 }
 
 export default App;
+
+
+
+
+
+
 
 
 

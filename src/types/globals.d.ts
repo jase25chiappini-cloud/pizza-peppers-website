@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+export {};
+
+// Ambient declaration for window globals
 declare global {
   interface Window {
     __PP_ONERROR_TAP?: any;
@@ -7,7 +10,9 @@ declare global {
     __menu_api?: any;
     __menu_tx?: any;
     __APP_RENDER_TAP?: any;
-    __FORCE_MENU_READY?: any;
+    /** Debug/dev flag to force menu readiness in the UI bootstrap */
+    __FORCE_MENU_READY?: boolean | (() => void);
+    __FORCE_MENU_READY__?: boolean | (() => void); // TEMP: remove after code replace
     google?: any;
   }
 
@@ -21,6 +26,3 @@ declare global {
     readonly env: ImportMetaEnv;
   }
 }
-
-export {};
-
