@@ -1,8 +1,123 @@
-﻿import React, { useState, createContext, useContext, useMemo, useEffect, useRef } from 'react';
-import { fetchLiveMenu } from './lib/menuClient';
-import { transformMenu } from './lib/transformMenu';
+import React, { useState, createContext, useContext, useMemo, useEffect, useRef, useCallback } from 'react';
 import { MENU_URL, logMenuUrlOnce } from './config/menuSource';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+/*** -------------------------------------------------------------
+ *  INLINE MODULES (moved from /context and /menu)
+ *  1) AppContext (Provider + hook)
+ *  2) Menu client (fetchMenu)
+ *  3) Menu transformer (transformMenu)
+ *  Keep these above components so everything can use them.
+ *  ------------------------------------------------------------ */
+
+/* 1) AppContext */
+const AppContext = createContext({
+  currentUser: null,
+  loginWithGoogle: async () => {},
+  loginWithApple: async () => {},
+  loginLocal: () => ({}),
+  signupLocal: () => ({}),
+  logout: async () => {},
+});
+
+function AppProvider({ children }) {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const loginWithGoogle = useCallback(async () => { return; }, []);
+  const loginWithApple = useCallback(async () => { return; }, []);
+  const loginLocal = useCallback((phone, displayName) => {
+    const user = { uid: `local_${Date.now()}`, phone, displayName: displayName || '' };
+    setCurrentUser(user);
+    return { ok: true, user };
+  }, []);
+  const signupLocal = useCallback(({ phone, displayName }) => {
+    const user = { uid: `local_${Date.now()}`, phone, displayName: displayName || '' };
+    setCurrentUser(user);
+    return { ok: true, user };
+  }, []);
+  const logout = useCallback(async () => { setCurrentUser(null); }, []);
+
+  const value = useMemo(
+    () => ({ currentUser, loginWithGoogle, loginWithApple, loginLocal, signupLocal, logout }),
+    [currentUser, loginWithGoogle, loginWithApple, loginLocal, signupLocal, logout]
+  );
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+}
+
+function useApp() { return useContext(AppContext); }
+
+/* 2) Menu client */
+const MENU_URL_INLINE = '/pp-proxy/public/menu';
+async function fetchMenu() {
+  console.log('[menu] GET', MENU_URL_INLINE);
+  const res = await fetch(MENU_URL_INLINE, { headers: { Accept: 'application/json' } });
+  const contentType = res.headers.get('content-type') || '';
+  console.log('[menu][debug] status:', res.status, 'content-type:', contentType);
+  const data = await res.json();
+  return {
+    categories: data.categories || [],
+    products: data.products || [],
+    option_lists: data.option_lists || [],
+    settings: data.settings || {},
+    globals: data.globals || {},
+    delivery_zones: data.delivery_zones || [],
+  };
+}
+
+/* 3) Menu transformer */
+function transformMenu(api) {
+  const categories = Array.isArray(api.categories) ? api.categories : [];
+  const products = Array.isArray(api.products) ? api.products : [];
+
+  console.log('[menu][transform] input counts:', 'categories=' + categories.length, 'products=' + products.length);
+  const cfg = { catRefKey: 'ref', catNameKey: 'name', prodCatRefKey: 'category_ref' };
+  console.log('[menu][transform] keys: category.ref=' + cfg.catRefKey + ' category.name=' + cfg.catNameKey + ' product.categoryRef=' + cfg.prodCatRefKey);
+
+  const byCat = new Map();
+  for (const c of categories) {
+    const ref = c?.[cfg.catRefKey];
+    const name = c?.[cfg.catNameKey];
+    if (!ref) continue;
+    byCat.set(ref, { ref, name, items: [] });
+  }
+
+  const toSizes = (p) => {
+    if (Array.isArray(p?.skus) && p.skus.length) {
+      return p.skus.map((s) => ({
+        id: s.id ?? s.ref ?? s.name ?? 'default',
+        name: s.name ?? s.ref ?? 'Default',
+        price_cents: Number(s.price_cents ?? Math.round((s.price ?? 0) * 100)) || 0,
+      }));
+    }
+    if (Array.isArray(p?.sizes) && p.sizes.length) {
+      return p.sizes.map((s) => ({
+        id: s.id ?? s.ref ?? s.name ?? 'default',
+        name: s.name ?? s.ref ?? 'Default',
+        price_cents: Number(s.price_cents ?? Math.round((s.price ?? 0) * 100)) || 0,
+      }));
+    }
+    const single = Number(p?.price_cents ?? Math.round((p?.price ?? 0) * 100)) || 0;
+    return [{ id: 'default', name: 'Default', price_cents: single }];
+  };
+
+  for (const p of products) {
+    const catRef = p?.[cfg.prodCatRefKey];
+    if (!catRef || !byCat.has(catRef)) continue;
+    const item = {
+      id: p.id || p.ref || ('p_' + Math.random().toString(36).slice(2)),
+      name: p.name || 'Unnamed',
+      description: p.description ?? '',
+      sizes: toSizes(p),
+      image: p.image || null,
+      raw: p,
+    };
+    byCat.get(catRef).items.push(item);
+  }
+
+  const out = Array.from(byCat.values()).map(c => ({ ...c, products: c.items }));
+  console.log('[menu][transform] output categories=' + out.length);
+  return { categories: out };
+}
 // import { formatId, getImagePath } from './utils/helpers';
 import { extrasData } from './data/menuData';
 import Menu from './components/Menu';
@@ -283,7 +398,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
       setLoading(true);
       if (!w.__ppConfirmation) throw new Error("Please send the code first.");
       const res = await w.__ppConfirmation?.confirm(otp);
-      if (res?.user) setOk("Number verified ✅ (optional).");
+      if (res?.user) setOk("Number verified ? (optional).");
     } catch (error) {
       setErr(error?.message || "Invalid code");
     } finally {
@@ -304,7 +419,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   if (!entry) return setErr("No account found for that number. Please sign up.");
   if (entry.pw !== password) return setErr("Incorrect password.");
 
-  // ✅ create local session so Navbar sees you as logged in
+  // ? create local session so Navbar sees you as logged in
   loginLocal(ph);
   setOk("Welcome back!");
   setTimeout(onClose, 300);
@@ -329,9 +444,9 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
   users[ph1] = { pw: password, createdAt: Date.now() };
   saveUsers(users);
 
-  // ✅ immediately sign them in locally
+  // ? immediately sign them in locally
   loginLocal(ph1);
-  setOk("Account created 🎉 You’re all set.");
+  setOk("Account created ?? You?re all set.");
   setTimeout(onClose, 400);
 };
 
@@ -364,7 +479,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
       >
         <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
           <h3 className="panel-title" style={{ fontSize: '1.6rem' }}>Login or Sign Up</h3>
-          <button onClick={onClose} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
+          <button onClick={onClose} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>?</button>
         </div>
 
         <div className="modal-body" style={{ overflowX: 'hidden', paddingTop: '0.75rem' }}>
@@ -607,7 +722,7 @@ function LoginModal({ onClose, onGoogle, onApple, auth }) {
                 className="simple-button"
                 style={{ marginTop: '1rem', background: 'transparent', border: '1px solid var(--border-color)' }}
               >
-                ← All sign-in options
+                ? All sign-in options
               </button>
             </div>
           )}
@@ -639,10 +754,10 @@ function ProfileModal({ onClose }) {
     suburb: "",
     state: "",
     postcode: "",
-    paymentLabel: "",   // e.g. “Visa •••• 4242” or “Pay on pickup”
-    paymentBrand: "",   // e.g. “visa”
-    paymentLast4: "",   // e.g. “4242”
-    paymentExp: "",     // e.g. “12/26”
+    paymentLabel: "",   // e.g. ?Visa ???? 4242? or ?Pay on pickup?
+    paymentBrand: "",   // e.g. ?visa?
+    paymentLast4: "",   // e.g. ?4242?
+    paymentExp: "",     // e.g. ?12/26?
   });
 
   // Load existing profile (or seed from auth)
@@ -659,7 +774,7 @@ function ProfileModal({ onClose }) {
           email: currentUser.email || "",
         };
 
-        // Local user → read from localStorage
+        // Local user ? read from localStorage
         if (currentUser.providerId === 'local' || (currentUser.uid && currentUser.uid.startsWith('local:'))) {
           try {
             const raw = localStorage.getItem(`pp_profile_${currentUser.uid}`);
@@ -672,7 +787,7 @@ function ProfileModal({ onClose }) {
             if (mounted) setLoading(false);
           }
         } else if (!firebaseDisabled && db) {
-          // Firebase user → Firestore
+          // Firebase user ? Firestore
           const ref = doc(db, "users", currentUser.uid);
           const snap = await getDoc(ref);
           if (snap.exists()) {
@@ -684,7 +799,7 @@ function ProfileModal({ onClose }) {
             if (mounted) setForm(prev => ({ ...prev, ...seed }));
           }
         } else {
-          // Firebase not available → fall back to auth seed only
+          // Firebase not available ? fall back to auth seed only
           if (mounted) setForm(prev => ({ ...prev, ...seed }));
         }
       } catch (e) {
@@ -734,7 +849,7 @@ function ProfileModal({ onClose }) {
     try {
       setSaving(true);
       if (!currentUser) throw new Error("Not logged in");
-      // Don’t store raw card numbers here. This is only metadata/labels.
+      // Don?t store raw card numbers here. This is only metadata/labels.
       if (!firebaseDisabled && db) {
         const ref = doc(db, "users", currentUser.uid);
         await setDoc(ref, { ...form }, { merge: true });
@@ -792,7 +907,7 @@ function ProfileModal({ onClose }) {
       >
         <div className="modal-header">
           <h3 className="panel-title">Your Profile</h3>
-          <button onClick={onClose} className="quantity-btn" style={{ width: '2.5rem', height: '2.5rem' }}>×</button>
+          <button onClick={onClose} className="quantity-btn" style={{ width: '2.5rem', height: '2.5rem' }}>?</button>
         </div>
 
         <div className="modal-body" style={{ paddingBottom: "0.25rem" }}>
@@ -815,7 +930,7 @@ function ProfileModal({ onClose }) {
                     {
                       firebaseDisabled
                         ? 'Upload unavailable in this environment'
-                        : (uploading ? `Uploading… ${uploadPct ?? 0}%` : 'Upload photo')
+                        : (uploading ? `Uploading? ${uploadPct ?? 0}%` : 'Upload photo')
                     }
                   </label>
                   <input
@@ -826,7 +941,7 @@ function ProfileModal({ onClose }) {
                     style={{ display: 'none' }}
                     disabled={!canUseAvatarUpload || uploading}
                   />
-                  <div className="pp-upload-hint">JPG/PNG • ~1MB</div>
+                  <div className="pp-upload-hint">JPG/PNG ? ~1MB</div>
                 </div>
 
                 <div className="pp-row">
@@ -929,7 +1044,7 @@ function ProfileModal({ onClose }) {
                     type="text"
                     value={form.paymentLabel}
                     onChange={onChange}
-                    placeholder='e.g. "Visa •••• 4242" or "Pay on pickup"'
+                    placeholder='e.g. "Visa ???? 4242" or "Pay on pickup"'
                   />
 
                   <div className="pp-three">
@@ -960,7 +1075,7 @@ function ProfileModal({ onClose }) {
 
               {error && <p style={{ color: "tomato", margin: 0 }}>{error}</p>}
               <button type="submit" className="place-order-button" disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
-                {saving ? "Saving…" : "Save profile"}
+                {saving ? "Saving?" : "Save profile"}
               </button>
             </form>
           )}
@@ -1320,7 +1435,7 @@ function AppStyles() {
       padding: 0.25rem 0.5rem 0.5rem; /* small inner gutter */
     }
 
-    /* Focus style that never “clips” against edges */
+    /* Focus style that never ?clips? against edges */
     input[type="text"], input[type="tel"], input[type="password"], input[type="url"], select, textarea {
       background-color: var(--border-color);
       border: 1px solid #4b5563;
@@ -1330,7 +1445,7 @@ function AppStyles() {
       transition: box-shadow 0.15s, outline 0.15s, border-color 0.15s;
     }
 
-    /* outline + offset is safer than huge glow; won’t get cut off */
+    /* outline + offset is safer than huge glow; won?t get cut off */
     input[type="text"]:focus, input[type="tel"]:focus, input[type="password"]:focus, input[type="url"]:focus, select:focus, textarea:focus {
       outline: 2px solid var(--brand-pink);
       outline-offset: 3px;             /* pulls outline inward a little */
@@ -1458,7 +1573,7 @@ function ExtrasModal({ onSave, onCancel, initialExtras = {} }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="panel-title">Add Extras</h3>
-          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
+          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>?</button>
         </div>
         <div className="modal-body">
           {Object.entries(extrasData).map(([category, extras]) => (
@@ -1502,7 +1617,7 @@ function EditIngredientsModal({ item, onSave, onCancel, initialRemoved = [] }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="panel-title">Edit Ingredients</h3>
-          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>×</button>
+          <button onClick={onCancel} className="quantity-btn" style={{width: '2.5rem', height: '2.5rem'}}>?</button>
         </div>
         <div className="modal-body">
           {item.ingredients?.map(ingredient => (
@@ -1883,6 +1998,7 @@ function AppLayout({ isMapsLoaded }) {
   // Dynamic menu
   const [menuData, setMenuData] = useState({ categories: [] });
   const [isLoading, setIsLoading] = useState(true);
+  const [menuReady, setMenuReady] = useState(false);
   const [menuError, setMenuError] = useState('');
   const isLoadingMenu = isLoading; // canonical spinner gate
   // Derived: do we have at least one category?
@@ -1890,14 +2006,13 @@ function AppLayout({ isMapsLoaded }) {
     return Array.isArray(menuData?.categories) && menuData.categories.length > 0;
   }, [menuData]);
 
-  // Self-heal the spinner gate: if data is present, spinner must be off.
+  // Self-heal: if data is present, consider menu ready.
   useEffect(() => {
-    if (hasMenu && isLoading) {
-      console.warn('[menu][autorun] data present ? disabling spinner');
-      setIsLoading(false);
-  
+    if (hasMenu && !menuReady) {
+      console.warn('[menu][autorun] data present ? setting menuReady');
+      setMenuReady(true);
     }
-  }, [hasMenu, isLoading]);
+  }, [hasMenu, menuReady]);
 
 
   const [selectedItem, setSelectedItem] = useState(null);
@@ -1926,6 +2041,7 @@ function AppLayout({ isMapsLoaded }) {
       if (!cancelled) {
         console.warn('[menu][safety] forcing spinner off after 1.5s');
         setIsLoading(false);
+        setMenuReady(true);
       }
     }, 1500);
 
@@ -1961,7 +2077,7 @@ function AppLayout({ isMapsLoaded }) {
 
     (async () => {
       try {
-        const api = await fetchLiveMenu();
+        const api = await fetchMenu();
         let ui;
         try {
           ui = transformMenuSafeRef ? transformMenuSafeRef(api) : transformMenu(api);
@@ -1979,9 +2095,11 @@ function AppLayout({ isMapsLoaded }) {
         if (!cancelled) {
           clearTimeout(safety);
           setIsLoading(false);
+          console.log('[menu][effect] finally -> setMenuReady(true)');
+          setMenuReady(true);
           console.log('[menu][gate] setIsLoadingMenu(false) called');
           w.__APP_RENDER_TAP = 'ready';
-          w.__FORCE_MENU_READY = () => { console.warn('[menu][force] manual off'); setIsLoading(false); };
+          w.__FORCE_MENU_READY = () => { console.warn('[menu][force] manual off'); setIsLoading(false); setMenuReady(true); };
         }
       }
     })();
@@ -2059,7 +2177,7 @@ function AppLayout({ isMapsLoaded }) {
       <div style={{ padding: 16 }}>
         <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
         <div style={{ fontSize: 12, opacity: .7, marginBottom: 16 }}>
-          isLoading={String(isLoading)} � hasMenu={String(hasMenu)} � cats={cats}
+          isLoading={String(isLoading)} ? hasMenu={String(hasMenu)} ? cats={cats}
         </div>
         {(menuData?.categories || []).map((cat) => (
           <section key={cat.ref || cat.name} style={{ margin: "20px 0" }}>
@@ -2086,7 +2204,7 @@ function AppLayout({ isMapsLoaded }) {
       </div>
     );
     if (isLoading) {
-      return <div style={{ padding: 16 }}>Loading menu� (debug)</div>;
+      return <div style={{ padding: 16 }}>Loading menu? (debug)</div>;
     }
     if (menuError) {
       return <div style={{ padding: 16, color: 'crimson' }}>Menu error (debug): {menuError}</div>;
@@ -2135,6 +2253,7 @@ function AppLayout({ isMapsLoaded }) {
     }
   }, [forceReady, isLoading]);
   return (<>
+
       {isExtrasModalOpen && customizingItem && (
         <ExtrasModal
           onSave={handleSaveExtras}
@@ -2173,11 +2292,11 @@ function AppLayout({ isMapsLoaded }) {
 
           <main className="main-content-area">
             {/* <DebugMenuFetch /> */}  {/* TEMP widget hidden */}
-            {(isLoadingMenu && !hasMenu) ? (
+            {!menuReady ? (
               <>
                 
                 <p style={{ textAlign:'center', fontSize:'1.2rem', marginTop:'1rem' }}>
-                  Loading menu� (AppLayout spinner A)
+                  Loading menu? (AppLayout spinner A)
                 </p>
               </>
             ) : hasMenu ? (
@@ -2191,7 +2310,7 @@ function AppLayout({ isMapsLoaded }) {
             ) : (
               <div style={{ textAlign:'center', marginTop:'2rem' }}>
                 <div>No items to show. Live API returned 0 categories or failed transform.</div>
-                <div style={{opacity:.7, marginTop:6}}>Open DevTools → Console for [menu][transform] logs.</div>
+                <div style={{opacity:.7, marginTop:6}}>Open DevTools ? Console for [menu][transform] logs.</div>
               </div>
             )}
             <Footer />
@@ -2216,6 +2335,7 @@ function AppLayout({ isMapsLoaded }) {
           </div>
         </div>
       </div>
+
     </>
   );
 }
@@ -2240,6 +2360,7 @@ function App() {
   }, []);
 
   return (
+    <AppProvider>
     <Router>
       <ThemeProvider>
         <AuthProvider>
@@ -2257,10 +2378,19 @@ function App() {
         </AuthProvider>
       </ThemeProvider>
     </Router>
+    </AppProvider>
   );
 }
 
 export default App;
+
+
+
+
+
+
+
+
 
 
 
