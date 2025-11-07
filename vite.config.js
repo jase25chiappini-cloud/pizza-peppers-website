@@ -13,6 +13,9 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: false,
+    headers: {
+      // No COOP/COEP in dev so auth popups keep the same browsing context
+    },
     proxy: {
       // All frontend calls to /pp-proxy/* get proxied to Render
       '/pp-proxy': {

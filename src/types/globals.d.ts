@@ -13,6 +13,16 @@ declare global {
     /** Debug/dev flag to force menu readiness in the UI bootstrap */
     __FORCE_MENU_READY?: boolean | (() => void);
     google?: any;
+    __pp_transformMenu?: (raw: any) => any;
+    __PP_DELIVERY_BOUNDS_SW?: LatLng;
+    __PP_DELIVERY_BOUNDS_NE?: LatLng;
+    __PP_DELIVERY_CONFIG?: PpDeliveryConfig;
+    __PP_QUOTE_FOR_POSTCODE?: (postcode: string) => {
+      ok: boolean;
+      fee_cents?: number;
+      eta_min?: number;
+      reason?: string;
+    };
   }
 
   interface ImportMetaEnv {
@@ -25,3 +35,22 @@ declare global {
     readonly env: ImportMetaEnv;
   }
 }
+
+// --- Delivery globals used in App.jsx ---
+type LatLng = { lat: number; lng: number };
+
+interface PpDeliveryConfig {
+  getBounds: () => { sw: LatLng; ne: LatLng };
+  getAllowedPostcodes?: () => Set<string>;
+  getAllowedSuburbs?: () => Set<string>;
+  getExtractPostcode?: () => (address: string) => string | null;
+  isPlaceInDeliveryArea?: (place: unknown) => boolean;
+  quoteForPostcode?: (postcode: string) => {
+    ok: boolean;
+    fee_cents?: number;
+    eta_min?: number;
+    reason?: string;
+  };
+}
+
+export {};
