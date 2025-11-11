@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 
 import {
   FB_READY,
@@ -7,16 +7,57 @@ import {
   auth as firebaseAuth,
   db as firebaseDb,
   storage as firebaseStorage,
+} from "./firebase";
+import {
   GoogleAuthProvider,
   OAuthProvider,
   signOut as fbSignOut,
-  onAuthStateChanged,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  signInWithRedirect,
+  getRedirectResult,
+  signInWithPopup,
+  onIdTokenChanged,
   updateProfile,
-} from "./firebase";
-import { signInWithPhoneNumber, RecaptchaVerifier, signInWithRedirect, getRedirectResult, signInWithPopup } from "firebase/auth";
+  setPersistence,
+  browserLocalPersistence,
+} from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import AddressHelper from "./components/AddressHelper.jsx";
+import "./styles/profile.css";
+import { dumpFirebaseLocalStorage, logAuthConfig, labelUser } from "./utils/authDebug";
+import {
+  extractPostcode as extractPostcodeForUi,
+  isPostcodeServiceable,
+  quoteForPostcode as quoteForPostcodeUi,
+} from "./utils/delivery";
+
+if (typeof window !== "undefined") {
+  console.log("[PP][AuthDBG] window.origin:", window.location.origin, "authDomain:", "pizza-peppers-website.firebaseapp.com");
+}
+
+/**
+ * @typedef {{ lat: number, lng: number }} LatLng
+ * @typedef {{ sw: LatLng, ne: LatLng }} Bounds
+ *
+ * @typedef {Object} PpDeliveryConfig
+ * @property {() => Bounds} getBounds
+ * @property {() => Set<string>} getAllowedPostcodes
+ * @property {() => Set<string>} getAllowedSuburbs
+ * @property {() => ((addr:any)=> (string|null)) | null} getExtractPostcode
+ * @property {(place:any, extractPostcodeFn?: (ac:any)=> (string|null)) => boolean} isPlaceInDeliveryArea
+ * @property {(pc:string) => { ok:boolean, fee_cents?:number, eta_min?:number, reason?:string }} quoteForPostcode
+ */
+
+/**
+ * @type {Window & {
+ *   __PP_DELIVERY_CONFIG?: PpDeliveryConfig,
+ *   __PP_QUOTE_FOR_POSTCODE?: (pc: string) => number,
+ *   __PP_DELIVERY_BOUNDS_SW?: LatLng,
+ *   __PP_DELIVERY_BOUNDS_NE?: LatLng
+ * }}
+ */
+const w = typeof window !== "undefined" ? window : /** @type {any} */ ({});
 
 // --- DELIVERY SERVICE AREA + WHITELIST ---
 const DELIVERY_BOUNDS_SW = { lat: -35.2000, lng: 138.4000 };
@@ -66,18 +107,6 @@ let deliveryExtractPostcode = null;
 function quoteForPostcode(postcode) {
   const code = String(postcode ?? "").trim();
 
-  if (
-    typeof window !== "undefined" &&
-    typeof window.__PP_QUOTE_FOR_POSTCODE === "function" &&
-    window.__PP_QUOTE_FOR_POSTCODE !== quoteForPostcode
-  ) {
-    try {
-      return window.__PP_QUOTE_FOR_POSTCODE(code);
-    } catch (err) {
-      console.warn("[delivery] quoteForPostcode override failed", err);
-    }
-  }
-
   if (!code || !DELIVERY_ALLOWED_POSTCODES.has(code)) {
     return { ok: false, reason: "OUT_OF_AREA" };
   }
@@ -90,39 +119,50 @@ function quoteForPostcode(postcode) {
   };
 }
 
+/**
+ * UI-friendly wrapper returning fee_cents as a number (defaults to 0).
+ */
+function quoteForPostcodeCents(postcode) {
+  try {
+    const result = quoteForPostcode(postcode);
+    if (typeof result === "number") return result;
+    if (result && result.ok && typeof result.fee_cents === "number") {
+      return result.fee_cents;
+    }
+  } catch {}
+  return 0;
+}
+
 // Dev shim: ensure window delivery config exists so local builds don't explode
 if (typeof window !== "undefined") {
-  window.__PP_DELIVERY_BOUNDS_SW =
-    window.__PP_DELIVERY_BOUNDS_SW ?? DELIVERY_BOUNDS_SW;
-  window.__PP_DELIVERY_BOUNDS_NE =
-    window.__PP_DELIVERY_BOUNDS_NE ?? DELIVERY_BOUNDS_NE;
-  window.__PP_DELIVERY_CONFIG =
-    window.__PP_DELIVERY_CONFIG ??
-    {
-      getBounds: () => ({
-        sw: { ...DELIVERY_BOUNDS_SW },
-        ne: { ...DELIVERY_BOUNDS_NE },
-      }),
-      getAllowedPostcodes: () =>
-        new Set(FALLBACK_ALLOWED_POSTCODES.map((code) => String(code))),
-      getAllowedSuburbs: () => new Set(FALLBACK_ALLOWED_SUBURBS.map((s) => s.toUpperCase())),
-      getExtractPostcode: () => (addr) => {
-        if (!addr) return null;
-        const match = String(addr).match(/\b\d{4}\b/);
-        return match ? match[0] : null;
-      },
-      isPlaceInDeliveryArea: () => true,
-      quoteForPostcode,
-    };
-  window.__PP_QUOTE_FOR_POSTCODE =
-    window.__PP_QUOTE_FOR_POSTCODE ?? quoteForPostcode;
+  w.__PP_DELIVERY_BOUNDS_SW = w.__PP_DELIVERY_BOUNDS_SW ?? DELIVERY_BOUNDS_SW;
+  w.__PP_DELIVERY_BOUNDS_NE = w.__PP_DELIVERY_BOUNDS_NE ?? DELIVERY_BOUNDS_NE;
+  /** @type {PpDeliveryConfig} */
+  const devCfg = {
+    getBounds: () => ({
+      sw: { ...DELIVERY_BOUNDS_SW },
+      ne: { ...DELIVERY_BOUNDS_NE },
+    }),
+    getAllowedPostcodes: () => new Set(FALLBACK_ALLOWED_POSTCODES.map(String)),
+    getAllowedSuburbs: () => new Set(FALLBACK_ALLOWED_SUBURBS.map((s) => String(s).toUpperCase())),
+    getExtractPostcode: () => (addr) => {
+      if (!addr) return null;
+      const match = String(addr).match(/\b\d{4}\b/);
+      return match ? match[0] : null;
+    },
+    isPlaceInDeliveryArea: () => true,
+    quoteForPostcode,
+  };
+  w.__PP_DELIVERY_CONFIG = w.__PP_DELIVERY_CONFIG ?? devCfg;
+  w.__PP_QUOTE_FOR_POSTCODE = w.__PP_QUOTE_FOR_POSTCODE ?? quoteForPostcodeCents;
 }
 
 function syncDeliveryGlobals() {
   if (typeof window === "undefined") return;
   const swOverride = window.__PP_DELIVERY_BOUNDS_SW || DELIVERY_BOUNDS_SW;
   const neOverride = window.__PP_DELIVERY_BOUNDS_NE || DELIVERY_BOUNDS_NE;
-  window.__PP_DELIVERY_CONFIG = {
+  /** @type {PpDeliveryConfig} */
+  const cfg = {
     getBounds: () => ({
       sw: { ...swOverride },
       ne: { ...neOverride },
@@ -133,6 +173,7 @@ function syncDeliveryGlobals() {
     isPlaceInDeliveryArea,
     quoteForPostcode,
   };
+  w.__PP_DELIVERY_CONFIG = cfg;
   try {
     window.dispatchEvent(new CustomEvent("pp:delivery-config-updated"));
   } catch {}
@@ -140,7 +181,9 @@ function syncDeliveryGlobals() {
 
 function isPredictionInDeliveryArea(prediction) {
   if (!prediction) return false;
-  const cfg = (typeof window !== "undefined") ? window.__PP_DELIVERY_CONFIG : undefined;
+  const cfg = /** @type {PpDeliveryConfig | null | undefined} */ (
+    typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : undefined
+  );
   const allowedSuburbs = cfg?.getAllowedSuburbs?.() || DELIVERY_ALLOWED_SUBURBS;
   const haystack = [
     prediction.structured_formatting?.main_text,
@@ -156,7 +199,9 @@ function isPredictionInDeliveryArea(prediction) {
 
 function isPlaceInDeliveryArea(place, extractPostcodeFn = null) {
   if (!place) return false;
-  const cfg = (typeof window !== "undefined") ? window.__PP_DELIVERY_CONFIG : undefined;
+  const cfg = /** @type {PpDeliveryConfig | null | undefined} */ (
+    typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : undefined
+  );
   const postcodes = cfg?.getAllowedPostcodes?.() || DELIVERY_ALLOWED_POSTCODES;
   const allowedSuburbs = cfg?.getAllowedSuburbs?.() || DELIVERY_ALLOWED_SUBURBS;
 
@@ -208,15 +253,23 @@ syncDeliveryGlobals();
     }
     if (module?.DELIVERY_BOUNDS_SW && module?.DELIVERY_BOUNDS_NE) {
       if (typeof window !== "undefined") {
-        window.__PP_DELIVERY_BOUNDS_SW = module.DELIVERY_BOUNDS_SW;
-        window.__PP_DELIVERY_BOUNDS_NE = module.DELIVERY_BOUNDS_NE;
+        w.__PP_DELIVERY_BOUNDS_SW = module.DELIVERY_BOUNDS_SW;
+        w.__PP_DELIVERY_BOUNDS_NE = module.DELIVERY_BOUNDS_NE;
       }
     }
     if (typeof module?.extractPostcode === "function") {
       deliveryExtractPostcode = module.extractPostcode;
     }
     if (typeof module?.quoteForPostcode === "function" && typeof window !== "undefined") {
-      window.__PP_QUOTE_FOR_POSTCODE = module.quoteForPostcode;
+      const toCents = (pc) => {
+        try {
+          const r = module.quoteForPostcode(pc);
+          if (typeof r === "number") return r;
+          if (r && r.ok && typeof r.fee_cents === "number") return r.fee_cents;
+        } catch {}
+        return 0;
+      };
+      w.__PP_QUOTE_FOR_POSTCODE = toCents;
     }
   } catch (error) {
     if (import.meta?.env?.MODE === "development") {
@@ -236,7 +289,7 @@ const firebaseFallback = {
   auth: null,
   db: null,
   storage: null,
-  onAuthStateChanged: () => () => {},
+  onIdTokenChanged: () => () => {},
   signInWithPhoneNumber: async () => { throw new Error("Firebase not configured"); },
   RecaptchaVerifier,
   updateProfile,
@@ -258,7 +311,7 @@ async function getFirebaseSdk() {
     auth,
     db,
     storage,
-    onAuthStateChanged,
+    onIdTokenChanged,
     signInWithPhoneNumber,
     RecaptchaVerifier,
     updateProfile,
@@ -292,12 +345,11 @@ const extrasData = {
 "Sauce": [{ "name": "aioli", "price": 1.00 }, { "name": "bbq sauce", "price": 0.00 }, { "name": "garlic sauce", "price": 1.00 }]
 };
 
-async function uploadAvatarAndSaveProfile(file) {
+async function uploadAvatarAndSaveProfile(file, user) {
   const sdk = await getFirebase();
-  if (!sdk.storage || !sdk.auth || !sdk.db) {
+  if (!sdk.storage || !sdk.db || !user) {
     throw new Error("Uploads unavailable (Firebase not configured).");
   }
-  const user = sdk.auth?.currentUser; if (!user) throw new Error('Not signed in');
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
   const key = `users/${user.uid}/avatar_${Date.now()}.${ext}`;
   const r = sdk.ref(sdk.storage, key);
@@ -307,13 +359,13 @@ async function uploadAvatarAndSaveProfile(file) {
   return url;
 }
 
-async function clearBadPhotoUrlIfNeeded() {
+async function clearBadPhotoUrlIfNeeded(user) {
   try {
+    if (!user || !user.photoURL) return;
     const sdk = await getFirebase();
-    const current = sdk.auth?.currentUser;
-    if (!current || !current.photoURL) return;
-    if (typeof current.photoURL === "string" && current.photoURL.includes("firebasestorage.app")) {
-      await sdk.updateDoc(sdk.doc(sdk.db, "users", current.uid), { photoURL: null });
+    if (!sdk?.db) return;
+    if (typeof user.photoURL === "string" && user.photoURL.includes("firebasestorage.app")) {
+      await sdk.updateDoc(sdk.doc(sdk.db, "users", user.uid), { photoURL: null });
     }
   } catch (err) {
     console.warn("clearBadPhotoUrlIfNeeded() ignored:", err);
@@ -443,8 +495,37 @@ if (typeof window !== 'undefined') {
 }
 
 // import { formatId, getImagePath } from './utils/helpers';
-/** @type {any} */
-const w = (typeof window !== 'undefined') ? window : {};
+const FORCE_REDIRECT = String(import.meta.env.VITE_FORCE_AUTH_REDIRECT ?? "false").toLowerCase() === "true";
+
+function shouldUseRedirect() {
+  try {
+    if (typeof window === "undefined") return true;
+    if (FORCE_REDIRECT) {
+      console.info("[Auth] Forcing redirect via VITE_FORCE_AUTH_REDIRECT");
+      return true;
+    }
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1";
+    const coopMeta = typeof document !== "undefined"
+      ? document.querySelector('meta[http-equiv="Cross-Origin-Opener-Policy"]')
+      : null;
+    const crossIso = window.crossOriginIsolated === true;
+
+    if (crossIso || coopMeta) {
+      console.info("[Auth] Using redirect (COOP/COEP or crossOriginIsolated detected)", { crossIso, hasCoopMeta: !!coopMeta });
+      return true;
+    }
+    if (!isLocal) {
+      console.info("[Auth] Non-localhost environment -> prefer redirect (host:", host, ")");
+      return true;
+    }
+    console.info("[Auth] Localhost with no COOP/COEP -> will try popup, else fallback to redirect");
+    return false;
+  } catch (err) {
+    console.info("[Auth] shouldUseRedirect error -> forcing redirect", err);
+    return true;
+  }
+}
 const transformMenuStable = w.__pp_transformMenu || transformMenu;
 
 // --- Safe, optional Google Maps loader (no crash if missing key) ---
@@ -512,6 +593,7 @@ if (typeof window !== 'undefined') {
  * @property {(phone: string, displayName?: string) => any} loginLocal
  * @property {(args: { phone: string, displayName?: string }) => any} signupLocal
  * @property {() => Promise<void>} logout
+ * @property {boolean} loading
  * @property {boolean} showLogin
  * @property {LoginTab} loginTab
  * @property {(tab?: LoginTab) => void} openLogin
@@ -536,6 +618,7 @@ const AuthContext = createContext(
     loginLocal: (_phone, _displayName) => null,
     signupLocal: ({ phone: _p = '', displayName: _d = '' } = { phone: '', displayName: '' }) => null,
     logout: async () => {},
+    loading: true,
     showLogin: false,
     loginTab: /** @type {LoginTab} */ ('providers'),
     openLogin: () => {},
@@ -543,7 +626,7 @@ const AuthContext = createContext(
     setLoginTab: /** @type {import('react').Dispatch<import('react').SetStateAction<LoginTab>>} */ ((_tab) => {}),
   })
 );
-function useAuth() { return useContext(AuthContext); }
+export function useAuth() { return useContext(AuthContext); }
 
 function AuthProvider({ children }) {
   const LOCAL_KEY = 'pp_session_v1';
@@ -560,11 +643,11 @@ function AuthProvider({ children }) {
   /**
    * @param {LoginTab=} tab
    */
-  const openLogin = (tab = 'providers') => {
+  const openLogin = React.useCallback((tab = 'providers') => {
     setLoginTab(toLoginTab(tab));
     setShowLogin(true);
-  };
-  const closeLogin = () => setShowLogin(false);
+  }, [setLoginTab, setShowLogin]);
+  const closeLogin = React.useCallback(() => setShowLogin(false), [setShowLogin]);
 
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [localUser, setLocalUser] = useState(() => {
@@ -572,49 +655,115 @@ function AuthProvider({ children }) {
     catch { return null; }
   });
   const [loading, setLoading] = useState(true);
+  const initDoneRef = useRef(false);
+  const handledRedirectRef = useRef(false);
 
-  const signInWithProvider = async (providerFactory) => {
+  const ensurePersistence = React.useCallback(async () => {
+    try {
+      await setPersistence(firebaseAuth, browserLocalPersistence);
+    } catch (err) {
+      console.warn("[PP][AuthDBG] setPersistence error:", err?.message || err);
+    }
+  }, []);
+
+  const signInWithProvider = React.useCallback(async (providerFactory) => {
     if (!FB_READY || !firebaseAuth) {
       console.warn("Firebase not configured; provider login disabled.");
       throw new Error("Sign-in unavailable");
     }
+    await ensurePersistence();
     const provider = providerFactory();
+    const preferPopup = true;
+    console.log("[PP][AuthDBG] login start, preferPopup=", preferPopup);
     try {
-      await signInWithPopup(firebaseAuth, provider);
+      if (preferPopup) {
+        const res = await signInWithPopup(firebaseAuth, provider);
+        console.log("[PP][AuthDBG] popup user:", labelUser(res?.user));
+      } else {
+        await signInWithRedirect(firebaseAuth, provider);
+      }
     } catch (err) {
-      console.warn("[auth] popup failed, fallback to redirect:", err);
-      await signInWithRedirect(firebaseAuth, provider);
+      console.warn("[PP][AuthDBG] login error:", err?.code || err?.message || err);
     }
-  };
+  }, [ensurePersistence, firebaseAuth]);
 
-  // Track Firebase user (guarded for missing config)
+  // Finish redirect (if any) before subscribing to auth changes
   useEffect(() => {
-    if (!FB_READY || !firebaseAuth) {
+    if (!firebaseAuth) {
       setFirebaseUser(null);
       setLoading(false);
       return;
     }
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (u) => {
-      setFirebaseUser(u || null);
+
+    if (!initDoneRef.current) {
+      initDoneRef.current = true;
+
+      const nowLabel = (() => {
+        try {
+          return `${performance.now().toFixed(1)}ms`;
+        } catch {
+          return `${Date.now()}ms`;
+        }
+      })();
+      console.log("[PP][AuthDBG] init @", nowLabel);
+      logAuthConfig();
+      dumpFirebaseLocalStorage("pre-getRedirectResult");
+      try {
+        localStorage.setItem("__pp_fb_test", "1");
+        const ok = localStorage.getItem("__pp_fb_test") === "1";
+        console.log("[PP][AuthDBG] localStorage write ok:", ok);
+        localStorage.removeItem("__pp_fb_test");
+      } catch (err) {
+        console.warn("[PP][AuthDBG] localStorage not available:", err?.message || err);
+      }
+
+      (async () => {
+        if (handledRedirectRef.current) return;
+        handledRedirectRef.current = true;
+        try {
+          const res = await getRedirectResult(firebaseAuth);
+          console.log("[PP][AuthDBG] redirect result user:", labelUser(res?.user));
+        } catch (err) {
+          console.warn("[PP][AuthDBG] getRedirectResult error:", err?.message || err);
+        } finally {
+          dumpFirebaseLocalStorage("post-getRedirectResult");
+        }
+      })();
+
+      (async () => {
+        try {
+          if (typeof firebaseAuth.authStateReady === "function") {
+            await firebaseAuth.authStateReady();
+          }
+        } catch (err) {
+          console.warn("[PP][AuthDBG] authStateReady error:", err?.message || err);
+        }
+      })();
+    }
+
+    const unsubscribe = onIdTokenChanged(firebaseAuth, (user) => {
+      if (user) {
+        console.log("[PP][AuthDBG] listener user:", labelUser(user));
+        setFirebaseUser(user);
+      } else {
+        console.log("[PP][AuthDBG] listener: user is null — dumping caches");
+        dumpFirebaseLocalStorage("listener-null");
+        setFirebaseUser(null);
+      }
       setLoading(false);
     });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
 
-  // Handle redirect results (no-op if none)
-  useEffect(() => {
-    if (!FB_READY || !firebaseAuth) return;
-    getRedirectResult(firebaseAuth).catch((err) => {
-      console.error("[auth] redirect result error:", err);
-    });
-  }, []);
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
+  }, [firebaseAuth]);
 
   // Dev-only: clear bad photoURL if using legacy firebasestorage.app links
   useEffect(() => {
-    if (FB_READY && firebaseAuth?.currentUser) {
-      clearBadPhotoUrlIfNeeded().catch(() => {});
+    if (FB_READY && firebaseUser) {
+      clearBadPhotoUrlIfNeeded(firebaseUser).catch(() => {});
     }
   }, [firebaseUser]);
 
@@ -625,33 +774,33 @@ function AuthProvider({ children }) {
   }, [localUser]);
 
   // ---- public auth actions ----
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = React.useCallback(async () => {
     await signInWithProvider(() => {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       return provider;
     });
-  };
-  const loginWithApple = async () => {
+  }, [signInWithProvider]);
+  const loginWithApple = React.useCallback(async () => {
     await signInWithProvider(() => {
       const provider = new OAuthProvider("apple.com");
       provider.addScope("email");
       provider.addScope("name");
       return provider;
     });
-  };
+  }, [signInWithProvider]);
 
   // Called by your password modal on success
-  const loginLocal = (phone, displayName = '') => {
+  const loginLocal = React.useCallback((phone, displayName = '') => {
     const u = { uid: `local:${phone}`, phoneNumber: phone, displayName: displayName || phone, providerId: 'local' };
     setLocalUser(u);
     return u;
-  };
-  const signupLocal = ({ phone, displayName }) => loginLocal(phone, displayName);
+  }, [setLocalUser]);
+  const signupLocal = React.useCallback(({ phone, displayName }) => loginLocal(phone, displayName), [loginLocal]);
 
-  const logoutLocal = () => setLocalUser(null);
+  const logoutLocal = React.useCallback(() => setLocalUser(null), [setLocalUser]);
 
-  const logout = async () => {
+  const logout = React.useCallback(async () => {
     try {
       if (FB_READY && firebaseAuth) {
         await fbSignOut(firebaseAuth);
@@ -661,27 +810,75 @@ function AuthProvider({ children }) {
     } finally {
       logoutLocal();
     }
-  };
+  }, [logoutLocal]);
 
   // prefer Firebase user; fall back to local user
   const currentUser = firebaseUser || localUser;
 
   /** @type {AuthContextType} */
-  const value = {
+  const authValue = useMemo(() => ({
     currentUser,
     loginWithGoogle,
     loginWithApple,
     loginLocal,
     signupLocal,
     logout,
+    loading,
     showLogin,
     loginTab,
     openLogin,
     closeLogin,
     setLoginTab,
-  };
+  }), [
+    currentUser,
+    loginWithGoogle,
+    loginWithApple,
+    loginLocal,
+    signupLocal,
+    logout,
+    loading,
+    showLogin,
+    loginTab,
+    openLogin,
+    closeLogin,
+    setLoginTab,
+  ]);
 
-  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+  const userKey = currentUser && typeof currentUser === "object"
+    ? (currentUser.uid || currentUser.email || currentUser.phoneNumber || "user")
+    : "anon";
+
+  const Banner = () => (
+    <div
+      style={{
+        position: "fixed",
+        bottom: 0,
+        right: 0,
+        padding: "4px 8px",
+        fontSize: 11,
+        background: "rgba(0,0,0,0.65)",
+        color: "#fff",
+        zIndex: 9999,
+        borderTopLeftRadius: 6,
+        fontFamily: "var(--font-body, sans-serif)",
+      }}
+    >
+      {loading
+        ? "auth: loading…"
+        : currentUser
+          ? `auth: ${currentUser.email || currentUser.uid}`
+          : "auth: signed out"}
+    </div>
+  );
+
+  return (
+    <AuthContext.Provider value={authValue}>
+      <div key={userKey}>
+        {children}
+        <Banner />
+      </div>
+    </AuthContext.Provider>
+  );
 }
 
 /*** -------------------------------------------------------------
@@ -1082,7 +1279,14 @@ const PhoneIcon = () => (
  * @param {{ isOpen: boolean, tab?: LoginTab, onClose: () => void }} props
  */
 function LoginModal({ isOpen, tab = 'providers', onClose }) {
-  const { loginLocal, loginWithGoogle, loginWithApple, setLoginTab: setLoginTabCtx } = useAuth();
+  const {
+    loginLocal,
+    loginWithGoogle,
+    loginWithApple,
+    setLoginTab: setLoginTabCtx,
+    currentUser,
+    loading: authLoading,
+  } = useAuth();
   const firebaseDisabled = !FB_READY || !firebaseAuth;
 
   const initialTab = /** @type {LoginTab} */ (
@@ -1120,6 +1324,12 @@ function LoginModal({ isOpen, tab = 'providers', onClose }) {
   React.useEffect(() => {
     setLoginTabCtx(activeTab);
   }, [activeTab, setLoginTabCtx]);
+
+  React.useEffect(() => {
+    if (!authLoading && currentUser && isOpen) {
+      onClose?.();
+    }
+  }, [authLoading, currentUser, isOpen, onClose]);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -1660,34 +1870,65 @@ function LoginModal({ isOpen, tab = 'providers', onClose }) {
   );
 }
 
-function ProfileModal({ onClose }) {
-  const { currentUser } = useAuth();
-  // ---- safety flags (Firebase may be disabled locally) ----
-  const authSafe = firebaseAuth || null;
-  const firebaseDisabled = !FB_READY || !authSafe;
-  // Uploads are allowed if the user exists. If Firebase is off, we fall back to localStorage.
-  const canUseAvatarUpload = !!currentUser;
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
-  const defaultAvatar = "/pizza-peppers-logo.jpg";
-  const [uploading, setUploading] = React.useState(false);
-  const [uploadPct, setUploadPct] = React.useState(0);
-  const [okMsg, setOkMsg] = React.useState("");
-  const [errMsg, setErrMsg] = React.useState("");
-  const lastSelectedPlaceRef = React.useRef(null);
-  const [allowedSuburbPreview, setAllowedSuburbPreview] = React.useState(() => {
-    const cfg =
-      typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : null;
-    const list = cfg?.getAllowedSuburbs?.()
-      ? Array.from(cfg.getAllowedSuburbs())
-      : [];
-    return {
-      list: list.slice(0, 6),
-      hasMore: list.length > 6,
-    };
-  });
+function LoginPage() {
+  const {
+    currentUser,
+    loading: authLoading,
+    loginWithGoogle,
+    openLogin,
+    closeLogin,
+  } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const fromState = location.state?.from?.pathname || "/";
+  const params = React.useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const nextParam = params.get("next");
+  const destination = nextParam || fromState || "/";
 
-  const [form, setForm] = React.useState({
+  console.debug("[PP][Login] render", { loading: authLoading, hasUser: !!currentUser, destination });
+
+  React.useEffect(() => {
+    if (!authLoading && currentUser) {
+      console.info("[PP][Login] user present, navigating to", destination);
+      navigate(destination, { replace: true });
+    }
+  }, [authLoading, currentUser, destination, navigate]);
+
+  React.useEffect(() => {
+    openLogin("providers");
+    return () => closeLogin();
+  }, [openLogin, closeLogin]);
+
+  return (
+    <div className="login-page" style={{ padding: "2rem", textAlign: "center" }}>
+      <h2 style={{ marginBottom: "1rem" }}>Sign in to continue</h2>
+      {authLoading ? (
+        <p style={{ marginBottom: "1.5rem", opacity: 0.75 }}>Checking your session...</p>
+      ) : (
+        <>
+          <p style={{ marginBottom: "1.5rem", opacity: 0.75 }}>
+            Use Google or phone login to access your account.
+          </p>
+          <div style={{ display: "flex", justifyContent: "center", gap: "1rem", flexWrap: "wrap" }}>
+            <button type="button" className="pp-btn pp-primary" onClick={() => loginWithGoogle()}>
+              Continue with Google
+            </button>
+            <button type="button" className="pp-btn" onClick={() => openLogin("phone")}>
+              Use phone login
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProfileModal({ onClose }) {
+  const { currentUser, loading: authLoading } = useAuth();
+  const [profileLoading, setProfileLoading] = React.useState(true);
+  const [profile, setProfile] = React.useState(null);
+  const [error, setError] = React.useState(null);
+  const makeEmptyForm = React.useCallback(() => ({
     displayName: "",
     phoneNumber: "",
     photoURL: "",
@@ -1701,7 +1942,48 @@ function ProfileModal({ onClose }) {
     paymentBrand: "",
     paymentLast4: "",
     paymentExp: "",
+  }), []);
+  // ---- safety flags (Firebase may be disabled locally) ----
+  const authSafe = firebaseAuth || null;
+  const firebaseDisabled = !FB_READY || !authSafe;
+  // Uploads are allowed if the user exists. If Firebase is off, we fall back to localStorage.
+  const canUseAvatarUpload = !!currentUser;
+  const [saving, setSaving] = React.useState(false);
+  const defaultAvatar = "/pizza-peppers-logo.jpg";
+  const [uploading, setUploading] = React.useState(false);
+  const [uploadPct, setUploadPct] = React.useState(0);
+  const [okMsg, setOkMsg] = React.useState("");
+  const [errMsg, setErrMsg] = React.useState("");
+  const fileInputRef = React.useRef(null);
+  const [allowedSuburbPreview, setAllowedSuburbPreview] = React.useState(() => {
+    const cfg = /** @type {PpDeliveryConfig | null} */ (
+      typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : null
+    );
+    const list = cfg?.getAllowedSuburbs?.()
+      ? Array.from(cfg.getAllowedSuburbs())
+      : [];
+    return {
+      list: list.slice(0, 6),
+      hasMore: list.length > 6,
+    };
   });
+
+  const [form, setForm] = React.useState(makeEmptyForm);
+  const avatarSrc = form.photoURL?.trim() ? form.photoURL : defaultAvatar;
+  const avatarInitial = (form.displayName || form.email || "U").slice(0, 1).toUpperCase();
+  const deliveryAreaNote = allowedSuburbPreview.list.length > 0
+    ? `Start typing your street address... We currently deliver to: ${allowedSuburbPreview.list.join(", ")}${allowedSuburbPreview.hasMore ? "..." : ""}`
+    : "";
+  const stateOptions = ["SA", "VIC", "NSW", "QLD", "TAS", "WA", "NT", "ACT"];
+  const handlePickAvatar = React.useCallback(() => {
+    if (!canUseAvatarUpload || uploading) return;
+    fileInputRef.current?.click();
+  }, [canUseAvatarUpload, uploading]);
+  const handleCancel = React.useCallback(() => {
+    onClose?.();
+  }, [onClose]);
+
+  console.log("[PP][Profile] render", { authLoading, hasUser: !!currentUser, profileLoading, profile });
 
   const okTimerRef = React.useRef(null);
 
@@ -1729,8 +2011,9 @@ function ProfileModal({ onClose }) {
 
   React.useEffect(() => {
     const updatePreview = () => {
-      const cfg =
-        typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : null;
+      const cfg = /** @type {PpDeliveryConfig | null} */ (
+        typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : null
+      );
       const list = cfg?.getAllowedSuburbs?.()
         ? Array.from(cfg.getAllowedSuburbs())
         : [];
@@ -1762,96 +2045,106 @@ function ProfileModal({ onClose }) {
   // Load existing profile (or seed from auth)
   React.useEffect(() => {
     setErrMsg("");
-    let mounted = true;
+    if (authLoading) return;
+    let cancelled = false;
+    setError(null);
+
+    if (!currentUser) {
+      setProfile(null);
+      setForm(makeEmptyForm());
+      setProfileLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    setProfileLoading(true);
+
+    const seed = {
+      displayName: currentUser.displayName || "",
+      phoneNumber: currentUser.phoneNumber || "",
+      photoURL: currentUser.photoURL || "",
+      email: currentUser.email || "",
+    };
+
+    const key = getLocalProfileKey(currentUser.uid);
+    let localData = {};
+    if (key) {
+      try {
+        const raw = localStorage.getItem(key);
+        localData = raw ? JSON.parse(raw) : {};
+      } catch (e) {
+        console.warn("[PP][Profile] local profile parse failed:", e?.message || e);
+      }
+    }
+
+    const commitProfile = (data = {}, maybeError = null) => {
+      if (cancelled) return;
+      if (maybeError) {
+        setError(maybeError);
+      } else {
+        setError(null);
+      }
+      const merged = { ...makeEmptyForm(), ...seed, ...localData, ...data };
+      setProfile({
+        name: merged.displayName || "",
+        email: merged.email || "",
+        photoURL: merged.photoURL || "",
+        phone: merged.phoneNumber || "",
+        address: merged.addressLine1 || "",
+      });
+      setForm(merged);
+      setProfileLoading(false);
+    };
+
+    const finishWithLocal = () => {
+      commitProfile();
+    };
+
+    if (currentUser.providerId === 'local' || (currentUser.uid && currentUser.uid.startsWith('local:'))) {
+      finishWithLocal();
+      return () => { cancelled = true; };
+    }
+
+    if (firebaseDisabled) {
+      finishWithLocal();
+      return () => { cancelled = true; };
+    }
+
+    let hasFirestore = false;
+    try {
+      const scope = Function("return typeof window !== 'undefined' ? window : globalThis;")();
+      hasFirestore = !!scope?.firebase?.firestore || !!scope?.__PP_FIRESTORE_READY__;
+    } catch {
+      hasFirestore = false;
+    }
+
+    if (!hasFirestore) {
+      finishWithLocal();
+      return () => { cancelled = true; };
+    }
+
     (async () => {
       try {
-        if (!currentUser) { if (mounted) setLoading(false); return; }
-
-        const seed = {
-          displayName: currentUser.displayName || "",
-          phoneNumber: currentUser.phoneNumber || "",
-          photoURL: currentUser.photoURL || "",
-          email: currentUser.email || "",
-        };
-
-        if (currentUser.providerId === 'local' || (currentUser.uid && currentUser.uid.startsWith('local:'))) {
-          try {
-            const key = getLocalProfileKey(currentUser.uid);
-            const raw = key ? localStorage.getItem(key) : null;
-            const data = raw ? JSON.parse(raw) : {};
-            if (mounted) setForm(prev => ({ ...prev, ...seed, ...data }));
-          } catch (e) {
-            console.error(e);
-            if (mounted) {
-              const message = "Failed to load local profile.";
-              setErrMsg(message);
-            }
-          } finally {
-            if (mounted) setLoading(false);
-          }
-        } else if (!firebaseDisabled) {
-          const sdk = await getFirebase();
-          if (sdk?.db) {
-            const ref = sdk.doc(sdk.db, "users", currentUser.uid);
-            const snap = await sdk.getDoc(ref);
-            if (snap.exists()) {
-              const data = snap.data();
-              if (mounted) {
-                setForm(prev => ({ ...prev, ...seed, ...data }));
-              }
-            } else if (mounted) {
-              setForm(prev => ({ ...prev, ...seed }));
-            }
-          } else if (mounted) {
-            setForm(prev => ({ ...prev, ...seed }));
-          }
-        } else {
-          if (mounted) setForm(prev => ({ ...prev, ...seed }));
-        }
+        const { getFirestore, doc, getDoc } = await import("firebase/firestore");
+        const db = getFirestore();
+        const ref = doc(db, "users", currentUser.uid);
+        const snap = await getDoc(ref);
+        const data = snap.exists() ? snap.data() : {};
+        commitProfile(data);
       } catch (e) {
-        console.error(e);
-        if (mounted) {
-          const message = "Failed to load profile.";
-          setErrMsg(message);
-        }
-      } finally {
-        if (mounted) setLoading(false);
+        console.warn("[PP][Profile] Firestore fetch failed:", e?.message || e);
+        commitProfile({}, e?.message || String(e));
       }
     })();
-    return () => { mounted = false; };
-  }, [currentUser, firebaseDisabled]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, currentUser, firebaseDisabled, makeEmptyForm]);
 
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
-
-  const handleAddressChange = React.useCallback((addr, meta) => {
-    if (!meta?.place) {
-      lastSelectedPlaceRef.current = null;
-    }
-    setForm((prev) => ({
-      ...prev,
-      addressLine1: addr.line || "",
-      suburb: addr.suburb || "",
-      state: addr.state || "",
-      postcode: addr.postcode || "",
-    }));
-  }, []);
-
-  const handleAddressPlaceSelect = React.useCallback((place) => {
-    lastSelectedPlaceRef.current = place;
-    setErrMsg("");
-  }, []);
-
-  const handleAddressInvalid = React.useCallback(() => {
-    lastSelectedPlaceRef.current = null;
-    setErrMsg(
-      "Sorry, we currently deliver only to our service suburbs. Please choose a supported address."
-    );
-    showOk("");
-  }, [setErrMsg, showOk]);
-
 
   React.useEffect(() => {
     const onKey = (event) => {
@@ -1871,7 +2164,8 @@ function ProfileModal({ onClose }) {
     setUploading(true);
     setUploadPct(0);
     try {
-      if (!firebaseDisabled && typeof storage !== "undefined" && storage && authSafe?.currentUser) {
+      const liveUser = currentUser;
+      if (!firebaseDisabled && typeof storage !== "undefined" && storage && liveUser) {
         // Hook up Firebase Storage upload here if needed; local fallback keeps UI consistent.
       }
 
@@ -1910,7 +2204,13 @@ function ProfileModal({ onClose }) {
       setUploadPct(0);
       setUploading(false);
     } finally {
-      try { if (e?.target) e.target.value = ""; } catch {}
+      try {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        } else if (e?.target) {
+          e.target.value = "";
+        }
+      } catch {}
     }
   };
 
@@ -1923,33 +2223,22 @@ function ProfileModal({ onClose }) {
     try {
       if (!form.displayName?.trim()) throw new Error("Please enter your name.");
       const cfg =
-        typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : null;
+        /** @type {PpDeliveryConfig | null} */ (
+          typeof window !== "undefined" ? window.__PP_DELIVERY_CONFIG : null
+        );
       if (cfg?.isPlaceInDeliveryArea) {
         const extractPostcodeFn = cfg.getExtractPostcode?.() || null;
         const allowedPostcodes = cfg.getAllowedPostcodes?.() || new Set();
         const allowedSuburbs = cfg.getAllowedSuburbs?.() || new Set();
-        let addressOk = true;
-        if (lastSelectedPlaceRef.current) {
-          try {
-            const fallbackExtract = cfg?.getExtractPostcode?.() ?? null;
-            addressOk = isPlaceInDeliveryArea(
-              lastSelectedPlaceRef.current,
-              typeof fallbackExtract === "function" ? fallbackExtract : null
-            );
-          } catch (validationErr) {
-            console.warn("[delivery] validation failed", validationErr);
-          }
-        } else {
-          const suburbUpper = form.suburb
-            ? String(form.suburb).trim().toUpperCase()
-            : "";
-          const postcodeStr = form.postcode
-            ? String(form.postcode).trim()
-            : "";
-          addressOk =
-            (postcodeStr && allowedPostcodes.has(postcodeStr)) ||
-            (suburbUpper && allowedSuburbs.has(suburbUpper));
-        }
+        const suburbUpper = form.suburb
+          ? String(form.suburb).trim().toUpperCase()
+          : "";
+        const postcodeStr = form.postcode
+          ? String(form.postcode).trim()
+          : "";
+        const addressOk =
+          (postcodeStr && allowedPostcodes.has(postcodeStr)) ||
+          (suburbUpper && allowedSuburbs.has(suburbUpper));
         if (!addressOk) {
           setErrMsg(
             "That address is outside our delivery area. Please use a supported suburb."
@@ -1967,7 +2256,7 @@ function ProfileModal({ onClose }) {
         const ref = sdk.doc(sdk.db, "users", currentUser.uid);
         await sdk.setDoc(ref, payload, { merge: true });
         try {
-          const profileTarget = sdk.auth?.currentUser ?? currentUser;
+          const profileTarget = currentUser;
           if (profileTarget && sdk.updateProfile) {
             await sdk.updateProfile(profileTarget, {
               displayName: form.displayName,
@@ -1989,7 +2278,6 @@ function ProfileModal({ onClose }) {
     }
   };
 
-  const avatarSrc = form.photoURL?.trim() ? form.photoURL : defaultAvatar;
   const saveLabel = React.useMemo(() => {
     if (saving) return "Saving...";
     if (okMsg && okMsg.toLowerCase().includes("profile saved")) return "Saved!";
@@ -2015,133 +2303,202 @@ function ProfileModal({ onClose }) {
         </div>
 
         <div className="pp-modal-body">
-          {loading ? (
-            <p style={{ color: 'var(--text-medium)' }}>Loading...</p>
+          {authLoading ? (
+            <p style={{ color: 'var(--text-medium)' }}>Loading account...</p>
+          ) : !currentUser ? (
+            <div>
+              <p style={{ color: 'var(--text-medium)' }}>You&apos;re not signed in.</p>
+              <p style={{ color: 'var(--text-medium)' }}>Please login to manage your profile.</p>
+            </div>
+          ) : profileLoading ? (
+            <p style={{ color: 'var(--text-medium)' }}>Loading profile...</p>
           ) : (
-            <form onSubmit={onSaveProfile} className="pp-form">
-              <div className="pp-body-grid">
-                <div className="pp-section full-span">
-                  <div className="pp-avatar-row">
-                    <img src={avatarSrc} alt="Avatar" className="pp-avatar" />
-                    <div>
-                      <label
-                        htmlFor="avatarUpload"
-                        className="pp-upload-btn"
-                        style={{
-                          cursor: (!canUseAvatarUpload || uploading) ? 'not-allowed' : 'pointer',
-                          opacity: (!canUseAvatarUpload || uploading) ? 0.6 : 1
-                        }}
+            <>
+              {error ? (
+                <div className="pp-error" style={{ marginBottom: '0.75rem' }}>{error}</div>
+              ) : null}
+              <form onSubmit={onSaveProfile} className="profile-modal">
+                <div className="profile-card">
+                  <div className="avatar-row">
+                    <div className="avatar-shell">
+                      {form.photoURL?.trim() ? (
+                        <img src={avatarSrc} alt="Avatar" />
+                      ) : (
+                        <span className="avatar-initial">{avatarInitial}</span>
+                      )}
+                    </div>
+                    <div className="avatar-actions">
+                      <button
+                        type="button"
+                        className="pp-input"
+                        onClick={handlePickAvatar}
+                        disabled={!canUseAvatarUpload || uploading}
+                        style={{ cursor: (!canUseAvatarUpload || uploading) ? 'not-allowed' : 'pointer' }}
                         title={firebaseDisabled ? "Saves to this device (local only)" : "Upload to your account"}
                       >
                         {uploading ? `Uploading... ${uploadPct ?? 0}%` : (firebaseDisabled ? "Upload photo (local)" : "Upload photo")}
-                      </label>
-                      <input
-                        id="avatarUpload"
-                        type="file"
-                        accept="image/*"
-                        onChange={onAvatarSelect}
-                        style={{ display: 'none' }}
-                        disabled={!canUseAvatarUpload || uploading}
-                      />
-                      {!!okMsg && <div className="pp-upload-ok">{okMsg}</div>}
-                      {!!errMsg && <div className="pp-upload-err">{errMsg}</div>}
-                      <div className="pp-upload-hint">JPG/PNG up to ~1MB {firebaseDisabled ? "(stored locally)" : ""}</div>
+                      </button>
+                      <small>JPG/PNG up to ~1MB {firebaseDisabled ? "(stored locally)" : ""}</small>
                     </div>
                   </div>
                 </div>
 
-                <div className="pp-section">
-                  <h4>Account</h4>
-                  <div className="pp-row">
-                    <label htmlFor="pf_name">Name</label>
+                <div className="profile-grid">
+                  <div className="profile-card">
+                    <h3>Account</h3>
+                    <div className="pp-field">
+                      <label className="pp-label" htmlFor="pf_name">Name</label>
+                      <input
+                        id="pf_name"
+                        name="displayName"
+                        className="pp-input"
+                        type="text"
+                        placeholder="Your name"
+                        value={form.displayName ?? ""}
+                        onChange={onChange}
+                        required
+                      />
+                    </div>
+                    <div className="pp-field" style={{ marginTop: 12 }}>
+                      <label className="pp-label" htmlFor="pf_email">Email</label>
+                      <input
+                        id="pf_email"
+                        name="email"
+                        className="pp-input"
+                        type="email"
+                        placeholder="sam@example.com"
+                        value={form.email ?? ""}
+                        onChange={onChange}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="profile-card">
+                    <h3>Contact</h3>
+                    <div className="pp-field">
+                      <label className="pp-label" htmlFor="pf_phone">Phone</label>
+                      <input
+                        id="pf_phone"
+                        name="phoneNumber"
+                        className="pp-input"
+                        type="tel"
+                        placeholder="+61 412 345 678"
+                        value={form.phoneNumber ?? ""}
+                        onChange={onChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-card">
+                  <h3>Delivery</h3>
+                  <div className="pp-field">
+                    <label className="pp-label" htmlFor="pf_address1">Delivery Address</label>
                     <input
-                      id="pf_name"
-                      name="displayName"
+                      id="pf_address1"
+                      name="addressLine1"
                       className="pp-input"
                       type="text"
-                      placeholder="Your name"
-                      value={form.displayName ?? ""}
-                      onChange={onChange}
-                      required
-                    />
-                  </div>
-                  <div className="pp-row">
-                    <label htmlFor="pf_email">Email</label>
-                    <input
-                      id="pf_email"
-                      name="email"
-                      className="pp-input"
-                      type="email"
-                      placeholder="sam@example.com"
-                      value={form.email ?? ""}
+                      placeholder="Street address"
+                      autoComplete="address-line1"
+                      value={form.addressLine1 ?? ""}
                       onChange={onChange}
                     />
                   </div>
+
+                  <div className="pp-row" style={{ marginTop: 12 }}>
+                    <div className="pp-field">
+                      <label className="pp-label" htmlFor="pf_suburb">Suburb</label>
+                      <input
+                        id="pf_suburb"
+                        name="suburb"
+                        className="pp-input"
+                        type="text"
+                        placeholder="Suburb"
+                        value={form.suburb ?? ""}
+                        onChange={onChange}
+                      />
+                    </div>
+                    <div className="pp-field">
+                      <label className="pp-label" htmlFor="pf_state">State</label>
+                      <select
+                        id="pf_state"
+                        name="state"
+                        className="pp-select"
+                        value={form.state ?? ""}
+                        onChange={onChange}
+                      >
+                        <option value="">Choose…</option>
+                        {stateOptions.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="pp-field">
+                      <label className="pp-label" htmlFor="pf_postcode">Postcode</label>
+                      <input
+                        id="pf_postcode"
+                        name="postcode"
+                        className="pp-input"
+                        type="text"
+                        placeholder="e.g. 5000"
+                        inputMode="numeric"
+                        value={form.postcode ?? ""}
+                        onChange={onChange}
+                      />
+                    </div>
+                    <div className="pp-field">
+                      <label className="pp-label" htmlFor="pf_address2">Address line 2</label>
+                      <input
+                        id="pf_address2"
+                        name="addressLine2"
+                        className="pp-input"
+                        type="text"
+                        placeholder="Apartment, suite (optional)"
+                        value={form.addressLine2 ?? ""}
+                        onChange={onChange}
+                      />
+                    </div>
+                  </div>
+
+                  {deliveryAreaNote ? (
+                    <div className="pp-helper">{deliveryAreaNote}</div>
+                  ) : null}
                 </div>
 
-                <div className="pp-section">
-                  <h4>Contact</h4>
-                  <div className="pp-row">
-                    <label htmlFor="pf_phone">Phone</label>
-                    <input
-                      id="pf_phone"
-                      name="phoneNumber"
-                      className="pp-input"
-                      type="tel"
-                      placeholder="+61 412 345 678"
-                      value={form.phoneNumber ?? ""}
-                      onChange={onChange}
-                    />
+                <div className="profile-footer">
+                  <div style={{ marginRight: 'auto', minHeight: '1.25rem' }}>
+                    {okMsg ? <span className="pp-success">{okMsg}</span> : null}
+                    {errMsg ? <span className="pp-error">{errMsg}</span> : null}
                   </div>
-                </div>
-
-                <div className="pp-section full-span">
-                  <h4>Delivery</h4>
-                  <AddressHelper
-                    value={{ line: form.addressLine1 || "", suburb: form.suburb || "", postcode: form.postcode || "", state: form.state || "" }}
-                    onChange={handleAddressChange}
-                    onPlaceSelect={handleAddressPlaceSelect}
-                    onInvalidSelection={handleAddressInvalid}
+                  <button
+                    className="pp-input"
+                    type="button"
+                    onClick={handleCancel}
+                    style={{ cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="pp-input"
+                    type="submit"
                     disabled={saving}
-                    labelPrefix="Delivery "
-                  />
-                  {allowedSuburbPreview.list.length > 0 && (
-                    <p className="pp-upload-hint" style={{ marginTop: "0.5rem" }}>
-                      Start typing your street address... We currently deliver to:{" "}
-                      {allowedSuburbPreview.list.join(", ")}
-                      {allowedSuburbPreview.hasMore ? "..." : ""}
-                    </p>
-                  )}
-                  <div className="pp-row" style={{ marginTop: "1rem" }}>
-                    <label htmlFor="pf_address2">Address line 2</label>
-                    <input
-                      id="pf_address2"
-                      name="addressLine2"
-                      className="pp-input"
-                      type="text"
-                      placeholder="Apartment, suite (optional)"
-                      value={form.addressLine2 ?? ""}
-                      onChange={onChange}
-                    />
-                  </div>
+                    style={{ cursor: saving ? "not-allowed" : "pointer", background: "var(--brand-neon-green)", color: "#0a0a0a", fontWeight: 700 }}
+                  >
+                    {saveLabel}
+                  </button>
                 </div>
-
-              </div>
-            </form>
+              </form>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={onAvatarSelect}
+                style={{ display: 'none' }}
+                disabled={!canUseAvatarUpload || uploading}
+              />
+            </>
           )}
-        </div>
-        <div className="pp-actions sticky">
-          {!!okMsg && <div className="pp-success" style={{ marginRight: 'auto' }}>{okMsg}</div>}
-          {!!errMsg && <div className="pp-error" style={{ marginRight: 'auto' }}>{errMsg}</div>}
-          <button className="pp-btn" type="button" onClick={() => onClose?.()}>Cancel</button>
-          <button
-            className="pp-btn pp-primary"
-            type="button"
-            disabled={saving}
-            onClick={onSaveProfile}
-          >
-            {saveLabel}
-          </button>
         </div>
       </div>
     </div>
@@ -2371,7 +2728,7 @@ function AppStyles() {
 
     .sub-panel-view { display: flex; flex-direction: column; height: 100%; }
     .sub-panel-header { margin-bottom: 1rem; }
-    .sub-panel-back-button { all: unset; color: var(--text-medium); cursor: pointer; font-weight: 500; margin-bottom: 1rem; }
+    .sub-panel-back-button { background: none; border: none; color: var(--text-medium); cursor: pointer; font-weight: 500; margin-bottom: 1rem; display: inline-flex; align-items: center; }
     .sub-panel-back-button:hover { color: var(--brand-pink); }
     .sub-panel-content { flex-grow: 1; overflow-y: auto; }
 
@@ -2449,6 +2806,20 @@ function AppStyles() {
       box-shadow: none;
       border-color: var(--brand-pink);
     }
+    button,
+    [type="button"],
+    [type="submit"] {
+      appearance: none;
+      background: none;
+      border: none;
+      font: inherit;
+      line-height: inherit;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
 
     /* === Profile modal polish === */
     .pp-modal {
@@ -2498,16 +2869,20 @@ function AppStyles() {
     }
     .pp-input:focus { border-color: var(--brand-pink); box-shadow: var(--glow-pink); outline: none; }
     .pp-btn {
-      padding: 0.75rem 1rem;
-      border-radius: 0.5rem;
-      border: none;
-      background: var(--border-color);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.9rem 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border-color);
+      background: var(--background-dark);
       color: var(--text-light);
+      font-weight: 700;
       cursor: pointer;
-      font-weight: 500;
+      gap: 0.4rem;
       transition: opacity 0.2s, transform 0.2s;
     }
-    .pp-btn:hover { background: var(--border-color); opacity: 0.9; }
+    .pp-btn:hover { background: var(--border-color); opacity: 0.95; }
     .pp-primary {
       border-color: transparent;
       background: linear-gradient(90deg, var(--brand-green-cta), #00c766);
@@ -2787,6 +3162,10 @@ function DeliveryAreasView({ onBack }) {
 // REPLACE your old AboutPanel with this new version
 function AboutPanel({ isMapsLoaded }) {
   const [currentView, setCurrentView] = useState('main'); // 'main', 'hours', or 'delivery'
+  const [postcodeInput, setPostcodeInput] = useState("");
+  const normalizedPostcode = extractPostcodeForUi(postcodeInput);
+  const serviceable = isPostcodeServiceable(normalizedPostcode);
+  const quotedFeeCents = quoteForPostcodeUi(normalizedPostcode);
   const mapRef = useRef(null);
   const storeLocation = { lat: -35.077, lng: 138.515 };
 
@@ -2854,6 +3233,31 @@ function AboutPanel({ isMapsLoaded }) {
           <h4>Delivery Areas</h4>
           <p>See suburbs and delivery fees</p>
         </button>
+      </div>
+      <div className="about-panel-list-item">
+        <h4>Check your postcode</h4>
+        <input
+          value={postcodeInput}
+          onChange={(e) => setPostcodeInput(e.target.value)}
+          placeholder="e.g. 5159"
+          className="w-full border rounded px-2 py-2"
+        />
+        <div className="text-sm" style={{ marginTop: '0.75rem' }}>
+          {normalizedPostcode ? (
+            serviceable ? (
+              <>
+                ✅ We deliver to {normalizedPostcode}.
+                {typeof quotedFeeCents === "number" && (
+                  <> Estimated fee <strong>${(quotedFeeCents / 100).toFixed(2)}</strong>.</>
+                )}
+              </>
+            ) : (
+              <>❌ Sorry, we don’t service {normalizedPostcode} yet.</>
+            )
+          ) : (
+            <>Enter a 4-digit postcode to check coverage.</>
+          )}
+        </div>
       </div>
       <div className="about-panel-list-item">
         <Link to="/terms">
@@ -3005,12 +3409,23 @@ function TermsPage() {
 function Navbar({ onAboutClick, onMenuClick, onLoginClick, onProfileClick }) {
 
   const { cart } = useCart();
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, loading: authLoading } = useAuth();
   const totalItems = useMemo(() => cart.reduce((sum, item) => sum + item.qty, 0), [cart]);
 
   const firstName =
   (currentUser?.displayName && currentUser.displayName.split(' ')[0]) ||
   (currentUser?.phoneNumber ? currentUser.phoneNumber : 'there');
+
+  const navButtonBase = {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    padding: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
 
   return (
     <nav style={{ backgroundColor: 'var(--background-dark)', padding: '0.5rem 1.5rem', borderBottom: `1px solid var(--brand-pink)`, position: 'sticky', top: 0, zIndex: 20 }}>
@@ -3023,43 +3438,61 @@ function Navbar({ onAboutClick, onMenuClick, onLoginClick, onProfileClick }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <Link to="/" onClick={onMenuClick} style={{ color: 'var(--text-light)', textDecoration: 'none', fontWeight: '500' }}>Menu</Link>
-          <button onClick={onAboutClick} style={{all: 'unset', color: 'var(--text-light)', cursor: 'pointer', fontWeight: '500'}}>About Us</button>
-          <button onClick={onMenuClick} style={{all: 'unset', color: 'var(--text-light)', cursor: 'pointer', fontWeight: '500'}}>Cart ({totalItems})</button>
-          {currentUser ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <span style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>Hi, {firstName}</span>
+          <button
+            type="button"
+            onClick={onAboutClick}
+            style={{ ...navButtonBase, color: 'var(--text-light)', fontWeight: 500 }}
+          >
+            About Us
+          </button>
+          <button
+            type="button"
+            onClick={onMenuClick}
+            style={{ ...navButtonBase, color: 'var(--text-light)', fontWeight: 500 }}
+          >
+            Cart ({totalItems})
+          </button>
+          {authLoading ? null : (
+            currentUser ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <span style={{ color: 'var(--text-medium)', fontSize: '0.9rem' }}>Hi, {firstName}</span>
                 <button
+                  type="button"
                   onClick={onProfileClick}
-                  style={{ all: 'unset', color: 'var(--brand-neon-green)', cursor: 'pointer', fontWeight: '600' }}
-                  >
-                Profile
-            </button>
-              <button
-                onClick={logout}
-                style={{ all: 'unset', color: 'var(--brand-pink)', cursor: 'pointer', fontWeight: '500' }}
-              >
-              Logout
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button
-            type="button"
-            onClick={() => onLoginClick && onLoginClick()}
-            style={{ all: 'unset', color: 'var(--brand-neon-green)', cursor: 'pointer', fontWeight: '700' }}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => onLoginClick && onLoginClick('phone')}
-            style={{ all: 'unset', color: 'var(--brand-neon-green)', cursor: 'pointer', fontWeight: '600' }}
-          >
-            Login with phone
-          </button>
-        </div>
-      )}
-
+                  style={{ ...navButtonBase, color: 'var(--brand-neon-green)', fontWeight: 600 }}
+                >
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  style={{ ...navButtonBase, color: 'var(--brand-pink)', fontWeight: 500 }}
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => onLoginClick && onLoginClick()}
+                  style={{ ...navButtonBase, color: 'var(--brand-neon-green)', fontWeight: 700 }}
+                >
+                  Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onLoginClick && onLoginClick('phone')}
+                  style={{ ...navButtonBase, color: 'var(--brand-neon-green)', fontWeight: 600 }}
+                >
+                  Login with phone
+                </button>
+              </div>
+            )
+          )}
+          <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', opacity: 0.7, color: 'var(--text-medium)' }}>
+            {authLoading ? 'auth…' : (currentUser ? `hi ${currentUser.email || currentUser.phoneNumber || 'friend'}` : 'signed out')}
+          </span>
         </div>
       </div>
     </nav>
@@ -3096,6 +3529,8 @@ function AppLayout({ isMapsLoaded }) {
   }
 
   const authCtx = useAuth();
+  const authUser = authCtx.currentUser;
+  const authLoadingFlag = authCtx.loading;
 
   // Debug-only: quick sanity renderer to verify pipeline via ?menuDebug=1
   const menuDebug = (typeof window !== "undefined") && new URLSearchParams(window.location.search).has("menuDebug");
@@ -3114,6 +3549,10 @@ function AppLayout({ isMapsLoaded }) {
   const [customizingItem, setCustomizingItem] = useState(null);
   const [rightPanelView, setRightPanelView] = useState('order');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const handleProfileOpen = React.useCallback(() => {
+    console.log("[PP][Profile] open clicked. user=", authUser?.email || authUser?.uid || null, "authLoading=", authLoadingFlag);
+    setIsProfileOpen(true);
+  }, [authLoadingFlag, authUser]);
 
   const forceMenuReady = React.useCallback(() => {
     setIsLoading(false);
@@ -3338,10 +3777,10 @@ function AppLayout({ isMapsLoaded }) {
       <div className="app-grid-layout">
         <div className="left-pane">
           <Navbar
-           onAboutClick={showAboutPanel}
-           onMenuClick={showOrderPanel}
-           onLoginClick={(tab) => authCtx.openLogin(tab)}
-           onProfileClick={() => setIsProfileOpen(true)}
+            onAboutClick={showAboutPanel}
+            onMenuClick={showOrderPanel}
+            onLoginClick={(tab) => authCtx.openLogin(tab)}
+            onProfileClick={handleProfileOpen}
           />
 
           <main className="main-content-area">
@@ -3353,8 +3792,9 @@ function AppLayout({ isMapsLoaded }) {
             ) : null}
             <Routes>
               <Route path="/" element={<Home menuData={menuData} handleItemClick={handleItemClick} />} />
+              <Route path="/login" element={<LoginPage />} />
               <Route path="/terms" element={<TermsPage />} />
-              <Route path="*" element={<div style={{padding:16}}>Route fallback OK</div>} />
+              <Route path="*" element={<div style={{ padding: 16 }}>Route fallback OK</div>} />
             </Routes>
             <Footer />
           </main>
@@ -3389,9 +3829,9 @@ function App() {
 
   return (
     <AppProvider>
-      <Router>
-        <ThemeProvider>
-          <AuthProvider>
+      <AuthProvider>
+        <Router>
+          <ThemeProvider>
             <CartProvider>
               <AppStyles />
               <FirebaseBanner />
@@ -3403,9 +3843,9 @@ function App() {
                 style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 1 }}
               />
             </CartProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </Router>
+          </ThemeProvider>
+        </Router>
+      </AuthProvider>
     </AppProvider>
   );
 }

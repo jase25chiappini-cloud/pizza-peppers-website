@@ -81,3 +81,17 @@ export function quoteForPostcode(postcode) {
     eta_min: 40,
   };
 }
+
+if (typeof window !== "undefined") {
+  window.__PP_DELIVERY_CONFIG = {
+    serviceablePostcodes: ["5159", "5162", "5049", "5051"],
+    baseDeliveryCents: 600,
+  };
+  window.__PP_QUOTE_FOR_POSTCODE = (pc) => {
+    const code = String(pc || "").trim();
+    if (!code) return null;
+    if (["5159", "5162"].includes(code)) return 500;
+    if (["5049", "5051"].includes(code)) return 700;
+    return window.__PP_DELIVERY_CONFIG?.baseDeliveryCents ?? 600;
+  };
+}
