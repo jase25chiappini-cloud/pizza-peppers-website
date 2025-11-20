@@ -1,0 +1,54 @@
+:root{
+  --bg:#0b0c0e;--panel:#15171a;--muted:#8a8f98;--text:#e9edf1;--accent:#7aa2ff;--accent-2:#4ade80;
+  --border:#23262a;--danger:#ff6b6b;--focus:#eab308
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,system-ui,Segoe UI,Roboto,Arial}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
+pre{background:#0f1115;border:1px solid var(--border);padding:12px;border-radius:10px;overflow:auto;max-height:40vh}
+hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* Layout containers */
+.ui-wrap{max-width:980px;margin:24px auto;padding:0 16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.3);overflow:hidden}
+.card-hd{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.card-hd h2{margin:0;font-size:18px;font-weight:650}
+.card-bd{padding:18px}
+.card-ft{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid var(--border)}
+
+/* Readable key-value rows */
+.kv{display:grid;grid-template-columns:220px 1fr;gap:10px 16px;margin:8px 0}
+.kv label{color:var(--muted)}
+.kv .val{color:var(--text)}
+
+/* Inputs */
+.input,select,textarea{width:100%;background:#0f1115;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none}
+.input:focus,select:focus,textarea:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(234,179,8,.2)}
+.helper{color:var(--muted);font-size:12px;margin-top:6px}
+
+/* Buttons */
+.btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:1px solid transparent;border-radius:12px;padding:12px 16px;font-weight:650;cursor:pointer;transition:transform .06s ease,box-shadow .2s ease}
+.btn:focus{outline:none;box-shadow:0 0 0 4px rgba(122,162,255,.25)}
+.btn:active{transform:translateY(1px)}
+.btn--primary{background:var(--accent);color:#0b1020}
+.btn--primary:hover{filter:saturate(1.1)}
+.btn--success{background:var(--accent-2);color:#04210f}
+.btn--ghost{background:transparent;border-color:var(--border);color:var(--text)}
+.btn--danger{background:var(--danger);color:#230000}
+
+/* Sticky action bar so the button is always visible */
+.sticky-actions{position:sticky;bottom:0;background:linear-gradient(180deg,transparent,rgba(21,23,26,.9) 30%);backdrop-filter:blur(6px)}
+.sticky-actions .card-ft{border-top-color:#2a2f35}
+
+/* Icon circle for quick scanning */
+.ico{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#0f1115;border:1px solid var(--border);color:var(--accent)}
+
+/* Sections */
+.section-title{margin:12px 0 6px;font-weight:700;color:#cbd5e1}
+.subtle{color:var(--muted)}
+
+/* Big, unmistakable primary action */
+.cta{font-size:16px;padding:14px 20px;border-radius:14px}

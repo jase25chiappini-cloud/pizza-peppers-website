@@ -15,6 +15,49 @@
   </head>
   <body>
     <div id="root"></div>
+    <div class="ui-wrap">
+      <div class="card">
+        <div class="card-hd">
+          <div class="ico">F</div>
+          <h2>Function Controls</h2>
+        </div>
+        <div class="card-bd">
+          <div class="section-title">Overview</div>
+          <p class="subtle">Review the current inputs and adjust as needed. The primary action stays pinned at the bottom.</p>
+          <hr />
+
+          <div class="kv">
+            <label for="inputA">Input A</label>
+            <div class="val"><input id="inputA" class="input" placeholder="Type value..." /></div>
+            <label for="inputB">Input B</label>
+            <div class="val"><input id="inputB" class="input" placeholder="Type value..." /></div>
+            <label for="mode">Mode</label>
+            <div class="val">
+              <select id="mode">
+                <option value="fast">Fast</option>
+                <option value="balanced" selected>Balanced</option>
+                <option value="accurate">Accurate</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-title">Preview / Logs</div>
+          <pre id="logArea">// output will appear here...</pre>
+        </div>
+
+        <div class="sticky-actions">
+          <div class="card-ft">
+            <button class="btn btn--ghost" id="btnReset" type="button">Reset</button>
+            <div style="display:flex; gap:10px; align-items:center">
+              <span class="subtle" id="statusText">Ready</span>
+              <button class="btn btn--primary cta" id="btnRun" type="button" aria-label="Run function">
+                Run Function
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
      <div id="recaptcha-container-root" style="position:fixed; bottom:0; right:0; z-index:1"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

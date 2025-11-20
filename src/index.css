@@ -1,0 +1,256 @@
+/* ===== Pizza Peppers: shared UI polish ===== */
+:root{
+  --pp-primary: #16a34a;
+  --pp-primary-strong: #0e7a37;
+  --pp-surface: #111315;
+  --pp-surface-2: #171a1d;
+  --pp-border: #262b31;
+  --pp-text: #e5e7eb;
+  --pp-text-dim: #9aa3ad;
+  --pp-focus: #22c55e;
+}
+
+.pp-btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.6rem;
+  padding:.85rem 1.1rem;
+  border-radius:.75rem;
+  border:1px solid var(--pp-border);
+  cursor:pointer;
+  font-weight:700;
+  letter-spacing:.2px;
+  background:linear-gradient(180deg, var(--pp-surface-2), var(--pp-surface));
+  color:var(--pp-text);
+  transition:transform .08s ease, box-shadow .15s ease, background .15s ease;
+}
+.pp-btn:hover { transform:translateY(-1px); }
+.pp-btn:active { transform:translateY(0); }
+.pp-btn:focus-visible{
+  outline:2px solid var(--pp-focus);
+  outline-offset:2px;
+}
+
+.pp-btn-primary{
+  border-color:transparent;
+  background:linear-gradient(180deg, var(--pp-primary), var(--pp-primary-strong));
+  color:white;
+  box-shadow:0 8px 30px rgba(22,163,74,.35);
+}
+.pp-btn-primary:hover{
+  box-shadow:0 10px 40px rgba(22,163,74,.5);
+}
+.pp-btn-subtle{
+  background:transparent;
+}
+
+.pp-modal-header{
+  padding:1rem 1.25rem;
+  border-bottom:1px solid var(--pp-border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.pp-modal-title{
+  font-weight:800;
+  color:var(--pp-text);
+  letter-spacing:.2px;
+}
+.pp-modal-body{
+  padding:1rem;
+  overflow:auto;
+}
+.pp-modal-footer{
+  border-top:1px solid var(--pp-border);
+  padding:.9rem 1.25rem;
+  display:flex;
+  gap:.6rem;
+  justify-content:flex-end;
+}
+
+.pp-options-grid{
+  display:grid;
+  grid-template-columns: repeat( auto-fill, minmax(180px, 1fr) );
+  gap:.75rem;
+}
+.pp-option{
+  border:1px solid var(--pp-border);
+  border-radius:12px;
+  padding:.85rem;
+  background:var(--pp-surface-2);
+  color:var(--pp-text);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.6rem;
+}
+.pp-option input[type="checkbox"]{
+  width:18px;
+  height:18px;
+}
+.pp-option .pp-op-price{
+  color:var(--pp-text-dim);
+  font-weight:700;
+}
+.pp-chip{
+  display:inline-flex;
+  align-items:center;
+  border:1px dashed var(--pp-border);
+  border-radius:999px;
+  padding:.25rem .6rem;
+  color:var(--pp-text-dim);
+  font-size:.85rem;
+}
+
+/* ===== Action row (Add-ons / Edit Ingredients) ===== */
+.pp-actions{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:.75rem;
+  margin-top:.75rem;
+}
+@media (max-width: 640px){
+  .pp-actions{ grid-template-columns: 1fr; }
+}
+
+.pp-actions--sticky{
+  position:sticky;
+  bottom:0;
+  z-index:2;
+  padding:.75rem;
+  background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.25));
+  backdrop-filter: blur(3px);
+  border-top:1px solid var(--pp-border);
+  margin-left:-.75rem;
+  margin-right:-.75rem;
+}
+
+.pp-btn-secondary{
+  background:linear-gradient(180deg, var(--pp-surface-2), var(--pp-surface));
+  border:1px solid var(--pp-border);
+  color:var(--pp-text);
+}
+.pp-btn-full{
+  width:100%;
+  min-height:44px;
+}
+
+/* Darker modal backdrop for readability */
+.pp-modal-backdrop{
+  position: fixed;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(6, 10, 14, 0.85);
+  backdrop-filter: blur(2px);
+  z-index:9999;
+}
+
+/* Modal panel darker surface */
+.pp-modal{
+  width:min(840px, 92vw);
+  max-height:min(82vh, 920px);
+  overflow:hidden;
+  border-radius:16px;
+  display:flex;
+  flex-direction:column;
+  background: #0f151a;
+  border: 1px solid var(--pp-border);
+  box-shadow: 0 10px 30px rgba(0,0,0,.6);
+}
+
+/* Grouped add-ons cosmetics */
+.pp-addon-groups{
+  display:flex;
+  flex-direction:column;
+  gap:1rem;
+}
+.pp-addon-group{
+  padding:.75rem;
+  border:1px solid var(--pp-border);
+  border-radius:12px;
+  background:rgba(255,255,255,0.02);
+  margin-top:1rem;
+}
+.pp-addon-group__title{
+  margin:0 0 .5rem 0;
+  font-size:.95rem;
+  letter-spacing:.3px;
+  color: var(--pp-accent, #b5f76d);
+}
+.pp-addon-title{
+  font-weight:600;
+  letter-spacing:.2px;
+  opacity:.9;
+  margin:0 0 .5rem 0;
+  padding-bottom:.25rem;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.pp-addon-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap:.5rem;
+}
+.pp-grid-addons{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap:.5rem;
+}
+
+.pp-option-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
+  padding:.5rem .75rem;
+  border-radius:.5rem;
+  background: rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.06);
+}
+.pp-option-row + .pp-option-row { margin-top:.5rem; }
+.pp-option-name { color:#e7e7e7; display:flex; align-items:center; gap:.35rem; }
+
+.pp-disclaimer{
+  font-size:0.8rem;
+  opacity:0.7;
+  margin-top:6px;
+}
+
+.pp-size-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+  margin-bottom:.5rem;
+}
+.pp-size-chip{
+  display:flex;
+  align-items:center;
+  gap:.45rem;
+  padding:.4rem .75rem;
+  border:1px solid var(--pp-border);
+  border-radius:.6rem;
+  cursor:pointer;
+  background:rgba(255,255,255,0.02);
+  transition:border-color .15s ease, background .15s ease;
+}
+.pp-size-chip--active{
+  border-color:var(--pp-focus);
+  box-shadow:0 0 0 1px var(--pp-focus);
+}
+.pp-size-chip--disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+.pp-size-chip input{
+  accent-color:var(--pp-focus);
+}
+.pp-size-label{
+  font-weight:600;
+}
+.pp-size-price{
+  color:var(--pp-text-dim);
+  font-weight:600;
+  font-size:.85rem;
+}

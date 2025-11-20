@@ -1,97 +1,101 @@
 // src/config/delivery.js
-// Delivery configuration for Pizza Peppers - consumed by App.jsx via dynamic import.
-// Keep this as plain ESM so Vite can include it in both browser and SSR contexts.
 
-// Optional map bounds for Google Places bias (Adelaide-ish example).
-export const DELIVERY_BOUNDS_SW = { lat: -35.2000, lng: 138.4000 };
-export const DELIVERY_BOUNDS_NE = { lat: -34.6500, lng: 138.8000 };
+// Map + bounds (rough box around southern suburbs so the map fits nicely)
+export const DELIVERY_BOUNDS_SW = { lat: -35.2000, lng: 138.4800 };
+export const DELIVERY_BOUNDS_NE = { lat: -35.0000, lng: 138.6100 };
 
-// Allowed suburbs (case-insensitive). Update these to match your actual delivery footprint.
-export const DELIVERY_ALLOWED_SUBURBS = [
-  "Prospect",
-  "Kilburn",
-  "Mawson Lakes",
-  "Modbury",
-  "Salisbury",
-  "Pooraka",
-  "Findon",
-  "Woodville",
-  "Seaton",
-  "Henley Beach",
-  "Fulham",
-  "North Adelaide",
-  "Adelaide",
-  "Norwood",
-  "Kensington",
-  "Magill",
-];
+// Suburbs & fees (exact list provided)
+const SUBURB_FEES = {
+  "Sheidow Park": 8.40,
+  "Woodcroft": 8.40,
+  "Christie Downs": 12.60,
+  "Trott Park": 8.40,
+  "Happy Valley": 8.40,
+  "O'Halloran Hill": 8.40,
+  "Hallett Cove": 12.60,
+  "Hackham West": 12.60,
+  "Huntfield Heights": 12.60,
+  "Morphett Vale": 8.40,
+  "Lonsdale": 12.60,
+  "Old Reynella": 8.40,
+  "Hackham": 12.60,
+  "Reynella": 8.40,
+  "Onkaparinga Hills": 12.60,
+  "Reynella East": 8.40,
+  "Aberfoyle Park": 12.60,
+};
 
-// Allowed postcodes. Keep this list tight - AddressHelper enforces it on selection/save.
-export const DELIVERY_ALLOWED_POSTCODES = [
-  "5000",
-  "5006",
-  "5007",
-  "5008",
-  "5009",
-  "5010",
-  "5011",
-  "5012",
-  "5022",
-  "5024",
-  "5082",
-  "5095",
-  "5092",
-  "5108",
-];
+// Postcode ? min fee (derived from the suburbs above)
+const POSTCODE_MIN_FEE = {
+  5158: 8.40,
+  5159: 8.40,
+  5160: 12.60,
+  5161: 8.40,
+  5162: 8.40,
+  5163: 12.60,
+  5164: 12.60,
+};
 
-// Optional: zone definitions (suburbs/postcodes + fee). Extend or remove as needed.
+// Public lists used by the UI (About ? Delivery Areas)
 export const DELIVERY_ZONES = [
-  { suburbs: ["Prospect", "Kilburn"], postcodes: ["5082"], fee: 0 },
-  { suburbs: ["Mawson Lakes", "Pooraka"], postcodes: ["5095"], fee: 3.0 },
-  { suburbs: ["Modbury"], postcodes: ["5092"], fee: 4.0 },
-  { suburbs: ["Salisbury"], postcodes: ["5108"], fee: 5.0 },
-  // Add additional zones as required.
+  {
+    name: "Zone A — $8.40",
+    fee_cents: 840,
+    suburbs: [
+      "Sheidow Park",
+      "Woodcroft",
+      "Trott Park",
+      "Happy Valley",
+      "O'Halloran Hill",
+      "Morphett Vale",
+      "Old Reynella",
+      "Reynella",
+      "Reynella East",
+    ],
+    postcodes: ["5158", "5159", "5161", "5162"],
+  },
+  {
+    name: "Zone B — $12.60",
+    fee_cents: 1260,
+    suburbs: [
+      "Christie Downs",
+      "Hallett Cove",
+      "Hackham West",
+      "Huntfield Heights",
+      "Lonsdale",
+      "Hackham",
+      "Onkaparinga Hills",
+      "Aberfoyle Park",
+    ],
+    postcodes: ["5158", "5159", "5160", "5163", "5164"],
+  },
 ];
 
-// Helper: extract a postcode from a Google Places address string/components.
-export function extractPostcode(address) {
-  if (!address) return null;
-  const match = String(address).match(/(\b\d{4}\b)(?!.*\b\d{4}\b)/);
-  return match ? match[1] : null;
+// Helpers the app expects
+export function getAllowedPostcodes() {
+  return new Set(Object.keys(POSTCODE_MIN_FEE));
+}
+export function getAllowedSuburbs() {
+  return new Set(Object.keys(SUBURB_FEES).map((s) => s.toUpperCase()));
 }
 
-// Helper: simple fee lookup by postcode (optional).
-export function quoteForPostcode(postcode) {
-  const code = String(postcode ?? "").trim();
-  if (!code || !DELIVERY_ALLOWED_POSTCODES.includes(code)) {
+// Used by Places autocomplete filtering when available
+export function extractPostcode(components) {
+  const pc = components?.find(
+    (c) => Array.isArray(c.types) && c.types.includes("postal_code")
+  );
+  return pc?.long_name || pc?.short_name || null;
+}
+
+// Quote by postcode — About panel uses this via window.__PP_QUOTE_FOR_POSTCODE
+export function quoteForPostcode(pc) {
+  const code = String(pc ?? "").trim();
+  if (!Object.prototype.hasOwnProperty.call(POSTCODE_MIN_FEE, code)) {
     return { ok: false, reason: "OUT_OF_AREA" };
   }
-
-  let fee = 0;
-  for (const zone of DELIVERY_ZONES) {
-    if (Array.isArray(zone.postcodes) && zone.postcodes.includes(code)) {
-      fee = Number(zone.fee || 0);
-      break;
-    }
-  }
-
   return {
     ok: true,
-    fee_cents: Math.round(fee * 100),
+    fee_cents: Math.round(POSTCODE_MIN_FEE[code] * 100),
     eta_min: 40,
-  };
-}
-
-if (typeof window !== "undefined") {
-  window.__PP_DELIVERY_CONFIG = {
-    serviceablePostcodes: ["5159", "5162", "5049", "5051"],
-    baseDeliveryCents: 600,
-  };
-  window.__PP_QUOTE_FOR_POSTCODE = (pc) => {
-    const code = String(pc || "").trim();
-    if (!code) return null;
-    if (["5159", "5162"].includes(code)) return 500;
-    if (["5049", "5051"].includes(code)) return 700;
-    return window.__PP_DELIVERY_CONFIG?.baseDeliveryCents ?? 600;
   };
 }
