@@ -122,6 +122,27 @@
   box-shadow: 0 0 0 3px rgba(124,255,146,.18);
 }
 
+.pp-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pp-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pp-autocomplete-mount,
+.pp-autocomplete-mount gmp-place-autocomplete {
+  width: 100%;
+}
+
+.pp-autocomplete-mount {
+  min-height: 44px;
+}
+
 .pp-helper {
   margin-top: 6px;
   font-size: .85rem;
