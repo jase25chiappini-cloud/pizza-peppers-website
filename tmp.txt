@@ -1,0 +1,6 @@
+
+/* Bottom text band – noticeably grey in light mode */
+html[data-theme="light"] .card-text-container,
+body[data-theme="light"] .card-text-container {
+  background: linear-gradient(
+    to top,
