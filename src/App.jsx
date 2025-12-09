@@ -654,7 +654,7 @@ const HalfAndHalfSelector = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "var(--border-color)",
+          background: "var(--surface)",
           position: "relative",
         }}
       >
@@ -822,10 +822,10 @@ const HalfAndHalfSelector = ({
                 alignItems: "center",
                 gap: "0.45rem",
                 borderRadius: "999px",
-                border: "1px solid rgba(51,65,85,0.7)",
-                background: "rgba(15,23,42,0.88)",
+                border: "1px solid var(--border-color)",
+                background: "var(--panel)",
                 padding: "0.45rem 0.85rem",
-                boxShadow: "0 0 22px rgba(0,0,0,0.58)",
+                boxShadow: "0 0 22px rgba(0,0,0,0.4)",
               }}
             >
               {sizeSelectorOptions.map((option) => {
@@ -868,20 +868,20 @@ const HalfAndHalfSelector = ({
                       textTransform: "uppercase",
                       transition: "all 0.2s ease",
                       color: lockedByGlutenFree
-                        ? "rgba(148,163,184,0.45)"
+                        ? "var(--text-medium)"
                         : isActive
                         ? "#0f172a"
-                        : "#e2e8f0",
+                        : "var(--text-light)",
                       background: lockedByGlutenFree
-                        ? "rgba(15,23,42,0.35)"
+                        ? "var(--panel)"
                         : isActive
-                        ? "#bef264"
-                        : "rgba(15,23,42,0.72)",
+                        ? "var(--brand-neon-green)"
+                        : "var(--background-light)",
                       boxShadow: lockedByGlutenFree
-                        ? "inset 0 0 0 1px rgba(71,85,105,0.5)"
+                        ? "inset 0 0 0 1px var(--border-color)"
                         : isActive
                         ? "0 0 20px rgba(190,242,100,0.82)"
-                        : "inset 0 0 0 1px rgba(71,85,105,0.85)",
+                        : "inset 0 0 0 1px var(--border-color)",
                     }}
                   >
                     {typeof option.label === "string"
@@ -899,8 +899,8 @@ const HalfAndHalfSelector = ({
             margin: "0.9rem 0 1.1rem",
             padding: "1.35rem 1.6rem",
             borderRadius: "22px",
-            background: "linear-gradient(145deg,#020617,#020316)",
-            boxShadow: "0 30px 65px rgba(0,0,0,0.72)",
+            background: "var(--pp-surface)",
+            boxShadow: "0 30px 65px rgba(0,0,0,0.55)",
             display: "flex",
             flexDirection: "column",
             gap: "1.15rem",
@@ -922,9 +922,8 @@ const HalfAndHalfSelector = ({
               borderRadius: "18px",
               border: "1px solid rgba(148,163,184,0.3)",
               padding: "0.75rem 1rem",
-              background:
-                "linear-gradient(135deg, rgba(2,6,23,0.75), rgba(15,23,42,0.92))",
-              boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
+              background: "var(--pp-surface-2)",
+              boxShadow: "0 18px 36px rgba(0,0,0,0.35)",
             }}
           >
             <div
@@ -967,10 +966,10 @@ const HalfAndHalfSelector = ({
                   fontWeight: 700,
                   letterSpacing: "0.09em",
                   textTransform: "uppercase",
-                  border: "1px solid rgba(148,163,184,0.7)",
+                  border: "1px solid var(--border-color)",
                   background: isHalfGlutenFree
                     ? "rgba(74,222,128,0.2)"
-                    : "rgba(15,23,42,0.9)",
+                    : "var(--panel)",
                   color: isHalfGlutenFree ? "#bbf7d0" : "#e2e8f0",
                   boxShadow: isHalfGlutenFree
                     ? "0 0 16px rgba(74,222,128,0.45)"
@@ -989,9 +988,9 @@ const HalfAndHalfSelector = ({
                 style={{
                   flex: "1 1 200px",
                   borderRadius: "16px",
-                  border: "1px solid rgba(51,65,85,0.8)",
+                  border: "1px solid var(--border-color)",
                   padding: "0.3rem 0.7rem",
-                  background: "rgba(2,6,23,0.75)",
+                  background: "var(--panel)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
@@ -1135,8 +1134,8 @@ const HalfAndHalfSelector = ({
                   style={{
                     border: "1px solid rgba(148,163,184,0.5)",
                     background: hasHalfA
-                      ? "rgba(248,250,252,0.2)"
-                      : "rgba(15,23,42,0.5)",
+                      ? "var(--pp-surface-2)"
+                      : "var(--panel)",
                     color: hasHalfA ? "#f8fafc" : "rgba(148,163,184,0.8)",
                     fontSize: "0.72rem",
                     letterSpacing: "0.115em",
@@ -1157,7 +1156,7 @@ const HalfAndHalfSelector = ({
                     border: "1px solid rgba(148,163,184,0.5)",
                     background: hasHalfA
                       ? "rgba(251,191,36,0.22)"
-                      : "rgba(15,23,42,0.5)",
+                      : "var(--panel)",
                     color: hasHalfA ? "#fde68a" : "rgba(148,163,184,0.8)",
                     fontSize: "0.72rem",
                     letterSpacing: "0.115em",
@@ -1178,7 +1177,7 @@ const HalfAndHalfSelector = ({
                     border: "1px solid rgba(248,113,113,0.4)",
                     background: hasHalfA
                       ? "rgba(239,68,68,0.18)"
-                      : "rgba(15,23,42,0.5)",
+                      : "var(--panel)",
                     color: hasHalfA ? "#fecaca" : "rgba(148,163,184,0.8)",
                     fontSize: "0.72rem",
                     letterSpacing: "0.115em",
@@ -1270,8 +1269,8 @@ const HalfAndHalfSelector = ({
                   style={{
                     border: "1px solid rgba(148,163,184,0.5)",
                     background: hasHalfB
-                      ? "rgba(248,250,252,0.2)"
-                      : "rgba(15,23,42,0.5)",
+                      ? "var(--pp-surface-2)"
+                      : "var(--panel)",
                     color: hasHalfB ? "#f8fafc" : "rgba(148,163,184,0.8)",
                     fontSize: "0.72rem",
                     letterSpacing: "0.115em",
@@ -1292,7 +1291,7 @@ const HalfAndHalfSelector = ({
                     border: "1px solid rgba(148,163,184,0.5)",
                     background: hasHalfB
                       ? "rgba(251,191,36,0.22)"
-                      : "rgba(15,23,42,0.5)",
+                      : "var(--panel)",
                     color: hasHalfB ? "#fde68a" : "rgba(148,163,184,0.8)",
                     fontSize: "0.72rem",
                     letterSpacing: "0.115em",
@@ -1313,7 +1312,7 @@ const HalfAndHalfSelector = ({
                     border: "1px solid rgba(248,113,113,0.4)",
                     background: hasHalfB
                       ? "rgba(239,68,68,0.18)"
-                      : "rgba(15,23,42,0.5)",
+                      : "var(--panel)",
                     color: hasHalfB ? "#fecaca" : "rgba(148,163,184,0.8)",
                     fontSize: "0.72rem",
                     letterSpacing: "0.115em",
@@ -1484,8 +1483,8 @@ const HalfAndHalfSelector = ({
                 maxHeight: "82vh",
                 padding: "1.2rem 1.4rem",
                 borderRadius: "22px",
-                background: "rgba(15,23,42,0.96)",
-                border: "1px solid rgba(148,163,184,0.35)",
+                background: "var(--pp-surface)",
+                border: "1px solid var(--border-color)",
                 boxShadow: "0 24px 50px rgba(0,0,0,0.75)",
                 display: "flex",
                 flexDirection: "column",
@@ -2968,11 +2967,11 @@ function useCart() {
 
 // ThemeContext
 const ThemeContext = createContext({
-  theme: "standard",
+  theme: "dark",
   setTheme: (_v) => {},
 });
 function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState("standard");
+  const [theme, setTheme] = useState("dark");
   useEffect(() => {
     try {
       document.body.setAttribute("data-theme", theme);
@@ -4669,13 +4668,6 @@ function ThemeSwitcher() {
   const active = { ...btn, borderColor: "var(--brand-neon-green)" };
   return (
     <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-      <button
-        style={theme === "standard" ? active : btn}
-        onClick={() => setTheme("standard")}
-        title="Standard Theme"
-      >
-        S
-      </button>
       <button
         style={theme === "light" ? active : btn}
         onClick={() => setTheme("light")}
@@ -7201,9 +7193,9 @@ function Navbar({
                 onBlur={() => setIsNameFocused(false)}
                 style={{
                   width: "100%",
-                  backgroundColor: "rgba(0, 0, 0, 0.25)",
+                  backgroundColor: "var(--background-light)",
                   borderRadius: "999px",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  border: "1px solid var(--border-color)",
                   padding: "0.3rem 0.6rem",
                   color: "var(--text-light)",
                   fontSize: "0.8rem",
@@ -7233,9 +7225,9 @@ function Navbar({
                 onBlur={() => setIsToppingFocused(false)}
                 style={{
                   width: "100%",
-                  backgroundColor: "rgba(0, 0, 0, 0.25)",
+                  backgroundColor: "var(--background-light)",
                   borderRadius: "999px",
-                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  border: "1px solid var(--border-color)",
                   padding: "0.3rem 0.6rem",
                   color: "var(--text-light)",
                   fontSize: "0.8rem",
