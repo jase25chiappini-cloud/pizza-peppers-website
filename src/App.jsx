@@ -2968,14 +2968,21 @@ function useCart() {
 // ThemeContext
 const ThemeContext = createContext({
   theme: "dark",
-  setTheme: (_v) => {},
+  setTheme: () => {},
 });
 function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "dark";
+    const stored = window.localStorage.getItem("pp_theme");
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  });
   useEffect(() => {
     try {
       document.body.setAttribute("data-theme", theme);
-    } catch {}
+      window.localStorage.setItem("pp_theme", theme);
+    } catch {
+      // ignore
+    }
   }, [theme]);
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
@@ -4651,7 +4658,8 @@ function OrderSummaryPanel({ onEditItem, isMapsLoaded }) {
 // ThemeSwitcher
 function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
-  const btn = {
+
+  const base = {
     width: "2rem",
     height: "2rem",
     borderRadius: "50%",
@@ -4659,26 +4667,33 @@ function ThemeSwitcher() {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    fontSize: "1.2rem",
+    fontSize: "1.1rem",
     backgroundColor: "var(--background-light)",
     borderWidth: "2px",
     borderStyle: "solid",
     borderColor: "var(--border-color)",
+    transition: "background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease",
   };
-  const active = { ...btn, borderColor: "var(--brand-neon-green)" };
+
+  const active = {
+    ...base,
+    borderColor: "var(--brand-neon-green)",
+    transform: "translateY(-1px)",
+  };
+
   return (
     <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
       <button
-        style={theme === "light" ? active : btn}
+        style={theme === "light" ? active : base}
         onClick={() => setTheme("light")}
-        title="Light Theme"
+        title="Light theme"
       >
         L
       </button>
       <button
-        style={theme === "dark" ? active : btn}
+        style={theme === "dark" ? active : base}
         onClick={() => setTheme("dark")}
-        title="Dark Theme"
+        title="Dark theme"
       >
         D
       </button>
@@ -8279,7 +8294,8 @@ function AboutPanel({ isMapsLoaded }) {
             width: "100%",
             borderRadius: "0.5rem",
             marginTop: "1rem",
-            background: "var(--border-color)",
+            background: "var(--surface)",
+            border: "1px solid var(--border-color)",
           }}
         />
       </div>
