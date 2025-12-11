@@ -2968,7 +2968,7 @@ function useCart() {
 // ThemeContext
 const ThemeContext = createContext({
   theme: "dark",
-  setTheme: () => {},
+  setTheme: (_v) => {},
 });
 function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
@@ -3152,14 +3152,150 @@ function FirebaseBanner() {
 
 // QuickNav
 function QuickNav({ menuData, activeCategory }) {
+  const containerRef = useRef(null);
+  const chipRefs = useRef({});
+  const sectionInfoRef = useRef([]);
+  const targetScrollLeftRef = useRef(0);
+  const animFrameRef = useRef(null);
+
+  // Build mapping between category sections (vertical) and chip centers (horizontal)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const computeSections = () => {
+      const categories = menuData?.categories || [];
+      const scrollY = window.scrollY || window.pageYOffset;
+      const containerRect = container.getBoundingClientRect();
+      const currentScrollLeft = container.scrollLeft || 0;
+
+      const next = [];
+      categories.forEach((category) => {
+        const id = formatId(category.name);
+        const sectionEl = document.getElementById(id);
+        const chipEl = chipRefs.current[id];
+        if (!sectionEl || !chipEl) return;
+
+        const secRect = sectionEl.getBoundingClientRect();
+        const secTop = secRect.top + scrollY;
+
+        const chipRect = chipEl.getBoundingClientRect();
+        const chipLeftInContainer =
+          chipRect.left - containerRect.left + currentScrollLeft;
+        const chipCenter = chipLeftInContainer + chipRect.width / 2;
+
+        next.push({ id, top: secTop, chipCenter });
+      });
+
+      sectionInfoRef.current = next;
+    };
+
+    const updateTargetFromScroll = () => {
+      const sections = sectionInfoRef.current;
+      const el = containerRef.current;
+      if (!sections.length || !el) return;
+
+      const scrollY = window.scrollY || window.pageYOffset;
+      // Track a point ~30% down the viewport; feels nicer than exact center
+      const trackY = scrollY + window.innerHeight * 0.3;
+
+      let target = 0;
+
+      if (trackY <= sections[0].top) {
+        const first = sections[0];
+        target = first.chipCenter - el.clientWidth / 2;
+      } else if (trackY >= sections[sections.length - 1].top) {
+        const last = sections[sections.length - 1];
+        target = last.chipCenter - el.clientWidth / 2;
+      } else {
+        // Find which two sections we're between
+        for (let i = 0; i < sections.length - 1; i++) {
+          const a = sections[i];
+          const b = sections[i + 1];
+          if (trackY >= a.top && trackY <= b.top) {
+            const span = b.top - a.top || 1;
+            const t = (trackY - a.top) / span; // 0–1 between a and b
+
+            const chipCenter =
+              a.chipCenter + (b.chipCenter - a.chipCenter) * t;
+
+            target = chipCenter - el.clientWidth / 2;
+            break;
+          }
+        }
+      }
+
+      targetScrollLeftRef.current = target;
+    };
+
+    // Initial measurement + target
+    computeSections();
+    updateTargetFromScroll();
+
+    const onScroll = () => updateTargetFromScroll();
+    const onResize = () => {
+      computeSections();
+      updateTargetFromScroll();
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [menuData]);
+
+  // Smooth animation loop: ease scrollLeft towards target
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const animate = () => {
+      const container = containerRef.current;
+      if (!container) return;
+      const current = container.scrollLeft;
+      const target = targetScrollLeftRef.current;
+
+      const diff = target - current;
+
+      if (Math.abs(diff) > 0.5) {
+        // Lerp factor; lower = smoother/slower, higher = snappier
+        const step = diff * 0.18;
+        container.scrollLeft = current + step;
+      } else {
+        container.scrollLeft = target;
+      }
+
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+    };
+  }, []);
+
   return (
-    <div className="quick-nav-container">
+    <div className="quick-nav-container" ref={containerRef}>
       <ul className="quick-nav-list">
         {(menuData?.categories || []).map((category) => {
           const categoryId = formatId(category.name);
           const isActive = activeCategory === categoryId;
           return (
-            <li key={category.name} className="quick-nav-item">
+            <li
+              key={category.name}
+              className="quick-nav-item"
+              ref={(el) => {
+                if (el) {
+                  chipRefs.current[categoryId] = el;
+                }
+              }}
+            >
               <a
                 href={`#${categoryId}`}
                 className={isActive ? "active-nav-link" : ""}
