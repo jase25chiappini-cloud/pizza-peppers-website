@@ -4617,6 +4617,189 @@ function getShortNameFromComponent(comp) {
   );
 }
 
+// Single-mode dropdown: enter a voucher code manually
+function VoucherDropdown({ value, onChange, title = "Voucher", compact = false }) {
+  const [open, setOpen] = React.useState(false);
+  const [msg, setMsg] = React.useState("");
+  const wrapRef = React.useRef(null);
+  const innerRef = React.useRef(null);
+  const inputRef = React.useRef(null);
+  const [maxH, setMaxH] = React.useState(0);
+
+  const applied = (value || "").trim();
+
+  const measure = React.useCallback(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    setMaxH(el.scrollHeight || 0);
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const raf = requestAnimationFrame(measure);
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+    return () => {
+      try {
+        cancelAnimationFrame(raf);
+      } catch {}
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, value, msg, measure]);
+
+  React.useEffect(() => {
+    if (open) {
+      requestAnimationFrame(() => inputRef.current?.focus?.());
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      const root = wrapRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  const applyManual = () => {
+    const code = (value || "").trim();
+    if (!code) {
+      setMsg("Enter a voucher code.");
+      return;
+    }
+    setMsg(`Voucher saved (stub): ${code}`);
+  };
+
+  const headerSub = applied ? `Applied: ${applied}` : "Enter a code";
+  const pad = compact ? "0.75rem 0.85rem" : "0.85rem 0.9rem";
+
+  return (
+    <div ref={wrapRef} style={{ marginBottom: "0.75rem" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "0.75rem",
+          padding: pad,
+          borderRadius: "0.85rem",
+          border: "1px solid var(--border-color)",
+          background: open ? "rgba(190,242,100,0.10)" : "var(--panel)",
+          color: "var(--text-light)",
+          cursor: "pointer",
+          fontWeight: 800,
+          transition:
+            "background 180ms ease, border-color 180ms ease, transform 180ms ease",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+          }}
+        >
+          <span>{title}</span>
+          <span
+            style={{
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              color: "var(--text-medium)",
+            }}
+          >
+            {applied ? `Applied: ${applied}` : "Enter a voucher code"}
+          </span>
+        </div>
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-flex",
+            width: 28,
+            height: 28,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 999,
+            border: "1px solid var(--border-color)",
+            background: "rgba(0,0,0,0.18)",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+          }}
+        >
+          ▾
+        </span>
+      </button>
+
+      <div
+        style={{
+          overflow: "hidden",
+          maxHeight: open ? `${maxH}px` : "0px",
+          opacity: open ? 1 : 0,
+          transform: open ? "translateY(0px)" : "translateY(-6px)",
+          transition:
+            "max-height 340ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+          willChange: "max-height, opacity, transform",
+        }}
+      >
+        <div ref={innerRef} style={{ paddingTop: "0.65rem", paddingBottom: "0.15rem" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.45rem",
+              alignItems: "center",
+              padding: "0.65rem",
+              borderRadius: "0.85rem",
+              border: "1px solid rgba(255,255,255,0.22)",
+              boxShadow: "0 0 0 1px rgba(17,23,41,0.65), 0 12px 26px rgba(0,0,0,0.35)",
+              background: "var(--panel)",
+            }}
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Enter voucher code"
+              value={value || ""}
+              onChange={(e) => onChange?.(e.target.value)}
+              style={{
+                flex: "1 1 auto",
+                minWidth: 0,
+                padding: "0.65rem 0.8rem",
+                borderRadius: "0.65rem",
+                border: "1px solid rgba(255,255,255,0.26)",
+                background: "var(--surface)",
+                color: "var(--text-light)",
+                boxSizing: "border-box",
+              }}
+            />
+            <button
+              type="button"
+              className="simple-button"
+              onClick={applyManual}
+              style={{ padding: "0.65rem 1rem", whiteSpace: "nowrap" }}
+            >
+              Apply
+            </button>
+          </div>
+
+          {msg ? (
+            <div style={{ marginTop: "0.55rem", fontSize: "0.85rem", color: "var(--text-medium)" }}>
+              {msg}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Review screen: big store map (embed, no API key required)
 function StoreMapEmbed({ height = "320px" }) {
   const lat = ABOUT_STORE_LOCATION?.lat;
@@ -4664,7 +4847,6 @@ function ReviewOrderPanel({
 }) {
   const { cart, totalPrice } = useCart();
   const [voucherCode, setVoucherCode] = React.useState("");
-  const [voucherMsg, setVoucherMsg] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const isPreorder = orderType === "Pickup" && !storeOpenNow;
 
@@ -4781,49 +4963,7 @@ function ReviewOrderPanel({
       </div>
 
       <div className="cart-total-section">
-        <details style={{ marginBottom: "0.75rem" }}>
-          <summary
-            style={{
-              cursor: "pointer",
-              fontWeight: 600,
-              color: "var(--text-light)",
-            }}
-          >
-            Add voucher
-          </summary>
-          <div style={{ marginTop: "0.6rem", display: "flex", gap: "0.5rem" }}>
-            <input
-              type="text"
-              placeholder="Voucher code"
-              value={voucherCode}
-              onChange={(e) => setVoucherCode(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button
-              type="button"
-              className="simple-button"
-              onClick={() => {
-                const code = (voucherCode || "").trim();
-                if (!code) return setVoucherMsg("Enter a voucher code.");
-                console.log("[PP][Voucher] apply (stub)", code);
-                setVoucherMsg(`Voucher saved (stub): ${code}`);
-              }}
-            >
-              Apply
-            </button>
-          </div>
-          {voucherMsg ? (
-            <div
-              style={{
-                marginTop: "0.5rem",
-                fontSize: "0.85rem",
-                color: "var(--text-medium)",
-              }}
-            >
-              {voucherMsg}
-            </div>
-          ) : null}
-        </details>
+        <VoucherDropdown value={voucherCode} onChange={setVoucherCode} />
 
         {orderType === "Delivery" && orderDeliveryFee > 0 && (
           <div
@@ -4855,6 +4995,7 @@ function ReviewOrderPanel({
             disabled={!canPlace}
             onClick={() => {
               console.log("[PP][Order] PLACE (stub)", {
+                voucherCode: (voucherCode || "").trim(),
                 orderType,
                 orderAddress,
                 orderDeliveryFee,
@@ -4902,6 +5043,7 @@ function OrderInfoPanel({
   onProceed,
 }) {
   const { cart, totalPrice } = useCart();
+  const [voucherCode, setVoucherCode] = React.useState("");
   const addressInputRef = useRef(null);
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const isPreorder = orderType === "Pickup" && !storeOpenNow;
@@ -5214,13 +5356,7 @@ function OrderInfoPanel({
       </div>
 
       <div className="cart-total-section">
-        <div style={{ marginBottom: "1rem" }}>
-          <input
-            type="text"
-            placeholder="Add voucher code"
-            style={{ width: "calc(100% - 1.5rem)" }}
-          />
-        </div>
+        <VoucherDropdown value={voucherCode} onChange={setVoucherCode} compact />
 
         {orderDeliveryFee > 0 && (
           <div

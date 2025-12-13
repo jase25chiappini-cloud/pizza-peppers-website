@@ -95,19 +95,6 @@ html { scroll-behavior: smooth; }
   color: var(--brand-pink);
 }
 
-/* 9) Order summary extras */
-.order-summary-options { margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
-.voucher-input {
-  width: 100%;
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-light);
-  color: var(--text-light);
-  box-sizing: border-box;
-}
-.voucher-container { margin: 1rem 0; }
-
 /* === UI base (from styles/ui.css) === */
 :root {
   /* UI base (generic cards & controls) */
