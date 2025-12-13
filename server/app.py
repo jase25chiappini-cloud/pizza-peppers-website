@@ -1,7 +1,9 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for
+from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory
 import json
 import os
+import re
 import requests
+from pathlib import Path
 try:
     # Load .env when running via `python app.py` (flask run does this automatically)
     from dotenv import load_dotenv  # type: ignore
@@ -17,6 +19,9 @@ CORS(app)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 db = SQLAlchemy(app)
+
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "static" / "uploads"
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -142,6 +147,91 @@ def public_menu():
 
 
 # 👇 Move this ABOVE the "if __name__ == '__main__':" line (already is)
+# Helper utilities for resilient image lookup
+def _norm_key(stem: str) -> str:
+    """Normalize a filename stem to alphanumerics for fuzzy matching."""
+    return re.sub(r"[^a-z0-9]", "", (stem or "").lower())
+
+
+def _pick_best_match(request_stem: str, files: list[str]) -> str | None:
+    """
+    Pick the best filename match for a requested stem by normalizing out symbols/spaces.
+    Prefers exact stem matches, then filenames without spaces/parentheses, then shortest.
+    """
+    req_key = _norm_key(request_stem)
+    candidates: list[str] = []
+    for f in files:
+        stem, ext = os.path.splitext(f)
+        if ext.lower() not in (".jpg", ".jpeg", ".png", ".webp"):
+            continue
+        if _norm_key(stem) == req_key:
+            candidates.append(f)
+
+    if not candidates:
+        return None
+
+    def score(fname: str):
+        stem = os.path.splitext(fname)[0].lower()
+        return (
+            0 if stem == request_stem.lower() else 1,
+            1 if any(ch in fname for ch in (" ", "(", ")")) else 0,
+            len(fname),
+            fname.lower(),
+        )
+
+    candidates.sort(key=score)
+    return candidates[0]
+
+
+def _list_images_payload() -> dict:
+    """Return a JSON-friendly listing of available image files."""
+    if not UPLOAD_DIR.is_dir():
+        return {"ok": True, "images": []}
+
+    images = []
+    for name in sorted(os.listdir(UPLOAD_DIR)):
+        ext = Path(name).suffix.lower()
+        if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+            continue
+        images.append({"filename": name, "url": f"/api/images/{name}"})
+    return {"ok": True, "images": images}
+
+
+@app.route("/public/images", methods=["GET"])
+def public_images_index():
+    """
+    Public, no-auth listing of available images for the website.
+    """
+    payload = _list_images_payload()
+    resp = jsonify(payload)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
+
+
+@app.route("/api/images/<path:filename>", methods=["GET"])
+def api_images_file(filename: str):
+    """
+    Serve image files with a best-effort fallback for naming mismatches.
+    """
+    safe = os.path.basename(filename)
+    direct_path = UPLOAD_DIR / safe
+
+    if direct_path.is_file():
+        return send_from_directory(UPLOAD_DIR, safe)
+
+    req_stem = Path(safe).stem
+    try:
+        files = os.listdir(UPLOAD_DIR)
+    except Exception:
+        return jsonify({"ok": False, "error": "uploads dir missing"}), 404
+
+    alt = _pick_best_match(req_stem, files)
+    if alt:
+        return send_from_directory(UPLOAD_DIR, alt)
+
+    return jsonify({"ok": False, "error": "not found"}), 404
+
+
 @app.get("/")
 def home():
     return "<h1>🍕 Pizza Peppers Server is Running</h1>"
