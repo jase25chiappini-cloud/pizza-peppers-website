@@ -1,20 +1,509 @@
-/* ===============================
-   Pizza Peppers — App.css (clean)
+﻿/* ===============================
+   Pizza Peppers â€” App.css (clean)
    =============================== */
 
 /* 1) Design tokens */
+/* =========================================================
+   PP Theme Tokens (single source of truth)
+   DO NOT duplicate these blocks elsewhere.
+   ========================================================= */
 :root {
-  /* Brand accents */
-  --brand-pink: #f973a6;          /* spicy pink accent */
-  --brand-green-cta: #16a34a;     /* main CTA green */
-  --brand-neon-green: #a3e635;    /* neon pepper glow */
+  --font-heading: var(--font-heading, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Arial);
+  --font-body: var(--font-body, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Arial);
 
-  /* Default dark-ish base (if no data-theme yet) */
-  --background-dark: #020617;
-  --background-light: #0b1120;
-  --border-color: #1f2937;
-  --text-light: #f9fafb;
-  --text-medium: #9ca3af;
+  --brand-neon-green: var(--brand-neon-green, #bef264);
+  --brand-pink: var(--brand-pink, #fb7185);
+
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  --shadow-card: 0 12px 28px rgba(0,0,0,0.18);
+  --shadow-float: 0 18px 48px rgba(0,0,0,0.26);
+  --shadow-modal: 0 24px 60px rgba(0,0,0,0.35);
+
+  --focus-ring: 0 0 0 3px rgba(190,242,100,0.28);
+
+  /* legacy accents used elsewhere */
+  --accent: #7aa2ff;
+  --accent-2: var(--brand-neon-green);
+  --danger: #ef4444;
+
+  /* shared PP surfaces */
+  --pp-primary: var(--brand-green-cta, #16a34a);
+  --pp-primary-strong: #15803d;
+  --pp-surface: #111315;
+  --pp-surface-2: #171a1d;
+  --pp-border: #262b31;
+  --pp-text: var(--text-light, #ffffff);
+  --pp-text-dim: var(--text-medium, #9ca3af);
+  --pp-focus: var(--brand-neon-green);
+
+  --glow-neon: 0 0 5px var(--brand-neon-green), 0 0 10px var(--brand-neon-green), 0 0 15px var(--brand-neon-green);
+  --glow-pink: 0 0 5px var(--brand-pink), 0 0 10px var(--brand-pink);
+
+  /* generic surfaces */
+  --surface: var(--background-light, #ffffff);
+  --card-bg: var(--surface);
+  --card-bg-alt: var(--background-dark, #0b0f14);
+}
+
+/* =========================================================
+   Add-ons modal (ItemDetailPanel)
+   Uses existing theme variables — avoid duplicates elsewhere.
+   ========================================================= */
+
+.pp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(6, 10, 14, 0.85);
+  backdrop-filter: blur(2px);
+}
+
+[data-theme='light'] .pp-modal-backdrop {
+  background: rgba(15,23,42,0.35);
+}
+
+.pp-modal {
+  max-width: 760px;
+  width: 90vw;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+
+  background: var(--pp-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--pp-border);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.6);
+  padding: 1.9rem;
+}
+
+[data-theme='light'] .pp-modal {
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(15,23,42,0.16);
+}
+[data-theme='dark'] .pp-modal {
+  background: var(--pp-surface);
+}
+
+.pp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 0 1rem 0;
+  border-bottom: 1px solid var(--line, var(--border-color));
+  background: var(--pp-surface, var(--panel));
+}
+
+.pp-modal-title {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--brand-neon-green);
+}
+
+.pp-modal-close {
+  border: none;
+  background: var(--border-color);
+  color: var(--text-light);
+  cursor: pointer;
+  font-size: 1.2rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+.pp-modal-close:hover { background: #4b5563; }
+
+.pp-modal-body {
+  padding: 1rem 0.25rem;
+  max-height: 68vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--pp-surface, var(--panel));
+  color: var(--text-primary);
+}
+
+.pp-addon-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pp-addon-group {
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+  border-radius: 18px;
+  border: 1px solid var(--line, var(--border-color));
+  background: var(--pp-surface-2, var(--panel));
+}
+[data-theme='light'] .pp-addon-group {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.pp-addon-title {
+  margin: 0 0 0.6rem;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+.pp-addon-group__title{
+  margin:0 0 .5rem 0;
+  font-size:.95rem;
+  letter-spacing:.3px;
+  color: var(--pp-accent, #b5f76d);
+}
+
+.pp-options-grid {
+  display: grid;
+  grid-template-columns: repeat( auto-fill, minmax(180px, 1fr) );
+  gap: 0.75rem;
+}
+
+.pp-grid-addons {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 520px) {
+  .pp-grid-addons {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.pp-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+
+  padding: 0.85rem;
+  border-radius: 12px;
+
+  background: var(--pp-surface-2, var(--panel));
+  color: var(--pp-text);
+  border: 1px solid var(--pp-border);
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.pp-option:hover {
+  background: var(--pp-surface, var(--panel));
+  border-color: rgba(190,242,100,0.30);
+  transform: translateY(-1px);
+}
+
+.pp-option-name {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.pp-option-price {
+  font-weight: 900;
+  color: var(--text-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-neon-green, #bef264);
+}
+
+.pp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+
+  background: rgba(190,242,100,0.14);
+  border: 1px dashed var(--pp-border);
+  color: var(--pp-text-dim);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.pp-modal-footer {
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid var(--line, var(--border-color));
+  background: var(--pp-surface, var(--panel));
+  color: var(--text-light);
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+/* =========================================================
+   Add-ons modal upgrade (scoped to avoid conflicts)
+   Replace/merge into your existing #addons-modal rules.
+   ========================================================= */
+
+#addons-modal.pp-modal-backdrop {
+  padding: 1.25rem;
+}
+
+#addons-modal .pp-modal {
+  width: min(980px, calc(100vw - 2rem));
+  max-height: min(86vh, 820px);
+  border-radius: 24px;
+  overflow: hidden;
+
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface, var(--panel)) 0%,
+    var(--pp-surface-2, var(--panel)) 140%
+  );
+
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-modal);
+  color: var(--text-primary);
+}
+
+#addons-modal .pp-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+
+  padding: 0.95rem 1.05rem;
+  border-bottom: 1px solid var(--line, var(--border-color));
+
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface, var(--panel)) 0%,
+    var(--pp-surface-2, var(--panel)) 140%
+  );
+}
+
+#addons-modal .pp-modal-title {
+  font-size: 1.05rem;
+  font-weight: 950;
+  letter-spacing: 0.2px;
+  color: var(--text-primary);
+}
+
+#addons-modal .pp-modal-body {
+  padding: 1rem 1rem 1.1rem;
+  overflow: auto;
+  color: var(--text-primary);
+}
+
+#addons-modal .pp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-weight: 850;
+  font-size: 0.82rem;
+
+  background: rgba(190, 242, 100, 0.14);
+  border: 1px solid rgba(190, 242, 100, 0.28);
+  color: var(--text-primary);
+}
+
+#addons-modal .pp-addon-groups {
+  display: grid;
+  gap: 0.9rem;
+}
+
+#addons-modal .pp-addon-group {
+  padding: 0.95rem;
+  border-radius: 18px;
+  border: 1px solid var(--line, var(--border-color));
+
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface-2, var(--panel)) 0%,
+    var(--pp-surface, var(--panel)) 140%
+  );
+}
+
+#addons-modal .pp-addon-title {
+  margin: 0 0 0.65rem;
+  font-weight: 950;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+/* if you kept className="capitalize" on the title, scope it here */
+#addons-modal .capitalize {
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  font-size: 0.95rem;
+}
+
+#addons-modal .pp-addon-grid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 560px) {
+  #addons-modal .pp-addon-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+#addons-modal .pp-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+
+  background: var(--pp-surface, var(--panel));
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+
+  box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+#addons-modal .pp-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(190,242,100,0.35);
+  background: var(--pp-surface-2, var(--panel));
+  box-shadow: 0 14px 30px rgba(0,0,0,0.14);
+}
+
+/* highlight selected option (modern browsers) */
+#addons-modal .pp-option:has(input[type="checkbox"]:checked) {
+  border-color: rgba(190,242,100,0.55);
+  background: rgba(190,242,100,0.10);
+}
+
+#addons-modal .pp-option-name {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.7rem;
+  width: 100%;
+
+  font-weight: 900;
+  letter-spacing: 0.15px;
+  color: var(--text-primary);
+}
+
+#addons-modal .pp-option-price {
+  flex: 0 0 auto;
+  font-weight: 950;
+  color: var(--text-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+#addons-modal .pp-option-desc {
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  color: var(--pp-text-dim, var(--text-medium));
+}
+
+#addons-modal .pp-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-neon-green, #bef264);
+}
+
+#addons-modal .pp-modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+
+  padding: 0.9rem 1rem;
+  border-top: 1px solid var(--line, var(--border-color));
+  background: var(--pp-surface, var(--panel));
+}
+
+#addons-modal .pp-btn {
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  padding: 0.55rem 0.85rem;
+  font-weight: 900;
+}
+
+#addons-modal .pp-btn.pp-btn-primary {
+  background: var(--brand-neon-green, #bef264);
+  color: #0b1220;
+  border-color: rgba(0,0,0,0.12);
+}
+
+#addons-modal .pp-btn.pp-btn-subtle {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+#addons-modal .pp-disclaimer {
+  margin-top: 0.55rem;
+  font-size: 0.8rem;
+  color: var(--pp-text-dim, var(--text-medium));
+}
+
+body[data-theme="dark"] {
+  --background: #0b0f14;
+  --background-dark: #0b0f14;
+  --background-light: #0b0f14;
+  --pp-surface: #0f172a;
+  --pp-surface-2: #111c33;
+  --panel: #0f172a;
+  --surface: #0f172a;
+
+  --text-primary: #eaf2ff;
+  --text-medium: #9fb1c7;
+  --pp-text-dim: #7e93aa;
+  --text-light: #ffffff;
+
+  --border-color: rgba(255,255,255,0.10);
+  --line: rgba(255,255,255,0.08);
+
+  --shadow-card: 0 12px 30px rgba(0,0,0,0.40);
+  --shadow-float: 0 18px 52px rgba(0,0,0,0.55);
+  --shadow-modal: 0 24px 64px rgba(0,0,0,0.60);
+
+  --focus-ring: 0 0 0 3px rgba(190,242,100,0.30);
+}
+
+body[data-theme="light"] {
+  --background: #f6f8fc;
+  --background-light: #f6f8fc;
+  --background-dark: #f6f8fc;
+  --pp-surface: #ffffff;
+  --pp-surface-2: #f1f5fb;
+  --panel: #ffffff;
+  --surface: #ffffff;
+
+  --text-primary: #0b1220;
+  --text-medium: #3d4c5f;
+  --pp-text-dim: #637489;
+  --text-light: #0b1220;
+
+  --border-color: rgba(15,23,42,0.12);
+  --line: rgba(15,23,42,0.10);
+
+  --shadow-card: 0 12px 26px rgba(2,6,23,0.10);
+  --shadow-float: 0 18px 44px rgba(2,6,23,0.14);
+  --shadow-modal: 0 24px 60px rgba(2,6,23,0.18);
+
+  --focus-ring: 0 0 0 3px rgba(15,23,42,0.14);
 }
 
 /* 2) Base */
@@ -95,19 +584,6 @@ html { scroll-behavior: smooth; }
   color: var(--brand-pink);
 }
 
-/* === UI base (from styles/ui.css) === */
-:root {
-  /* UI base (generic cards & controls) */
-  --bg: var(--background-dark);
-  --panel: var(--background-light);
-  --muted: var(--text-medium);
-  --text: var(--text-light);
-  --accent: #7aa2ff;
-  --accent-2: var(--brand-neon-green);
-  --border: var(--border-color);
-  --danger: #ef4444;
-  --focus: #eab308;
-}
 *{box-sizing:border-box}
 html,body{height:100%}
 a{color:var(--accent);text-decoration:none}
@@ -154,33 +630,21 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .cta{font-size:16px;padding:14px 20px;border-radius:14px}
 
 /* === Shared UI polish (from index.css) === */
-:root {
-  --pp-primary: var(--brand-green-cta);
-  --pp-primary-strong: #15803d;
-  --pp-surface: #111315;
-  --pp-surface-2: #171a1d;
-  --pp-border: #262b31;
-  --pp-text: var(--text-light);
-  --pp-text-dim: var(--text-medium);
-  --pp-focus: var(--brand-neon-green);
-}
-
 .pp-btn {
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:.6rem;
-  padding:.85rem 1.1rem;
+  gap:.4rem;
+  padding:.9rem 1rem;
   border-radius:.75rem;
-  border:1px solid var(--pp-border);
+  border:1px solid var(--border-color);
   cursor:pointer;
   font-weight:700;
-  letter-spacing:.2px;
-  background:linear-gradient(180deg, var(--pp-surface-2), var(--pp-surface));
-  color:var(--pp-text);
-  transition:transform .08s ease, box-shadow .15s ease, background .15s ease;
+  background:var(--background-dark);
+  color:var(--text-light);
+  transition:opacity .2s ease, transform .2s ease, box-shadow .15s ease, background .15s ease;
 }
-.pp-btn:hover { transform:translateY(-1px); }
+.pp-btn:hover { background: var(--border-color); opacity: 0.95; transform: translateY(-1px); }
 .pp-btn:active { transform:translateY(0); }
 .pp-btn:focus-visible{
   outline:2px solid var(--pp-focus);
@@ -200,48 +664,6 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   background:transparent;
 }
 
-.pp-modal-footer{
-  border-top:1px solid var(--pp-border);
-  padding:.9rem 1.25rem;
-  display:flex;
-  gap:.6rem;
-  justify-content:flex-end;
-}
-
-.pp-options-grid{
-  display:grid;
-  grid-template-columns: repeat( auto-fill, minmax(180px, 1fr) );
-  gap:.75rem;
-}
-.pp-option{
-  border:1px solid var(--pp-border);
-  border-radius:12px;
-  padding:.85rem;
-  background:var(--pp-surface-2);
-  color:var(--pp-text);
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:.6rem;
-}
-.pp-option input[type="checkbox"]{
-  width:18px;
-  height:18px;
-}
-.pp-option .pp-op-price{
-  color:var(--pp-text-dim);
-  font-weight:700;
-}
-.pp-chip{
-  display:inline-flex;
-  align-items:center;
-  border:1px dashed var(--pp-border);
-  border-radius:999px;
-  padding:.25rem .6rem;
-  color:var(--pp-text-dim);
-  font-size:.85rem;
-}
-
 .pp-btn-secondary{
   background:linear-gradient(180deg, var(--pp-surface-2), var(--pp-surface));
   border:1px solid var(--pp-border);
@@ -250,64 +672,6 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .pp-btn-full{
   width:100%;
   min-height:44px;
-}
-
-/* Darker modal backdrop for readability */
-.pp-modal-backdrop{
-  position: fixed;
-  inset: 0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background: rgba(6, 10, 14, 0.85);
-  backdrop-filter: blur(2px);
-  z-index:9999;
-}
-[data-theme='light'] .pp-modal-backdrop{
-  background: rgba(15,23,42,0.35);
-}
-
-/* Modal panel darker surface */
-/* Grouped add-ons cosmetics */
-.pp-addon-groups{
-  display:flex;
-  flex-direction:column;
-  gap:1rem;
-}
-.pp-addon-group{
-  padding:.75rem;
-  border:1px solid var(--pp-border);
-  border-radius:12px;
-  background:rgba(255,255,255,0.02);
-  margin-top:1rem;
-}
-[data-theme='light'] .pp-addon-group {
-  background:#f9fafb;
-  border-color:#e5e7eb;
-}
-.pp-addon-group__title{
-  margin:0 0 .5rem 0;
-  font-size:.95rem;
-  letter-spacing:.3px;
-  color: var(--pp-accent, #b5f76d);
-}
-.pp-addon-title{
-  font-weight:600;
-  letter-spacing:.2px;
-  opacity:.9;
-  margin:0 0 .5rem 0;
-  padding-bottom:.25rem;
-  border-bottom:1px solid rgba(255,255,255,.08);
-}
-.pp-addon-grid{
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap:.5rem;
-}
-.pp-grid-addons{
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap:.5rem;
 }
 
 .pp-option-row{
@@ -324,12 +688,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   background:#f9fafb;
   border-color:rgba(15,23,42,0.08);
 }
-[data-theme='light'] .pp-option-row {
-  background: #f9fafb;
-  border-color: rgba(15,23,42,0.08);
-}
 .pp-option-row + .pp-option-row { margin-top:.5rem; }
-.pp-option-name { color:#e7e7e7; display:flex; align-items:center; gap:.35rem; }
 
 .pp-disclaimer{
   font-size:0.8rem;
@@ -544,80 +903,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   margin-top: 8px;
 }
 
-/* === Inline styles moved from App.jsx::AppStyles === */
-/* --- THEME & FONT VARIABLES --- */
-:root {
-  --font-heading: 'Poppins', sans-serif;
-  --font-body: 'Roboto', sans-serif;
-
-  --glow-neon: 0 0 5px var(--brand-neon-green),
-               0 0 10px var(--brand-neon-green),
-               0 0 15px var(--brand-neon-green);
-  --glow-pink: 0 0 5px var(--brand-pink),
-               0 0 10px var(--brand-pink);
-
-  /* generic surfaces (overridden per theme) */
-  --surface: var(--background-light);
-  --card-bg: var(--surface);
-  --card-bg-alt: var(--background-dark);
-}
-
-/* Light theme */
-[data-theme='light'] {
-  /* Page + surfaces */
-  --background-dark: #e5e7eb;   /* outer page */
-  --background-light: #ffffff;  /* primary panels */
-  --border-color: #d1d5db;
-  --text-light: #020617;
-  --text-medium: #6b7280;
-
-  --surface: #ffffff;
-  --card-bg: #ffffff;           /* cards */
-  --card-bg-alt: #f3f4f6;       /* category wrappers / info boxes */
-
-  /* Accents in light (louder) */
-  --brand-pink: #fb7185;
-  --brand-green-cta: #16a34a;
-  --brand-neon-green: #16a34a;
-
-  /* ui.css base tokens */
-  --bg: #e5e7eb;
-  --panel: #ffffff;
-  --muted: #6b7280;
-  --text: #020617;
-  --border: #d1d5db;
-
-  /* glows (subtle but crisp) */
-  --glow-neon: 0 0 8px rgba(22,163,74,0.9);
-  --glow-pink: 0 0 8px rgba(251,113,133,0.85);
-}
-
-/* Dark theme */
-[data-theme='dark'] {
-  /* Dark neutrals – less flat, less “pure black” */
-  --background-dark: #020617;    /* page background */
-  --background-light: #0b1120;   /* cards & panels */
-  --border-color: #1f2937;
-  --text-light: #e5e7eb;
-  --text-medium: #9ca3af;
-
-  /* Brand in dark mode */
-  --brand-neon-green: #a3e635;
-  --brand-green-cta: #16a34a;
-  --brand-pink: #f973a6;
-
-  /* Generic surfaces & ui base */
-  --surface: var(--background-light);
-  --bg: var(--background-dark);
-  --panel: var(--background-light);
-  --muted: var(--text-medium);
-  --text: var(--text-light);
-
-  /* Glows – still punchy, just slightly tamed */
-  --glow-neon: 0 0 10px rgba(163,230,53,0.9);
-  --glow-pink: 0 0 10px rgba(249,115,184,0.85);
-}
-/* --- GENERAL & LAYOUT STYLES --- */
+  /* --- GENERAL & LAYOUT STYLES --- */
 body {
   background-color: var(--background-dark);
   color: var(--text-light);
@@ -626,21 +912,6 @@ body {
   transition: background-color 0.3s, color 0.3s, background-image 0.3s;
 }
 
-/* Light mode: soft pink + green wash */
-body[data-theme='light'] {
-  background-color: #e5e7eb;
-  background-image:
-    radial-gradient(circle at top, rgba(22,163,74,0.12), transparent 60%);
-}
-
-/* Dark mode: deep vignette */
-body[data-theme='dark'] {
-  background-color: #020617;
-  background-image:
-    radial-gradient(ellipse at 20% 0%, rgba(15,23,42,0.9), transparent 60%),
-    radial-gradient(ellipse at 80% 0%, rgba(15,23,42,0.95), transparent 55%),
-    linear-gradient(to bottom, #020617 0%, #020617 100%);
-}
 .app-grid-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -1262,45 +1533,6 @@ button,
   cursor: pointer;
 }
 
-/* === Profile modal polish === */
-.pp-modal {
-  max-width: 760px;
-  width: 90vw;
-  background: var(--pp-surface);
-  border: 1px solid var(--pp-border);
-  border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.6);
-  padding: 1.9rem;
-  display: flex;
-  flex-direction: column;
-  max-height: 72vh;
-  position: relative;
-}
-[data-theme='light'] .pp-modal {
-  background: #ffffff;
-  box-shadow: 0 20px 60px rgba(15,23,42,0.16);
-}
-[data-theme='dark'] .pp-modal {
-  background: var(--pp-surface);
-}
-.pp-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 0 0 1rem 0; border-bottom: 1px solid var(--border-color); }
-.pp-modal-title { font-family: var(--font-heading); font-size: 1.5rem; font-weight: 700; color: var(--brand-neon-green); }
-.pp-modal-close {
-  border: none;
-  background: var(--border-color);
-  color: var(--text-light);
-  cursor: pointer;
-  font-size: 1.2rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 0.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-}
-.pp-modal-close:hover { background: #4b5563; }
-.pp-modal-body { padding: 1rem 0.25rem; max-height: 68vh; overflow-y: auto; overflow-x: hidden; }
 .pp-row { display: grid; grid-template-columns: 130px 1fr; gap: 12px; align-items: flex-start; }
 .pp-row label { font-size: 0.875rem; color: var(--text-medium); padding-top: 0.75rem; }
 .pp-input {
@@ -1315,21 +1547,6 @@ button,
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .pp-input:focus { border-color: var(--brand-pink); box-shadow: var(--glow-pink); outline: none; }
-.pp-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.9rem 1rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--border-color);
-  background: var(--background-dark);
-  color: var(--text-light);
-  font-weight: 700;
-  cursor: pointer;
-  gap: 0.4rem;
-  transition: opacity 0.2s, transform 0.2s;
-}
-.pp-btn:hover { background: var(--border-color); opacity: 0.95; }
 
 /* === Add-ons modal readability upgrades === */
 .modal-category {
@@ -1582,7 +1799,7 @@ footer,
 
 /* === DARK MODE CONTAINER POLISH === */
 
-/* Main content containers – match light mode rounding, lighter depth */
+/* Main content containers â€“ match light mode rounding, lighter depth */
 [data-theme='dark'] .menu-item-card,
 [data-theme='dark'] .order-panel-container,
 [data-theme='dark'] .about-panel-list-item,
@@ -1604,9 +1821,170 @@ footer,
   box-shadow: 0 14px 40px rgba(0,0,0,0.6);
 }
 
-/* Dark mode PP modal: cleaner, less “deep” */
-[data-theme='dark'] .pp-modal {
-  background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98));
-  border-radius: 0.9rem;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.7);
+/* Dark mode PP modal: cleaner, less â€œdeepâ€ */
+/* =========================
+   Base
+   ========================= */
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: inherit; }
+
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* =========================
+   Layout
+   ========================= */
+
+.app-grid-layout {
+  background: var(--background);
+}
+
+.main-content-area {
+  color: var(--text-primary);
+}
+
+.right-sidebar {
+  background: var(--pp-surface-2);
+  border-left: 1px solid var(--line);
+  border-top-left-radius: var(--radius-xl);
+  border-bottom-left-radius: var(--radius-xl);
+}
+
+/* =========================
+   Menu cards
+   ========================= */
+
+.menu-grid {
+  gap: 14px;
+}
+
+.menu-item-card {
+  background: var(--pp-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+  overflow: hidden;
+}
+
+.menu-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-float);
+  border-color: rgba(190,242,100,0.35);
+}
+
+.card-image-container {
+  background: var(--pp-surface-2);
+}
+
+.card-text-container {
+  padding: 12px 12px 14px;
+}
+
+.card-item-name {
+  font-family: var(--font-heading);
+  letter-spacing: 0.2px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: 6px;
+}
+
+.card-item-description {
+  color: var(--pp-text-dim);
+  line-height: 1.35;
+}
+
+.card-item-price {
+  margin-top: 10px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+/* =========================
+   Buttons + inputs
+   ========================= */
+
+.simple-button {
+  background: var(--pp-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.simple-button:hover {
+  background: var(--pp-surface-2);
+  border-color: rgba(190,242,100,0.30);
+  transform: translateY(-1px);
+}
+
+.simple-button:active {
+  transform: translateY(0px);
+}
+
+.simple-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.place-order-button {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.place-order-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-float);
+}
+
+input, select, textarea {
+  background: var(--pp-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-lg);
+}
+
+/* =========================
+   Modals
+   ========================= */
+
+.modal-overlay {
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+}
+
+body[data-theme="light"] .modal-overlay {
+  background: rgba(2,6,23,0.35);
+}
+
+.modal-content {
+  background: var(--pp-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 22px;
+  box-shadow: var(--shadow-modal);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-body {
+  color: var(--text-primary);
 }

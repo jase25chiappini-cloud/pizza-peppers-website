@@ -626,6 +626,8 @@ const HalfAndHalfSelector = ({
         flexDirection: "column",
         height: "100%",
         position: "relative",
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
       <button
@@ -793,7 +795,16 @@ const HalfAndHalfSelector = ({
         </div>
       </div>
 
-      <div className="detail-panel-body">
+      <div
+        className="detail-panel-body"
+        style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+          paddingRight: "0.35rem",
+        }}
+      >
         {/* Size selector - pill-style controls for the Half & Half pizza size */}
         <div
           style={{
@@ -825,7 +836,7 @@ const HalfAndHalfSelector = ({
                 border: "1px solid var(--border-color)",
                 background: "var(--panel)",
                 padding: "0.45rem 0.85rem",
-                boxShadow: "0 0 22px rgba(0,0,0,0.4)",
+                boxShadow: "var(--shadow-card)",
               }}
             >
               {sizeSelectorOptions.map((option) => {
@@ -900,7 +911,7 @@ const HalfAndHalfSelector = ({
             padding: "1.35rem 1.6rem",
             borderRadius: "22px",
             background: "var(--pp-surface)",
-            boxShadow: "0 30px 65px rgba(0,0,0,0.55)",
+            boxShadow: "var(--shadow-float)",
             display: "flex",
             flexDirection: "column",
             gap: "1.15rem",
@@ -923,7 +934,7 @@ const HalfAndHalfSelector = ({
               border: "1px solid rgba(148,163,184,0.3)",
               padding: "0.75rem 1rem",
               background: "var(--pp-surface-2)",
-              boxShadow: "0 18px 36px rgba(0,0,0,0.35)",
+              boxShadow: "var(--shadow-card)",
             }}
           >
             <div
@@ -1475,21 +1486,24 @@ const HalfAndHalfSelector = ({
           >
             <div
               className="order-panel-container"
-              style={{
-                width: "90%",
-                maxWidth: 540,
-                margin: "0 auto",
-                position: "relative",
-                maxHeight: "82vh",
-                padding: "1.2rem 1.4rem",
-                borderRadius: "22px",
-                background: "var(--pp-surface)",
-                border: "1px solid var(--border-color)",
-                boxShadow: "0 24px 50px rgba(0,0,0,0.75)",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
+            style={{
+              width: "90%",
+              maxWidth: 540,
+              margin: "0 auto",
+              position: "relative",
+              height: "82vh",
+              maxHeight: "82vh",
+              minHeight: 0,
+              overflow: "hidden",
+              padding: "1.2rem 1.4rem",
+              borderRadius: "22px",
+              background: "var(--pp-surface)",
+              border: "1px solid var(--border-color)",
+              boxShadow: "var(--shadow-modal)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
               <ItemDetailPanel
                 item={halfEditorItem}
                 menuData={menuData}
@@ -1525,6 +1539,615 @@ const HalfAndHalfSelector = ({
   );
 };
 // --- END RESTORED COMPONENT ---
+
+// ------------------------------
+// Meal Deal Builder (bundle UI)
+// ------------------------------
+const MEAL_SLOT_LABELS = {
+  pizza: "Pizza",
+  drink: "Drink",
+  dessert: "Dessert",
+  side: "Side",
+  calzone: "Calzone",
+  pasta: "Pasta",
+};
+
+function _prettySizeToken(token) {
+  const raw = String(token || "").trim();
+  if (!raw) return "";
+  const t = raw.toLowerCase();
+  if (t === "no_size" || t === "no size") return "No size";
+  if (t === "regular") return "Regular";
+  if (t === "large") return "Large";
+  if (t === "family") return "Family";
+  if (t === "party") return "Party";
+  if (t === "mini") return "Mini";
+  return raw;
+}
+
+function _slotKey(slot) {
+  return String(slot?.slot || slot?.type || slot?.choice || "item")
+    .trim()
+    .toLowerCase();
+}
+
+function _slotAllowedSizes(slot) {
+  const allowed =
+    (Array.isArray(slot?.allowed_sizes) && slot.allowed_sizes) ||
+    (Array.isArray(slot?.allowedSizes) && slot.allowedSizes) ||
+    [];
+  if (allowed.length) return allowed;
+  if (slot?.size) return [slot.size];
+  return [];
+}
+
+function _expandBundleSlots(slots) {
+  const steps = [];
+  (slots || []).forEach((slot, slotIdx) => {
+    const qty = Math.max(1, Number(slot?.qty || 1));
+    for (let i = 0; i < qty; i++) {
+      const key = _slotKey(slot);
+      const labelBase =
+        MEAL_SLOT_LABELS[key] ||
+        key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+      const allowedSizes = _slotAllowedSizes(slot);
+      const sizeHint = allowedSizes.length ? ` (${_prettySizeToken(allowedSizes[0])})` : "";
+
+      const label = qty > 1 ? `${labelBase} ${i + 1}${sizeHint}` : `${labelBase}${sizeHint}`;
+
+      steps.push({
+        slot,
+        slotIdx,
+        idxInSlot: i,
+        qtyInSlot: qty,
+        key: `${key}-${slotIdx}-${i}`,
+        label,
+        slotKey: key,
+      });
+    }
+  });
+  return steps;
+}
+
+function _flattenMenuProducts(menuData) {
+  const cats = menuData?.categories || [];
+  const out = [];
+  cats.forEach((c) => (c?.items || []).forEach((p) => out.push(p)));
+  return out;
+}
+
+function _restrictItemToSlotSizes(preparedItem, slot) {
+  const allowed = _slotAllowedSizes(slot);
+  if (!preparedItem || !allowed.length) return preparedItem;
+
+  const allowedSet = new Set(allowed.map((s) => normalizeAddonSizeRef(s)));
+  const rawSizes = Array.isArray(preparedItem.rawSizes) ? preparedItem.rawSizes : [];
+  if (!rawSizes.length) return preparedItem;
+
+  const filtered = rawSizes.filter((sz) => {
+    const id = getSizeSourceId(sz) || sz?.name || "";
+    const norm = normalizeAddonSizeRef(id);
+    return allowedSet.has(norm);
+  });
+
+  if (!filtered.length) return preparedItem;
+
+  return {
+    ...preparedItem,
+    rawSizes: filtered,
+    sizes: filtered.map((s) => s?.name || getSizeSourceId(s) || "Default"),
+  };
+}
+
+function _computeBundleExtrasCents(bundleItems, menuData) {
+  let cents = 0;
+  (bundleItems || []).forEach((bi) => {
+    if (!bi) return;
+    const sizeToken =
+      bi?.size?.id || bi?.size?.ref || bi?.size?.name || "Default";
+    const sizeRef = normalizeAddonSizeRef(sizeToken);
+    const addOns = Array.isArray(bi.add_ons) ? bi.add_ons : [];
+    cents += calcExtrasCentsForSize(addOns, sizeRef, menuData) || 0;
+
+    const isLarge = normalizeProductSizeRef(sizeRef) === "LARGE";
+    if (bi.isGlutenFree && isLarge) cents += 400;
+  });
+  return cents;
+}
+
+function _filterMenuDataForMealStep(menuData, step, opts = {}) {
+  if (!menuData || !Array.isArray(menuData.categories) || !step?.slot) return menuData;
+
+  const slot = step.slot || {};
+  const catRefs = Array.isArray(slot.category_refs) ? slot.category_refs : [];
+  const catSet = new Set(catRefs.map((s) => String(s).toUpperCase()));
+
+  const prodRefs = Array.isArray(slot.product_refs) ? slot.product_refs : [];
+  const prodSet = new Set(prodRefs.map((s) => String(s)));
+
+  const contains = slot?.baseline?.productNameContains;
+  const needle = contains ? String(contains).toLowerCase() : "";
+
+  const search = String(opts.search || "").trim().toLowerCase();
+  const activeCat = String(opts.activeCategoryRef || "").toUpperCase();
+
+  const categories = (menuData.categories || [])
+    .filter((cat) => {
+      const ref = String(cat?.ref || cat?.id || "").toUpperCase();
+      if (!ref) return false;
+      if (activeCat && ref !== activeCat) return false;
+      if (!catSet.size) return true;
+      return catSet.has(ref);
+    })
+    .map((cat) => {
+      let items = Array.isArray(cat?.items) ? cat.items.filter(Boolean) : [];
+      items = items.filter((p) => p?.enabled !== false);
+      items = items.filter(
+        (p) => !(p?.bundle && Array.isArray(p.bundle.slots) && p.bundle.slots.length),
+      );
+      if (prodSet.size) items = items.filter((p) => prodSet.has(String(p?.id)));
+      if (needle) items = items.filter((p) => String(p?.name || "").toLowerCase().includes(needle));
+      if (search) items = items.filter((p) => String(p?.name || "").toLowerCase().includes(search));
+
+      return { ...cat, items };
+    })
+    .filter((cat) => Array.isArray(cat?.items) && cat.items.length > 0);
+
+  return { ...(menuData || {}), categories };
+}
+
+const MealDealBuilderPanel = ({
+  item,
+  menuData,
+  prepareItemForPanel,
+  editingIndex,
+  onCommit,
+  onCancel,
+  registerExternalMealItemApply,
+  onMenuFilterChange,
+}) => {
+  const slots = Array.isArray(item?.bundle?.slots) ? item.bundle.slots : [];
+  const steps = React.useMemo(() => _expandBundleSlots(slots), [slots]);
+
+  const [activeStep, setActiveStep] = React.useState(0);
+  const [search, setSearch] = React.useState("");
+  const [editorItem, setEditorItem] = React.useState(null);
+  const [activeCategoryRef, setActiveCategoryRef] = React.useState(null);
+  const listRef = React.useRef(null);
+
+  const existingBundle = Array.isArray(item?.bundle_items) ? item.bundle_items : [];
+
+  const [bundleItems, setBundleItems] = React.useState(() => {
+    const init = Array(steps.length).fill(null);
+    for (let i = 0; i < Math.min(init.length, existingBundle.length); i++) {
+      init[i] = existingBundle[i] || null;
+    }
+    return init;
+  });
+
+  React.useEffect(() => {
+    const init = Array(steps.length).fill(null);
+    const existing = Array.isArray(item?.bundle_items) ? item.bundle_items : [];
+    for (let i = 0; i < Math.min(init.length, existing.length); i++) {
+      init[i] = existing[i] || null;
+    }
+    setBundleItems(init);
+    setActiveStep(0);
+    setSearch("");
+    setEditorItem(null);
+    setActiveCategoryRef(null);
+  }, [item?.id, steps.length]);
+
+  const allProducts = React.useMemo(() => _flattenMenuProducts(menuData), [menuData]);
+
+  const step = steps[activeStep] || null;
+
+  const stepMenuData = React.useMemo(
+    () => _filterMenuDataForMealStep(menuData, step, { search }),
+    [menuData, step, search],
+  );
+
+  const stepCategoryOptions = React.useMemo(() => {
+    const cats = Array.isArray(stepMenuData?.categories) ? stepMenuData.categories : [];
+    return cats
+      .map((c) => {
+        const ref = String(c?.ref || c?.id || "").toUpperCase();
+        if (!ref) return null;
+        return {
+          ref,
+          name: c?.name || c?.ref || c?.id || ref,
+          count: Array.isArray(c?.items) ? c.items.length : 0,
+        };
+      })
+      .filter(Boolean);
+  }, [stepMenuData]);
+
+  React.useEffect(() => {
+    if (!stepCategoryOptions.length) {
+      setActiveCategoryRef(null);
+      return;
+    }
+    setActiveCategoryRef((prev) => {
+      const prevNorm = prev ? String(prev).toUpperCase() : "";
+      const allowed = new Set(stepCategoryOptions.map((o) => o.ref));
+      if (prevNorm && allowed.has(prevNorm)) return prevNorm;
+      return stepCategoryOptions[0].ref;
+    });
+  }, [activeStep, item?.id, stepCategoryOptions]);
+
+  React.useEffect(() => {
+    try {
+      if (listRef.current) listRef.current.scrollTop = 0;
+    } catch {}
+  }, [activeCategoryRef, activeStep]);
+
+  const openEditorForProduct = React.useCallback(
+    (product) => {
+      if (!product || !step) return;
+      const prepared = _restrictItemToSlotSizes(prepareItemForPanel(product), step.slot);
+
+      const existing = bundleItems[activeStep];
+      const forcedSizes = _slotAllowedSizes(step.slot);
+      const forcedSizeToken = forcedSizes.length ? forcedSizes[0] : null;
+
+      setEditorItem({
+        ...prepared,
+        qty: 1,
+        size:
+          existing?.size ||
+          forcedSizeToken ||
+          prepared?.rawSizes?.[0] ||
+          prepared?.sizes?.[0] ||
+          "Default",
+        add_ons: Array.isArray(existing?.add_ons) ? existing.add_ons.map((x) => ({ ...x })) : [],
+        removedIngredients: Array.isArray(existing?.removedIngredients) ? [...existing.removedIngredients] : [],
+        isGlutenFree: !!existing?.isGlutenFree,
+      });
+    },
+    [prepareItemForPanel, step, bundleItems, activeStep],
+  );
+
+  const applyEditorResult = React.useCallback(
+    (itemsToAdd, isGlutenFree, addOnSelections = []) => {
+      const first = Array.isArray(itemsToAdd) && itemsToAdd.length ? itemsToAdd[0] : null;
+      if (!first || !editorItem || !step) return;
+
+      const sizeInfo = makeSizeRecord(first.size || editorItem.size || "Default");
+      const sizeRef = normalizeAddonSizeRef(sizeInfo.id || sizeInfo.name);
+      const isLarge = normalizeProductSizeRef(sizeRef) === "LARGE";
+
+      const chosen = {
+        id: editorItem.id,
+        name: editorItem.name,
+        category_ref: editorItem.category_ref || editorItem.categoryRef,
+        bundle_slot: step.slotKey,
+        size: sizeInfo,
+        qty: 1,
+        isGlutenFree: !!isGlutenFree && isLarge,
+        add_ons: (addOnSelections || []).map((opt) => ({ ...opt })),
+        removedIngredients: Array.isArray(editorItem.removedIngredients)
+          ? [...editorItem.removedIngredients]
+          : [],
+      };
+
+      setBundleItems((prev) => {
+        const next = [...prev];
+        next[activeStep] = chosen;
+        const nextEmpty = next.findIndex((x) => !x);
+        if (nextEmpty !== -1) setActiveStep(nextEmpty);
+        return next;
+      });
+    },
+    [editorItem, step, activeStep],
+  );
+
+  React.useEffect(() => {
+    if (typeof onMenuFilterChange !== "function") return;
+    onMenuFilterChange({ step, activeCategoryRef, search });
+  }, [onMenuFilterChange, step, activeCategoryRef, search]);
+
+  React.useEffect(() => {
+    return () => {
+      if (typeof onMenuFilterChange === "function") onMenuFilterChange(null);
+    };
+  }, [onMenuFilterChange]);
+
+  React.useEffect(() => {
+    if (!registerExternalMealItemApply) return;
+
+    const handler = (product) => {
+      if (!product || !step) return;
+      if (product?.enabled === false) return;
+      if (product?.id === "half_half" || product?.isHalfHalf) return;
+      if (product?.bundle && Array.isArray(product.bundle.slots) && product.bundle.slots.length)
+        return;
+
+      const pCat = String(product.category_ref || product.categoryRef || "").toUpperCase();
+      const activeCat = String(activeCategoryRef || "").toUpperCase();
+      if (activeCat && pCat !== activeCat) return;
+
+      const catRefs = Array.isArray(step.slot?.category_refs) ? step.slot.category_refs : [];
+      if (catRefs.length) {
+        const allowed = new Set(catRefs.map((s) => String(s).toUpperCase()));
+        if (!allowed.has(pCat)) return;
+      }
+
+      const prodRefs = Array.isArray(step.slot?.product_refs) ? step.slot.product_refs : [];
+      if (prodRefs.length) {
+        const allowed = new Set(prodRefs.map((s) => String(s)));
+        if (!allowed.has(String(product.id))) return;
+      }
+
+      const contains = step.slot?.baseline?.productNameContains;
+      if (contains) {
+        const needle = String(contains).toLowerCase();
+        if (!String(product.name || "").toLowerCase().includes(needle)) return;
+      }
+
+      const q = String(search || "").trim().toLowerCase();
+      if (q && !String(product.name || "").toLowerCase().includes(q)) return;
+
+      openEditorForProduct(product);
+    };
+
+    registerExternalMealItemApply(handler);
+    return () => registerExternalMealItemApply(null);
+  }, [registerExternalMealItemApply, openEditorForProduct, step, activeCategoryRef, search]);
+
+  const isComplete = steps.length > 0 && bundleItems.every(Boolean);
+
+  const baseMealCents = React.useMemo(() => minPriceCents(item) || 0, [item]);
+  const extrasCents = React.useMemo(
+    () => _computeBundleExtrasCents(bundleItems, menuData),
+    [bundleItems, menuData],
+  );
+  const totalCents = baseMealCents + extrasCents;
+
+  const commitMeal = () => {
+    if (!isComplete) return;
+    const payload = {
+      ...item,
+      qty: 1,
+      size: { id: "Default", name: "Default", ref: normalizeMenuSizeRef("Default") },
+      price: totalCents / 100,
+      price_cents: totalCents,
+      add_ons: [],
+      removedIngredients: [],
+      bundle_items: bundleItems.map((x) => ({ ...x })),
+      __bundle_editing_index: editingIndex ?? null,
+    };
+    onCommit?.(payload);
+  };
+
+  if (!slots.length) {
+    return (
+      <div style={{ padding: "1rem" }}>
+        <h3 className="panel-title">{item?.name || "Meal deal"}</h3>
+        <p style={{ color: "var(--text-medium)" }}>
+          This item has no bundle slots in menu.json.
+        </p>
+        <button type="button" className="simple-button" onClick={onCancel}>
+          Close
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
+      <button
+        onClick={onCancel}
+        className="quantity-btn"
+        style={{ position: "absolute", top: "1.5rem", right: "1.5rem", zIndex: 10 }}
+        title="Close"
+      >
+        &times;
+      </button>
+
+      <h2 className="panel-title" style={{ marginTop: "0.25rem" }}>
+        Build {item?.name}
+      </h2>
+      <p style={{ color: "var(--text-medium)", marginTop: 0, fontSize: "0.9rem" }}>
+        Choose the included items for this meal deal.
+      </p>
+
+      <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+        {steps.map((s, idx) => {
+          const chosen = bundleItems[idx];
+          const active = idx === activeStep;
+          return (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setActiveStep(idx)}
+              className="simple-button"
+              style={{
+                width: "100%",
+                textAlign: "left",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "0.75rem",
+                padding: "0.7rem 0.85rem",
+                borderRadius: "0.85rem",
+                border: active ? "1px solid rgba(190,242,100,0.65)" : "1px solid var(--border-color)",
+                background: active ? "rgba(190,242,100,0.10)" : "var(--panel)",
+                fontWeight: 750,
+              }}
+            >
+              <span>
+                {idx + 1}. {s.label}
+                <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-medium)", fontWeight: 600 }}>
+                  {chosen ? `${chosen.name} ${formatSizeSuffix(chosen.size)}` : "Not selected"}
+                </span>
+              </span>
+              <span style={{ opacity: chosen ? 1 : 0.35 }}>{chosen ? "✓" : "○"}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ marginTop: "0.85rem", marginBottom: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <div style={{ fontWeight: 800 }}>
+            Step {activeStep + 1} of {steps.length}
+          </div>
+          <div style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
+            {step?.label || ""}
+          </div>
+        </div>
+
+        {stepCategoryOptions.length > 1 && (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.4rem",
+              marginTop: "0.6rem",
+            }}
+          >
+            {stepCategoryOptions.map((cat) => {
+              const isActive =
+                String(activeCategoryRef || "").toUpperCase() === cat.ref;
+              return (
+                <button
+                  key={cat.ref}
+                  type="button"
+                  onClick={() => setActiveCategoryRef(cat.ref)}
+                  className="simple-button"
+                  style={{
+                    width: "auto",
+                    padding: "0.35rem 0.65rem",
+                    borderRadius: "999px",
+                    fontSize: "0.8rem",
+                    fontWeight: 800,
+                    border: isActive
+                      ? "1px solid rgba(190,242,100,0.65)"
+                      : "1px solid var(--border-color)",
+                    background: isActive
+                      ? "rgba(190,242,100,0.10)"
+                      : "var(--panel)",
+                  }}
+                >
+                  {cat.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search items..."
+          style={{ width: "100%", marginTop: "0.6rem" }}
+        />
+      </div>
+
+      <div
+        ref={listRef}
+        style={{
+          flex: 1,
+          paddingRight: "0.35rem",
+          paddingTop: "0.4rem",
+        }}
+      >
+        <div style={{ color: "var(--text-medium)", padding: "0.6rem 0.25rem" }}>
+          Select an item from the menu to fill this step.
+        </div>
+      </div>
+
+      <div className="cart-total-section" style={{ marginTop: "auto" }}>
+        <div style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
+          Base: {currency(baseMealCents)}
+          {extrasCents > 0 ? `  + extras: ${currency(extrasCents)}` : ""}
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+          <button
+            type="button"
+            className="simple-button"
+            disabled={activeStep <= 0}
+            onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
+          >
+            Back
+          </button>
+
+          <button
+            type="button"
+            className="place-order-button"
+            disabled={!isComplete}
+            onClick={commitMeal}
+            style={{ opacity: isComplete ? 1 : 0.55 }}
+          >
+            Add meal to order — {currency(totalCents)}
+          </button>
+        </div>
+      </div>
+
+      {editorItem && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 60,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            padding: "1.2rem 1rem",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="order-panel-container"
+            style={{
+              width: "95%",
+              maxWidth: 560,
+              margin: "0 auto",
+              position: "relative",
+              height: "86vh",
+              maxHeight: "86vh",
+              minHeight: 0,
+              overflow: "hidden",
+              padding: "1.2rem 1.4rem",
+              borderRadius: "22px",
+              background: "var(--pp-surface)",
+              border: "1px solid var(--border-color)",
+              boxShadow: "var(--shadow-modal)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ItemDetailPanel
+              item={editorItem}
+              menuData={menuData}
+              editingIndex={null}
+              editingItem={editorItem}
+              lockQty
+              primaryActionLabel="Confirm selection"
+              onSaveIngredients={(newRemoved) => {
+                setEditorItem((prev) => (prev ? { ...prev, removedIngredients: newRemoved || [] } : prev));
+              }}
+              onApplyAddOns={(newAddOns) => {
+                setEditorItem((prev) => (prev ? { ...prev, add_ons: newAddOns || [] } : prev));
+              }}
+              onClose={(itemsToAdd, isGlutenFree, addOnSelections = []) => {
+                if (itemsToAdd && itemsToAdd.length > 0) {
+                  applyEditorResult(itemsToAdd, isGlutenFree, addOnSelections);
+                }
+                setEditorItem(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 
@@ -3020,7 +3643,9 @@ function CartProvider({ children }) {
             JSON.stringify(cartItem.add_ons) ===
               JSON.stringify(normalizedItem.add_ons) &&
             JSON.stringify(cartItem.removedIngredients) ===
-              JSON.stringify(normalizedItem.removedIngredients);
+              JSON.stringify(normalizedItem.removedIngredients) &&
+            JSON.stringify(cartItem.bundle_items || null) ===
+              JSON.stringify(normalizedItem.bundle_items || null);
           if (matches && (typeof cartItem.size === "string" || !cartItem.size?.ref)) {
             newCart[existingIdx] = { ...cartItem, size: existingSize };
           }
@@ -3197,19 +3822,20 @@ function buildImageUrlFromName(name) {
 
   const overrideFilename = IMAGE_FILENAME_OVERRIDES[safeName];
   if (overrideFilename) {
-    return (
-      __ppResolveRemoteUrlForFilename(overrideFilename) ||
-      `${BROTHER_IMAGE_BASE_URL}/${overrideFilename}`
-    );
+    const remote = __ppResolveRemoteUrlForFilename(overrideFilename);
+    if (remote) return remote;
+    if (__PP_REMOTE_BY_FILENAME) return FALLBACK_IMAGE_URL;
+    return `${BROTHER_IMAGE_BASE_URL}/${overrideFilename}`;
   }
 
   const filename = slugifyImageNameForUpload(safeName);
   if (!filename) return FALLBACK_IMAGE_URL;
 
-  return (
-    __ppResolveRemoteUrlForFilename(filename) ||
-    `${BROTHER_IMAGE_BASE_URL}/${filename}`
-  );
+  const remote = __ppResolveRemoteUrlForFilename(filename);
+  if (remote) return remote;
+  if (__PP_REMOTE_BY_FILENAME) return FALLBACK_IMAGE_URL;
+
+  return `${BROTHER_IMAGE_BASE_URL}/${filename}`;
 }
 
 function getImagePath(productOrName) {
@@ -3541,7 +4167,6 @@ function Menu({ menuData, onItemClick }) {
                         onError={(e) => {
                           try {
                             const t = e.currentTarget;
-                            console.warn("[img 404]", item.name, t.src);
                             if (t.src.includes(FALLBACK_IMAGE_URL)) {
                               // Even the fallback failed: hide the img and keep the grey box.
                               t.style.display = "none";
@@ -3732,14 +4357,15 @@ function ItemDetailPanel({
   onClose,
   editingIndex,
   editingItem,
-  onSaveIngredients,
-  primaryActionLabel,
-  initialModal,
+  onSaveIngredients = null,
+  primaryActionLabel = "Add to order",
+  initialModal = null,
   suppressBasePanel = false,
-  onModalsSettled,
+  onModalsSettled = null,
   forcedPriceSizeRef = null,
   compactHalfMode = false,
-  onApplyAddOns,
+  onApplyAddOns = null,
+  lockQty = false,
 }) {
   const sizeOptions = useMemo(() => {
     if (Array.isArray(item?.rawSizes) && item.rawSizes.length) {
@@ -3805,13 +4431,18 @@ function ItemDetailPanel({
     "regular";
   const activeSizeRef = normalizeAddonSizeRef(selectedSizeToken);
   const [quantity, setQuantity] = useState(() => {
+    if (lockQty) return 1;
     const q = Number(editingItem?.qty);
     return Number.isFinite(q) && q > 0 ? q : 1;
   });
   useEffect(() => {
+    if (lockQty) {
+      setQuantity(1);
+      return;
+    }
     const q = Number(editingItem?.qty);
     setQuantity(Number.isFinite(q) && q > 0 ? q : 1);
-  }, [editingItem?.qty, item?.id]);
+  }, [editingItem?.qty, item?.id, lockQty]);
   const [isGlutenFree, setIsGlutenFree] = useState(
     editingItem?.isGlutenFree || false,
   );
@@ -4104,8 +4735,10 @@ function ItemDetailPanel({
     setShowIngredientsModal(false);
   }, [item?.id, item?.name, initialModal]);
   const hasAddOns = !isMealDealLine && addOnLists.length > 0;
-  const handleQuantityChange = (amount) =>
+  const handleQuantityChange = (amount) => {
+    if (lockQty) return;
     setQuantity((prev) => Math.max(1, (prev || 1) + amount));
+  };
   const handleSelectSize = useCallback(
     (size) => {
       if (isGlutenFree) {
@@ -4140,6 +4773,7 @@ function ItemDetailPanel({
   };
   const heroImage = getImagePath(item);
   const quantityTotal = quantity || 0;
+  const secondaryActionLabel = lockQty ? "Back" : "Cancel";
   const basePanel = (
     <div
       style={{
@@ -4147,6 +4781,8 @@ function ItemDetailPanel({
         flexDirection: "column",
         height: "100%",
         position: "relative",
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
       <button
@@ -4166,8 +4802,8 @@ function ItemDetailPanel({
         className="detail-image-wrapper"
         style={{
           width: "100%",
-          flex: "0 0 50%",
-          minHeight: "50%",
+          flex: "0 0 auto",
+          height: "clamp(170px, 30vh, 280px)",
           borderRadius: "1rem",
           overflow: "hidden",
           marginBottom: "0.75rem",
@@ -4254,7 +4890,16 @@ function ItemDetailPanel({
         </div>
       )}
 
-      <div className="detail-panel-body">
+      <div
+        className="detail-panel-body"
+        style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflowY: "auto",
+          paddingRight: "0.25rem",
+          overscrollBehavior: "contain",
+        }}
+      >
         {!compactHalfMode && (
           <>
             {sizeOptions.length ? (
@@ -4309,20 +4954,21 @@ function ItemDetailPanel({
                 </span>
               </div>
               <div className="quantity-controls">
-                <button
-                  className="quantity-btn"
-                  onClick={() => handleQuantityChange(-1)}
-                  disabled={quantityTotal <= 1}
-                >
-                  -
-                </button>
-                <span>{quantityTotal}</span>
-                <button
-                  className="quantity-btn"
-                  onClick={() => handleQuantityChange(1)}
-                >
-                  +
-                </button>
+                  <button
+                    className="quantity-btn"
+                    onClick={() => handleQuantityChange(-1)}
+                    disabled={lockQty || quantityTotal <= 1}
+                  >
+                    -
+                  </button>
+                  <span>{quantityTotal}</span>
+                  <button
+                    className="quantity-btn"
+                    onClick={() => handleQuantityChange(1)}
+                    disabled={lockQty}
+                  >
+                    +
+                  </button>
               </div>
             </div>
             {supportsGF ? (
@@ -4391,35 +5037,63 @@ function ItemDetailPanel({
           </div>
         )}
       </div>
-      <div className="cart-total-section">
-        <button
-          onClick={() => {
-            const itemsToAdd = [];
-            if (quantityTotal > 0) {
-              const payloadSize =
-                selectedSize || sizeOptions[0] || { id: "Default", name: "Default" };
-              itemsToAdd.push({
-                size: payloadSize,
-                qty: quantityTotal,
-              });
-            }
-            onClose(itemsToAdd, isGlutenFree, selectedAddOnDetails);
-          }}
-          className="place-order-button"
-        >
-          {primaryActionLabel
-            ? primaryActionLabel
-            : editingIndex != null
-            ? "Update Item"
-            : `Add ${quantityTotal} to Order`}
-        </button>
-        <button
-          onClick={() => onClose()}
-          className="simple-button"
-          style={{ marginTop: "0.5rem" }}
-        >
-          Cancel
-        </button>
+      <div
+        className="cart-total-section"
+        style={{
+          flex: "0 0 auto",
+          marginTop: "auto",
+          position: "sticky",
+          bottom: 0,
+          background: "var(--pp-surface, var(--panel))",
+          borderTop: "1px solid var(--line, var(--border-color))",
+          paddingTop: "0.75rem",
+          paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))",
+        }}
+      >
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button
+            type="button"
+            onClick={() => onClose()}
+            className="simple-button"
+            style={{ flex: "0 0 120px" }}
+          >
+            {secondaryActionLabel}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const itemsToAdd = [];
+              if (quantityTotal > 0) {
+                const payloadSize =
+                  selectedSize || sizeOptions[0] || { id: "Default", name: "Default" };
+                itemsToAdd.push({
+                  size: payloadSize,
+                  qty: quantityTotal,
+                });
+              }
+              onClose(itemsToAdd, isGlutenFree, selectedAddOnDetails);
+            }}
+            className="place-order-button"
+            disabled={!lockQty && quantityTotal <= 0}
+            style={{
+              flex: "1 1 auto",
+              minHeight: 48,
+              opacity: !lockQty && quantityTotal <= 0 ? 0.65 : 1,
+              background: "var(--brand-neon-green, #bef264)",
+              color: "#0b1220",
+              border: "1px solid rgba(0,0,0,0.12)",
+              borderRadius: "14px",
+              fontWeight: 900,
+            }}
+          >
+            {primaryActionLabel
+              ? primaryActionLabel
+              : editingIndex != null
+              ? "Update Item"
+              : `Add ${quantityTotal} to Order`}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -4490,12 +5164,7 @@ function ItemDetailPanel({
                                   </span>
                                 </span>
                                 {addon.desc ? (
-                                  <div
-                                    style={{
-                                      fontSize: ".85rem",
-                                      color: "var(--pp-text-dim)",
-                                    }}
-                                  >
+                                  <div className="pp-option-desc">
                                     {addon.desc}
                                   </div>
                                 ) : null}
@@ -4758,7 +5427,7 @@ function VoucherDropdown({ value, onChange, title = "Voucher", compact = false }
               padding: "0.65rem",
               borderRadius: "0.85rem",
               border: "1px solid rgba(255,255,255,0.22)",
-              boxShadow: "0 0 0 1px rgba(17,23,41,0.65), 0 12px 26px rgba(0,0,0,0.35)",
+              boxShadow: "var(--shadow-card)",
               background: "var(--panel)",
             }}
           >
@@ -4945,6 +5614,46 @@ function ReviewOrderPanel({
                     ? `No ${it.removedIngredients.join(", ")}`
                     : ""}
                 </div>
+                {Array.isArray(it.bundle_items) && it.bundle_items.length > 0 ? (
+                  <div className="cart-item-details" style={{ marginTop: "0.35rem", opacity: 0.9 }}>
+                    {it.bundle_items.map((bi, j) => {
+                      const extras = Array.isArray(bi.add_ons)
+                        ? bi.add_ons.map((o) => o?.name || o?.ref).filter(Boolean).join(", ")
+                        : "";
+                      const removed =
+                        Array.isArray(bi.removedIngredients) && bi.removedIngredients.length
+                          ? `No ${bi.removedIngredients.join(", ")}`
+                          : "";
+                      return (
+                        <div key={j} style={{ marginTop: "0.15rem" }}>
+                          <div>
+                            <strong
+                              style={{
+                                textTransform: "uppercase",
+                                fontSize: "0.75rem",
+                                opacity: 0.75,
+                              }}
+                            >
+                              {bi.bundle_slot || "item"}:
+                            </strong>{" "}
+                            {bi.name} {formatSizeSuffix(bi.size)}
+                            {bi.isGlutenFree ? (
+                              <span style={{ color: "#facc15", marginLeft: "0.5rem", fontSize: "0.75rem" }}>
+                                GF
+                              </span>
+                            ) : null}
+                          </div>
+                          {extras ? <div className="cart-item-details">{extras}</div> : null}
+                          {removed ? (
+                            <div className="cart-item-details" style={{ color: "#fca5a5" }}>
+                              {removed}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
               <span>${(it.price * it.qty).toFixed(2)}</span>
             </div>
@@ -5338,6 +6047,46 @@ function OrderInfoPanel({
                     ? `No ${it.removedIngredients.join(", ")}`
                     : ""}
                 </div>
+                {Array.isArray(it.bundle_items) && it.bundle_items.length > 0 ? (
+                  <div className="cart-item-details" style={{ marginTop: "0.35rem", opacity: 0.9 }}>
+                    {it.bundle_items.map((bi, j) => {
+                      const extras = Array.isArray(bi.add_ons)
+                        ? bi.add_ons.map((o) => o?.name || o?.ref).filter(Boolean).join(", ")
+                        : "";
+                      const removed =
+                        Array.isArray(bi.removedIngredients) && bi.removedIngredients.length
+                          ? `No ${bi.removedIngredients.join(", ")}`
+                          : "";
+                      return (
+                        <div key={j} style={{ marginTop: "0.15rem" }}>
+                          <div>
+                            <strong
+                              style={{
+                                textTransform: "uppercase",
+                                fontSize: "0.75rem",
+                                opacity: 0.75,
+                              }}
+                            >
+                              {bi.bundle_slot || "item"}:
+                            </strong>{" "}
+                            {bi.name} {formatSizeSuffix(bi.size)}
+                            {bi.isGlutenFree ? (
+                              <span style={{ color: "#facc15", marginLeft: "0.5rem", fontSize: "0.75rem" }}>
+                                GF
+                              </span>
+                            ) : null}
+                          </div>
+                          {extras ? <div className="cart-item-details">{extras}</div> : null}
+                          {removed ? (
+                            <div className="cart-item-details" style={{ color: "#fca5a5" }}>
+                              {removed}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
               <span>${(it.price * it.qty).toFixed(2)}</span>
             </div>
@@ -8203,6 +8952,7 @@ function AppLayout({ isMapsLoaded }) {
   // Global header search state
   const [searchName, setSearchName] = useState("");
   const [searchTopping, setSearchTopping] = useState("");
+  const [mealDealMenuFilter, setMealDealMenuFilter] = useState(null);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -8259,11 +9009,16 @@ function AppLayout({ isMapsLoaded }) {
   }, [rightPanelView, cart.length]);
 
   const halfAndHalfApplyPizzaRef = useRef(null);
+  const mealDealApplyItemRef = useRef(null);
 
   const registerExternalPizzaApply = useCallback((fnOrNull) => {
     // Store the callback so handleItemClick can route menu clicks into
     // the Half & Half selector. Passing null clears it.
     halfAndHalfApplyPizzaRef.current = fnOrNull || null;
+  }, []);
+
+  const registerExternalMealDealItemApply = useCallback((fnOrNull) => {
+    mealDealApplyItemRef.current = fnOrNull || null;
   }, []);
 
   // Filter menuData based on pizza name + toppings
@@ -8320,9 +9075,26 @@ function AppLayout({ isMapsLoaded }) {
     return { ...(menuData || {}), categories: filteredCategories };
   }, [menuData, searchName, searchTopping]);
 
+  const menuDataForHome = useMemo(() => {
+    const base = filteredMenuData || menuData;
+
+    const builderOpen =
+      selectedItem?.bundle &&
+      Array.isArray(selectedItem.bundle.slots) &&
+      selectedItem.bundle.slots.length;
+
+    if (!builderOpen || !mealDealMenuFilter?.step) return base;
+
+    return _filterMenuDataForMealStep(base, mealDealMenuFilter.step, {
+      activeCategoryRef: mealDealMenuFilter.activeCategoryRef,
+      search: mealDealMenuFilter.search,
+    });
+  }, [filteredMenuData, menuData, selectedItem, mealDealMenuFilter]);
+
   const menuItems = React.useMemo(() => {
-    const categories = Array.isArray(menuData?.categories)
-      ? menuData.categories
+    const sourceMenu = menuDataForHome || menuData;
+    const categories = Array.isArray(sourceMenu?.categories)
+      ? sourceMenu.categories
       : [];
     const rows = [];
     categories.forEach((cat) => {
@@ -8348,7 +9120,7 @@ function AppLayout({ isMapsLoaded }) {
       });
     });
     return rows;
-  }, [menuData]);
+  }, [menuData, menuDataForHome]);
   const handleProfileOpen = React.useCallback(() => {
     console.log(
       "[PP][Profile] open clicked. user=",
@@ -8490,6 +9262,28 @@ function AppLayout({ isMapsLoaded }) {
         return;
       }
 
+      const clickedIsMealBundle =
+        prepared?.bundle && Array.isArray(prepared.bundle.slots) && prepared.bundle.slots.length;
+
+      const builderOpen =
+        selectedItem?.bundle &&
+        Array.isArray(selectedItem.bundle.slots) &&
+        selectedItem.bundle.slots.length;
+
+      if (builderOpen && mealDealApplyItemRef?.current && !clickedIsMealBundle) {
+        mealDealApplyItemRef.current(menuItem);
+        return;
+      }
+
+      const isMealBundle = clickedIsMealBundle;
+      if (isMealBundle) {
+        setSelectedItem(prepared);
+        setCustomizingItem(null);
+        setEditingIndex(null);
+        setRightPanelView("order");
+        return;
+      }
+
       // Normal behaviour: open this item in the detail/customiser panel
       setSelectedItem(prepared);
       setCustomizingItem({
@@ -8508,12 +9302,24 @@ function AppLayout({ isMapsLoaded }) {
       setCustomizingItem,
       setEditingIndex,
       setRightPanelView,
+      mealDealApplyItemRef,
     ],
   );
 
   const handleEditItem = (item, index) => {
     const prepared = item?.prices ? { ...item } : prepareItemForPanel(item);
     if (!prepared) return;
+
+    const isMealBundle =
+      prepared?.bundle && Array.isArray(prepared.bundle.slots) && prepared.bundle.slots.length;
+    if (isMealBundle) {
+      setSelectedItem(prepared);
+      setCustomizingItem(null);
+      setEditingIndex(index);
+      setRightPanelView("order");
+      return;
+    }
+
     setSelectedItem(prepared);
     setCustomizingItem({
       ...prepared,
@@ -8819,7 +9625,7 @@ function AppLayout({ isMapsLoaded }) {
                 path="/"
                 element={
                   <Home
-                    menuData={filteredMenuData || menuData}
+                    menuData={menuDataForHome}
                     handleItemClick={handleItemClick}
                   />
                 }
@@ -8846,23 +9652,46 @@ function AppLayout({ isMapsLoaded }) {
                   setSelectedItem={setSelectedItem}
                   registerExternalPizzaApply={registerExternalPizzaApply}
                 />
+              ) : selectedItem?.bundle &&
+                Array.isArray(selectedItem.bundle.slots) &&
+                selectedItem.bundle.slots.length ? (
+                <MealDealBuilderPanel
+                  item={selectedItem}
+                  menuData={menuData}
+                  prepareItemForPanel={prepareItemForPanel}
+                  editingIndex={editingIndex}
+                  onCancel={() => {
+                    setMealDealMenuFilter(null);
+                    setSelectedItem(null);
+                    setEditingIndex(null);
+                    setCustomizingItem(null);
+                  }}
+                  onCommit={(payload) => {
+                    if (editingIndex !== null) removeFromCart(editingIndex);
+                    addToCart([payload]);
+                    setMealDealMenuFilter(null);
+                    setSelectedItem(null);
+                    setEditingIndex(null);
+                    setCustomizingItem(null);
+                  }}
+                  registerExternalMealItemApply={registerExternalMealDealItemApply}
+                  onMenuFilterChange={setMealDealMenuFilter}
+                />
               ) : (
-                // --- EXISTING DETAIL PANEL CODE ---
-                // Keep your existing detail component/structure intact.
                 <ItemDetailPanel
                   item={selectedItem}
                   menuData={menuData}
-                onClose={handleClosePanel}
-                editingIndex={editingIndex}
-                editingItem={customizingItem}
-                onSaveIngredients={handleSaveIngredients}
-                onApplyAddOns={handleApplyAddOns}
-                primaryActionLabel={undefined}
-                initialModal={undefined}
-                onModalsSettled={() => {}}
-              />
-            )
-          )}
+                  onClose={handleClosePanel}
+                  editingIndex={editingIndex}
+                  editingItem={customizingItem}
+                  onSaveIngredients={handleSaveIngredients}
+                  onApplyAddOns={handleApplyAddOns}
+                  primaryActionLabel={undefined}
+                  initialModal={undefined}
+                  onModalsSettled={() => {}}
+                />
+              )
+            )}
             {!selectedItem &&
               (rightPanelView === "about" ? (
                 <AboutPanel isMapsLoaded={isMapsLoaded} />
@@ -9245,5 +10074,3 @@ function AboutPanel({ isMapsLoaded }) {
 }
 
 export default App;
-
-
