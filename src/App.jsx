@@ -362,20 +362,20 @@ const HalfAndHalfSelector = ({
 
   const svgSizeLabel = ((sizeRef || selectedSizeKey) || "").toLowerCase();
 
-  // ~30% bigger for every size
-  let svgSize = 340; // default / regular (was 260)
+  // Bigger pizza model (~30% bigger overall)
+  let svgSize = 520; // default / regular (was 400)
 
   if (svgSizeLabel.includes("party")) {
-    svgSize = 550; // was 420
+    svgSize = 884; // was 680
   } else if (svgSizeLabel.includes("family")) {
-    svgSize = 500; // was 380
+    svgSize = 806; // was 620
   } else if (svgSizeLabel.includes("large")) {
-    svgSize = 440; // was 340
+    svgSize = 702; // was 540
   } else if (
     svgSizeLabel.includes("mini") ||
     svgSizeLabel.includes("small")
   ) {
-    svgSize = 280; // was 220
+    svgSize = 430; // was 330
   }
 
   const pizzaOptions = React.useMemo(() => {
@@ -648,8 +648,8 @@ const HalfAndHalfSelector = ({
         className="detail-image-wrapper"
         style={{
           width: "100%",
-          flex: "0 0 50%",
-          minHeight: "50%",
+          flex: "0 0 auto",
+          height: "clamp(210px, 34vh, 320px)",
           borderRadius: "1rem",
           overflow: "hidden",
           marginBottom: "0.75rem",
@@ -664,7 +664,7 @@ const HalfAndHalfSelector = ({
           className="relative"
           style={{
             width: "100%",
-            maxWidth: "580px",
+            maxWidth: "720px",
             aspectRatio: "1 / 1",
           }}
         >
@@ -796,13 +796,13 @@ const HalfAndHalfSelector = ({
       </div>
 
       <div
-        className="detail-panel-body"
+        className="detail-panel-body pp-halfhalf-body"
         style={{
           flex: "1 1 auto",
           minHeight: 0,
           overflowY: "auto",
-          overscrollBehavior: "contain",
-          paddingRight: "0.35rem",
+          paddingRight: "0.25rem",
+          paddingBottom: "6rem",
         }}
       >
         {/* Size selector - pill-style controls for the Half & Half pizza size */}
@@ -922,7 +922,7 @@ const HalfAndHalfSelector = ({
             style={{
               fontSize: "1.2rem",
               fontWeight: 820,
-              color: "#bef264",
+              color: "var(--brand-neon-green, #bef264)",
               letterSpacing: "0.07em",
             }}
           >
@@ -1089,7 +1089,7 @@ const HalfAndHalfSelector = ({
               style={{
                 flex: 1,
                 fontSize: "0.9rem",
-                color: "#e5e7eb",
+                color: "var(--text-primary)",
               }}
             >
               <div
@@ -1097,7 +1097,7 @@ const HalfAndHalfSelector = ({
                   fontSize: "0.8rem",
                   textTransform: "uppercase",
                   letterSpacing: "0.135em",
-                  color: "#bef264",
+                  color: "var(--brand-neon-green, #bef264)",
                   marginBottom: "0.6rem",
                   display: "flex",
                   alignItems: "center",
@@ -1209,8 +1209,8 @@ const HalfAndHalfSelector = ({
               style={{
                 width: "2px",
                 borderRadius: "999px",
-                background: "#bef264",
-                boxShadow: "0 0 18px rgba(190,242,100,0.9)",
+                background: "var(--brand-neon-green, #bef264)",
+                boxShadow: "var(--glow-neon)",
                 alignSelf: "stretch",
               }}
             />
@@ -1220,7 +1220,7 @@ const HalfAndHalfSelector = ({
               style={{
                 flex: 1,
                 fontSize: "0.9rem",
-                color: "#e5e7eb",
+                color: "var(--text-primary)",
                 textAlign: "right",
               }}
             >
@@ -1229,7 +1229,7 @@ const HalfAndHalfSelector = ({
                   fontSize: "0.8rem",
                   textTransform: "uppercase",
                   letterSpacing: "0.135em",
-                  color: "#bef264",
+                  color: "var(--brand-neon-green, #bef264)",
                   marginBottom: "0.6rem",
                   display: "flex",
                   alignItems: "center",
@@ -1360,14 +1360,7 @@ const HalfAndHalfSelector = ({
               }`}
             </div>
 
-            <div
-              className="space-y-3"
-              style={{
-                maxHeight: "320px",
-                overflowY: "auto",
-                paddingRight: "0.5rem",
-              }}
-            >
+            <div className="pp-halfhalf-options">
               {pizzaOptions.map((p) => {
                 const matchesHalfA =
                   halfA?.id === p.id || pendingHalfA?.id === p.id;
@@ -1386,26 +1379,24 @@ const HalfAndHalfSelector = ({
                     key={p.id}
                     onClick={(e) => handlePizzaSelect(e, p)}
                     className={
-                      "flex justify-between items-center gap-4 rounded-2xl border-2 p-4 cursor-pointer transition " +
-                      (isSelected
-                        ? "border-lime-400/80 bg-lime-400/10 shadow-[0_8px_25px_rgba(190,242,100,0.2)]"
-                        : "border-slate-800 bg-slate-900/70 hover:border-slate-600")
+                      "pp-halfhalf-option " +
+                      (isSelected ? "pp-halfhalf-option--selected" : "")
                     }
                   >
-                    <div>
-                      <div className="font-semibold text-slate-50">
+                    <div className="pp-halfhalf-option__text">
+                      <div className="pp-halfhalf-option__name">
                         {p.name}
                       </div>
-                      <div className="text-xs text-slate-400 mt-1 line-clamp-1">
+                      <div className="pp-halfhalf-option__desc">
                         {p.description}
                       </div>
-                      <div className="text-sm font-bold text-slate-100 mt-2">
+                      <div className="pp-halfhalf-option__price">
                         {typeof priceValue === "number"
                           ? `$${(priceValue / 100).toFixed(2)}`
                           : ""}
                       </div>
                     </div>
-                    <div className="h-8 w-8 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center font-bold text-lg">
+                    <div className="pp-halfhalf-option__plus">
                       +
                     </div>
                   </div>
@@ -1416,24 +1407,41 @@ const HalfAndHalfSelector = ({
         </div>
 
 
-        <div style={{ marginTop: "1.25rem" }}>
-          <button
-            onClick={handleAdd}
-            disabled={!halfA || !halfB}
-            className="place-order-button"
-            style={{
-              opacity: !halfA || !halfB ? 0.5 : 1,
-              cursor: !halfA || !halfB ? "not-allowed" : "pointer",
-            }}
-          >
-            {halfA && halfB
-              ? `Add ${halfQty} x ${activeSizeLabel || "Large"} Half & Half - $${(
-                  displayPriceCents / 100
-                ).toFixed(2)}`
-              : "Select both sides to continue"}
-          </button>
-        </div>
+      </div>
 
+      <div
+        className="pp-halfhalf-cta"
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          padding: "0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom))",
+          background: "var(--pp-surface, var(--panel))",
+          borderTop: "1px solid var(--line, var(--border-color))",
+          boxShadow: "0 -12px 30px rgba(0,0,0,0.25)",
+          zIndex: 15,
+        }}
+      >
+        <button
+          onClick={handleAdd}
+          disabled={!halfA || !halfB}
+          className="place-order-button"
+          style={{
+            opacity: !halfA || !halfB ? 0.5 : 1,
+            cursor: !halfA || !halfB ? "not-allowed" : "pointer",
+            padding: "0.7rem 0.9rem",
+            fontSize: "0.9rem",
+            lineHeight: 1.15,
+            whiteSpace: "normal",
+          }}
+        >
+          {halfA && halfB
+            ? `Add ${halfQty} x ${activeSizeLabel || "Large"} Half & Half - $${(
+                displayPriceCents / 100
+              ).toFixed(2)}`
+            : "Select both sides to continue"}
+        </button>
       </div>
 
       {halfEditorItem &&
@@ -1693,6 +1701,79 @@ function _filterMenuDataForMealStep(menuData, step, opts = {}) {
       return { ...cat, items };
     })
     .filter((cat) => Array.isArray(cat?.items) && cat.items.length > 0);
+
+  return { ...(menuData || {}), categories };
+}
+
+// ------------------------------
+// Half & Half: ONLY show eligible pizzas in the main menu while the builder is open
+// ------------------------------
+function _halfHalfAllowedSizeSet(menuData) {
+  const api = (menuData && (menuData.raw || menuData)) || {};
+  const globals = api.globals || {};
+  const sizes =
+    Array.isArray(globals.halfHalfSizes) && globals.halfHalfSizes.length
+      ? globals.halfHalfSizes
+      : ["large", "family", "party"];
+  return new Set(sizes.map((s) => normalizeAddonSizeRef(s)));
+}
+
+function _productHasAnyAllowedHalfHalfSize(product, allowedSizeSet) {
+  if (!product) return false;
+  const candidates = [];
+
+  // skus: { name|size }
+  if (Array.isArray(product.skus)) {
+    product.skus.forEach((sku) => candidates.push(sku?.size || sku?.name));
+  }
+
+  // sizes can be strings or objects depending on stage in the pipeline
+  if (Array.isArray(product.sizes)) {
+    product.sizes.forEach((s) => {
+      if (typeof s === "string") candidates.push(s);
+      else candidates.push(s?.size || s?.name || s?.id || s?.ref);
+    });
+  }
+
+  // priceCents keys often mirror sizes too
+  if (product.priceCents && typeof product.priceCents === "object") {
+    Object.keys(product.priceCents).forEach((k) => candidates.push(k));
+  }
+
+  return candidates
+    .filter(Boolean)
+    .some((token) => allowedSizeSet.has(normalizeAddonSizeRef(token)));
+}
+
+function _filterMenuDataForHalfHalf(menuData) {
+  if (!menuData || !Array.isArray(menuData.categories)) return menuData;
+
+  const allowedSizeSet = _halfHalfAllowedSizeSet(menuData);
+
+  const categories = (menuData.categories || [])
+    .map((cat) => {
+      const ref = String(cat?.ref || cat?.id || "").toUpperCase();
+      if (!ref) return null;
+
+      // Match the same rule you already use for click-routing: must be a real pizza category (not mini).
+      if (!ref.endsWith("_PIZZAS")) return null;
+      if (ref === "MINI_PIZZAS") return null;
+
+      const catAllowHalf = cat?.allowHalf ?? cat?.allow_half ?? undefined;
+
+      const items = (cat.items || [])
+        .filter(Boolean)
+        .filter((p) => p?.enabled !== false)
+        .filter((p) => {
+          const allowHalf = p?.allowHalf ?? p?.allow_half ?? catAllowHalf;
+          if (allowHalf === false) return false; // explicit “no”
+          return _productHasAnyAllowedHalfHalfSize(p, allowedSizeSet);
+        });
+
+      if (!items.length) return null;
+      return { ...cat, items };
+    })
+    .filter(Boolean);
 
   return { ...(menuData || {}), categories };
 }
@@ -3689,6 +3770,7 @@ function ThemeProvider({ children }) {
   useEffect(() => {
     try {
       document.body.setAttribute("data-theme", theme);
+      document.documentElement.setAttribute("data-theme", theme);
       window.localStorage.setItem("pp_theme", theme);
     } catch {
       // ignore
@@ -5081,7 +5163,7 @@ function ItemDetailPanel({
               minHeight: 48,
               opacity: !lockQty && quantityTotal <= 0 ? 0.65 : 1,
               background: "var(--brand-neon-green, #bef264)",
-              color: "#0b1220",
+              color: "var(--cta-text, #0b1220)",
               border: "1px solid rgba(0,0,0,0.12)",
               borderRadius: "14px",
               fontWeight: 900,
@@ -8610,70 +8692,27 @@ function Navbar({
     (currentUser?.displayName && currentUser.displayName.split(" ")[0]) ||
     (currentUser?.phoneNumber ? currentUser.phoneNumber : "there");
 
-  const navButtonBase = {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    padding: 0,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  };
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isToppingFocused, setIsToppingFocused] = useState(false);
 
   return (
-    <nav
-      style={{
-        backgroundColor: "var(--background-dark)",
-        padding: "0.5rem 1.5rem",
-        borderBottom: `1px solid var(--brand-pink)`,
-        position: "sticky",
-        top: 0,
-        zIndex: 20,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "1.5rem",
-          }}
-        >
+    <nav className="pp-topnav">
+      <div className="pp-topnav__row">
+        <div className="pp-topnav__left">
           <ThemeSwitcher />
           <Link
             to="/"
             onClick={onMenuClick}
-            style={{
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-            }}
+            className="pp-topnav__logo"
           >
             <img
               src="/pizza-peppers-logo.jpg"
               alt="Pizza Peppers Logo"
-              style={{ height: "3.5rem" }}
+              className="pp-topnav__logoImg"
             />
           </Link>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginLeft: "1rem",
-              flexWrap: "wrap",
-            }}
-          >
+          <div className="pp-topnav__searchWrap">
             <div
               style={{
                 position: "relative",
@@ -8693,15 +8732,7 @@ function Navbar({
                 }
                 onFocus={() => setIsNameFocused(true)}
                 onBlur={() => setIsNameFocused(false)}
-                style={{
-                  width: "100%",
-                  backgroundColor: "var(--background-light)",
-                  borderRadius: "999px",
-                  border: "1px solid var(--border-color)",
-                  padding: "0.3rem 0.6rem",
-                  color: "var(--text-light)",
-                  fontSize: "0.8rem",
-                }}
+                className="pp-topnav__searchInput"
               />
             </div>
             <div
@@ -8725,39 +8756,23 @@ function Navbar({
                 }
                 onFocus={() => setIsToppingFocused(true)}
                 onBlur={() => setIsToppingFocused(false)}
-                style={{
-                  width: "100%",
-                  backgroundColor: "var(--background-light)",
-                  borderRadius: "999px",
-                  border: "1px solid var(--border-color)",
-                  padding: "0.3rem 0.6rem",
-                  color: "var(--text-light)",
-                  fontSize: "0.8rem",
-                }}
+                className="pp-topnav__searchInput"
               />
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+        <div className="pp-topnav__right">
           <Link
             to="/"
             onClick={onMenuClick}
-            style={{
-              color: "var(--text-light)",
-              textDecoration: "none",
-              fontWeight: "500",
-            }}
+            className="pp-topnav__link"
           >
             Menu
           </Link>
           <button
             type="button"
             onClick={onAboutClick}
-            style={{
-              ...navButtonBase,
-              color: "var(--text-light)",
-              fontWeight: 500,
-            }}
+            className="pp-topnav__linkBtn"
           >
             About Us
           </button>
@@ -8765,78 +8780,47 @@ function Navbar({
           <button
             type="button"
             onClick={onMenuClick}
-            style={{
-              ...navButtonBase,
-              color: "var(--text-light)",
-              fontWeight: 500,
-            }}
+            className="pp-topnav__linkBtn"
           >
             Cart ({totalItems})
           </button>
           {authLoading ? null : currentUser ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              <span style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
-                Hi, {firstName}
-              </span>
+            <div className="pp-topnav__auth">
+              <span className="pp-topnav__greeting">Hi, {firstName}</span>
               <button
                 type="button"
                 onClick={onProfileClick}
-                style={{
-                  ...navButtonBase,
-                  color: "var(--brand-neon-green)",
-                  fontWeight: 600,
-                }}
+                className="pp-topnav__action pp-topnav__action--accent"
               >
                 Profile
               </button>
               <button
                 type="button"
                 onClick={logout}
-                style={{
-                  ...navButtonBase,
-                  color: "var(--brand-pink)",
-                  fontWeight: 500,
-                }}
+                className="pp-topnav__action pp-topnav__action--danger"
               >
                 Logout
               </button>
             </div>
           ) : (
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
-            >
+            <div className="pp-topnav__auth">
               <button
                 type="button"
                 onClick={() => onLoginClick && onLoginClick()}
-                style={{
-                  ...navButtonBase,
-                  color: "var(--brand-neon-green)",
-                  fontWeight: 700,
-                }}
+                className="pp-topnav__action pp-topnav__action--accent"
               >
                 Login
               </button>
               <button
                 type="button"
                 onClick={() => onLoginClick && onLoginClick("phone")}
-                style={{
-                  ...navButtonBase,
-                  color: "var(--brand-neon-green)",
-                  fontWeight: 600,
-                }}
+                className="pp-topnav__action pp-topnav__action--accent pp-topnav__action--subtle"
               >
                 Login with phone
               </button>
             </div>
           )}
-          <span
-            style={{
-              marginLeft: "0.5rem",
-              fontSize: "0.75rem",
-              opacity: 0.7,
-              color: "var(--text-medium)",
-            }}
-          >
+          <span className="pp-topnav__status">
             {authLoading
               ? "auth-"
               : currentUser
@@ -9083,12 +9067,22 @@ function AppLayout({ isMapsLoaded }) {
       Array.isArray(selectedItem.bundle.slots) &&
       selectedItem.bundle.slots.length;
 
-    if (!builderOpen || !mealDealMenuFilter?.step) return base;
+    let out = base;
 
-    return _filterMenuDataForMealStep(base, mealDealMenuFilter.step, {
-      activeCategoryRef: mealDealMenuFilter.activeCategoryRef,
-      search: mealDealMenuFilter.search,
-    });
+    // Meal deal builder: restrict to the current step/category/search
+    if (builderOpen && mealDealMenuFilter?.step) {
+      out = _filterMenuDataForMealStep(base, mealDealMenuFilter.step, {
+        activeCategoryRef: mealDealMenuFilter.activeCategoryRef,
+        search: mealDealMenuFilter.search,
+      });
+    }
+
+    // Half & Half builder: ONLY show eligible pizzas in the left menu
+    if (selectedItem?.isHalfHalf) {
+      out = _filterMenuDataForHalfHalf(out);
+    }
+
+    return out;
   }, [filteredMenuData, menuData, selectedItem, mealDealMenuFilter]);
 
   const menuItems = React.useMemo(() => {
@@ -9244,11 +9238,14 @@ function AppLayout({ isMapsLoaded }) {
       const categoryRef =
         typeof categoryRefRaw === "string" ? categoryRefRaw.toUpperCase() : "";
 
+      const allowedHalfSizes = _halfHalfAllowedSizeSet(menuData);
+
       const isPizzaForHalfHalf =
         !!flat &&
         categoryRef.endsWith("_PIZZAS") &&
         categoryRef !== "MINI_PIZZAS" &&
-        flat.allowHalf !== false;
+        flat.allowHalf !== false &&
+        _productHasAnyAllowedHalfHalfSize(flat, allowedHalfSizes);
 
       // If the Half & Half editor is open and this item is eligible,
       // route the click into the selector instead of opening the panel
@@ -9640,8 +9637,8 @@ function AppLayout({ isMapsLoaded }) {
             <Footer />
           </main>
         </div>
-        <div className="right-sidebar">
-          <div className="order-panel-container">
+        <div className={selectedItem?.isHalfHalf ? "right-sidebar right-sidebar--halfhalf" : "right-sidebar"}>
+          <div className={selectedItem?.isHalfHalf ? "order-panel-container order-panel-container--halfhalf" : "order-panel-container"}>
             {selectedItem && (
               selectedItem.isHalfHalf ? (
                 <HalfAndHalfSelector
