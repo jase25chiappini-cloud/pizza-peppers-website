@@ -2160,7 +2160,306 @@ footer,
   }
 }
 
-/* Safety: ensure the Half & Half body doesn’t force scrolling */
+/* Safety: ensure the Half & Half body doesn't force scrolling */
 .pp-halfhalf-body{
   overflow: visible !important;
+}
+
+/* =========================
+   Half & Half - proportions + contained layout (final override)
+   ========================= */
+
+/* Keep the half/half sidebar constrained like the normal order panel */
+@media (min-width: 1024px){
+  .right-sidebar.right-sidebar--halfhalf{
+    position: sticky !important;
+    top: 0 !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+
+  .order-panel-container.order-panel-container--halfhalf{
+    position: sticky !important;
+    top: 1.5rem !important;
+    height: calc(100vh - 3rem) !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+  }
+}
+
+/* Make the half/half panel a real flex column so body can scroll */
+.pp-halfhalf-panel{
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Hero: fixed-ish height so the pizza doesn't become massive */
+.pp-halfhalf-panel .pp-halfhalf-hero{
+  flex: 0 0 auto;
+  height: clamp(260px, 40vh, 460px) !important;
+  padding: 18px 16px 14px !important;
+}
+
+/* Body: must be scrollable (overrides any "overflow: visible !important" rules) */
+.pp-halfhalf-body{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto !important;
+  padding: 0 1.25rem 1rem;
+}
+
+/* CTA: stays visible at the bottom */
+.pp-halfhalf-cta{
+  flex: 0 0 auto;
+}
+
+/* Half & Half: hero stage sizing (taller + safe for family/party) */
+.pp-halfhalf-heroStage{
+  width: 100%;
+  height: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+/* This is the key: stage size grows for bigger sizes, but always fits the hero */
+.pp-halfhalf-heroStage[data-size="small"]{ max-width: 520px; }
+.pp-halfhalf-heroStage[data-size="regular"]{ max-width: 600px; }
+.pp-halfhalf-heroStage[data-size="large"]{ max-width: 660px; }
+.pp-halfhalf-heroStage[data-size="family"]{ max-width: 720px; }
+.pp-halfhalf-heroStage[data-size="party"]{ max-width: 760px; }
+
+.pp-halfhalf-svg{
+  width: min(92%, 520px);
+  height: auto;
+  aspect-ratio: 1 / 1;
+  display: block;
+  filter: drop-shadow(0 12px 18px rgba(0,0,0,0.12));
+}
+
+/* Let big sizes get larger without overflowing */
+.pp-halfhalf-heroStage[data-size="large"] .pp-halfhalf-svg{ width: min(94%, 560px); }
+.pp-halfhalf-heroStage[data-size="family"] .pp-halfhalf-svg{ width: min(96%, 600px); }
+.pp-halfhalf-heroStage[data-size="party"] .pp-halfhalf-svg{ width: min(98%, 640px); }
+
+/* =========================
+   Half & Half — use more panel, smaller pizza model
+   ========================= */
+
+/* Container bigger */
+.pp-halfhalf-panel .detail-image-wrapper{
+  /* if your hero wrapper is still .detail-image-wrapper */
+  padding: 18px 16px 14px;
+}
+
+/* Stage (container for the pizza) larger */
+.pp-halfhalf-panel .pp-halfhalf-heroStage{
+  max-width: 880px;     /* bigger container */
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+/* Model (SVG) slightly smaller for ALL sizes */
+.pp-halfhalf-panel .pp-halfhalf-svg{
+  width: min(86%, 440px);  /* smaller default */
+  height: auto;
+  aspect-ratio: 1 / 1;
+  display: block;
+}
+
+/* Size bumps (still smaller than before, but scaled up per size) */
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-size="large"] .pp-halfhalf-svg{
+  width: min(88%, 480px);
+}
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-size="family"] .pp-halfhalf-svg{
+  width: min(90%, 520px);
+}
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-size="party"] .pp-halfhalf-svg{
+  width: min(92%, 560px);
+}
+
+/* Optional: keep shadow subtle so it doesn't "feel cropped" */
+.pp-halfhalf-panel .pp-halfhalf-svg{
+  filter: drop-shadow(0 12px 18px rgba(0,0,0,0.10));
+}
+
+/* Half selector (Pizza 1 / Pizza 2) */
+.pp-halfhalf-sideSwitch{
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.28);
+  background: rgba(255,255,255,0.06);
+  margin: 0.75rem 0 0.85rem;
+  overflow: hidden;
+}
+
+.pp-halfhalf-sideSwitch::before{
+  content:"";
+  position:absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.78);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+  transform: translateX(0%);
+  transition: transform 200ms cubic-bezier(.2,.9,.2,1);
+}
+
+.pp-halfhalf-sideSwitch[data-active="B"]::before{
+  transform: translateX(100%);
+}
+
+.pp-halfhalf-sideBtn{
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  color: rgba(15,23,42,0.85);
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  justify-content: center;
+  opacity: 0.9;
+}
+
+.pp-halfhalf-sideMeta{
+  font-weight: 700;
+  opacity: 0.65;
+  font-size: 0.8em;
+}
+
+/* Pizza model: obvious active half */
+.pp-halfhalf-half{
+  cursor: pointer;
+  transition: opacity 160ms ease, filter 160ms ease;
+}
+
+.pp-halfhalf-half.is-active{
+  filter: brightness(1.03) contrast(1.03);
+}
+
+.pp-halfhalf-halfOutline{
+  fill: none;
+  stroke: rgba(34,197,94,0.55);
+  stroke-width: 0;
+  opacity: 0;
+  transition: opacity 160ms ease, stroke-width 160ms ease, filter 160ms ease;
+}
+
+.pp-halfhalf-halfOutline.is-active{
+  opacity: 1;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 10px rgba(34,197,94,0.22));
+}
+
+/* Detail cards: clickable + active ring */
+.pp-halfhalf-sideCard{
+  border-radius: 14px;
+  padding: 8px;
+  transition: box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.02);
+}
+
+.pp-halfhalf-sideCard:hover{
+  border-color: rgba(148,163,184,0.30);
+}
+
+.pp-halfhalf-sideCard.is-active{
+  border-color: rgba(34,197,94,0.45);
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.12);
+  background: rgba(34,197,94,0.03);
+}
+
+/* =========================
+   Half & Half — FINAL sizing tune
+   Model -20%, container +10% height only
+   ========================= */
+
+/* Make the hero taller (height only, do NOT increase width) */
+.pp-halfhalf-panel .detail-image-wrapper{
+  height: clamp(330px, 50vh, 640px) !important;
+}
+
+/* Model (pizza SVG) -20% across the board */
+.pp-halfhalf-panel .pp-halfhalf-svg{
+  width: min(68.8%, 352px) !important; /* 86%->68.8%, 440->352 */
+  height: auto !important;
+  aspect-ratio: 1 / 1;
+}
+
+/* Size bumps also -20% */
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-size="large"] .pp-halfhalf-svg{
+  width: min(70.4%, 384px) !important; /* 88%->70.4%, 480->384 */
+}
+
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-size="family"] .pp-halfhalf-svg{
+  width: min(72%, 416px) !important;   /* 90%->72%, 520->416 */
+}
+
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-size="party"] .pp-halfhalf-svg{
+  width: min(73.6%, 448px) !important; /* 92%->73.6%, 560->448 */
+}
+
+/* =========================
+   Half & Half — sizing tune (remove scrollbar)
+   Container -7%, Model -7% (all sizes)
+   ========================= */
+
+/* Don’t let half/half sidebar expand page height on desktop */
+@media (min-width: 1024px){
+  .right-sidebar.right-sidebar--halfhalf{
+    position: sticky !important;
+    top: 0 !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+  .order-panel-container.order-panel-container--halfhalf{
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+}
+
+/* Hero container: slightly smaller so everything fits without scroll */
+.pp-halfhalf-panel .pp-halfhalf-hero{
+  /* ~7% tighter than the “too big” version */
+  padding: 22px 16px 14px !important;
+  /* Give it a predictable height, but not huge */
+  height: clamp(240px, 32vh, 340px) !important;
+}
+
+/* Stage: keep width the same; scale is what we tune */
+.pp-halfhalf-panel .pp-halfhalf-pizzaStage{
+  width: min(460px, 100%) !important;
+}
+
+/* Model: reduce scale for ALL sizes (~7% smaller) */
+.pp-halfhalf-panel .pp-halfhalf-pizzaStage[data-size="small"]{  transform: scale(0.82) !important; }
+.pp-halfhalf-panel .pp-halfhalf-pizzaStage[data-size="regular"]{transform: scale(0.91) !important; }
+.pp-halfhalf-panel .pp-halfhalf-pizzaStage[data-size="large"]{  transform: scale(0.95) !important; }
+.pp-halfhalf-panel .pp-halfhalf-pizzaStage[data-size="family"]{ transform: scale(0.99) !important; }
+.pp-halfhalf-panel .pp-halfhalf-pizzaStage[data-size="party"]{  transform: scale(1.02) !important; }
+
+/* Keep shadow subtle so it doesn’t “feel cropped” */
+.pp-halfhalf-panel .pp-halfhalf-svg{
+  filter: drop-shadow(0 10px 14px rgba(0,0,0,0.10)) !important;
 }

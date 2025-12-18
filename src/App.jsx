@@ -85,6 +85,19 @@ const HalfAndHalfSelector = ({
   const [isHalfGlutenFree, setIsHalfGlutenFree] = React.useState(false);
   const [halfQty, setHalfQty] = React.useState(1);
 
+  const halfBodyRef = React.useRef(null);
+  const halfOptionsRef = React.useRef(null);
+
+  const scrollToHalfOptions = React.useCallback(() => {
+    const body = halfBodyRef.current;
+    const target = halfOptionsRef.current;
+    if (!body || !target) return;
+
+    const bodyRect = body.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    body.scrollTop += (targetRect.top - bodyRect.top) - 12;
+  }, []);
+
 
   const resetHalf = React.useCallback((side) => {
     if (side === "A") {
@@ -362,21 +375,12 @@ const HalfAndHalfSelector = ({
 
   const svgSizeLabel = ((sizeRef || selectedSizeKey) || "").toLowerCase();
 
-  // Bigger pizza model (~30% bigger overall)
-  let svgSize = 520; // default / regular (was 400)
-
-  if (svgSizeLabel.includes("party")) {
-    svgSize = 884; // was 680
-  } else if (svgSizeLabel.includes("family")) {
-    svgSize = 806; // was 620
-  } else if (svgSizeLabel.includes("large")) {
-    svgSize = 702; // was 540
-  } else if (
-    svgSizeLabel.includes("mini") ||
-    svgSizeLabel.includes("small")
-  ) {
-    svgSize = 430; // was 330
-  }
+  const pizzaStageSize =
+    svgSizeLabel.includes("party") ? "party" :
+    svgSizeLabel.includes("family") ? "family" :
+    svgSizeLabel.includes("large") ? "large" :
+    (svgSizeLabel.includes("mini") || svgSizeLabel.includes("small")) ? "small" :
+    "regular";
 
   const pizzaOptions = React.useMemo(() => {
     if (!Array.isArray(menuItems)) return [];
@@ -611,6 +615,17 @@ const HalfAndHalfSelector = ({
     [halfB, pendingHalfB],
   );
 
+  const nextHalfSide = halfSelectionSide === "A" ? "B" : "A";
+  const canContinue = halfSelectionSide === "A" ? hasHalfA : hasHalfB;
+
+  const continueLabel =
+    halfSelectionSide === "A" ? "Continue to Pizza 2" : "Continue to Pizza 1";
+
+  const continueDisabledLabel =
+    halfSelectionSide === "A"
+      ? "Select Pizza 1 to continue"
+      : "Select Pizza 2 to continue";
+
   const currentSizeTokenForGF =
     getCurrentSizeToken() || selectedSizeKey || "Default";
   const normalizedSizeForGF = normalizeAddonSizeRef(currentSizeTokenForGF);
@@ -621,6 +636,7 @@ const HalfAndHalfSelector = ({
 
   return (
     <div
+      className="pp-halfhalf-panel"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -645,11 +661,11 @@ const HalfAndHalfSelector = ({
       </button>
 
       <div
-        className="detail-image-wrapper"
+        className="detail-image-wrapper pp-halfhalf-hero"
         style={{
           width: "100%",
           flex: "0 0 auto",
-          height: "clamp(210px, 34vh, 320px)",
+          height: "clamp(240px, 32vh, 340px)",
           borderRadius: "1rem",
           overflow: "hidden",
           marginBottom: "0.75rem",
@@ -661,26 +677,13 @@ const HalfAndHalfSelector = ({
         }}
       >
         <div
-          className="relative"
-          style={{
-            width: "100%",
-            maxWidth: "720px",
-            aspectRatio: "1 / 1",
-          }}
+          className="pp-halfhalf-heroStage pp-halfhalf-pizzaStage"
+          data-size={pizzaStageSize}
         >
           <svg
-            width={svgSize}
-            height={svgSize}
             viewBox="0 0 100 100"
-            className="drop-shadow-2xl"
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              transition: "width 0.25s ease, height 0.25s ease, transform 0.25s ease",
-              display: "block",
-            }}
+            preserveAspectRatio="xMidYMid meet"
+            className="pp-halfhalf-svg"
           >
             <defs>
               <radialGradient id="cheeseGrad" cx="50%" cy="50%" r="50%">
@@ -729,13 +732,25 @@ const HalfAndHalfSelector = ({
                 e.stopPropagation();
                 setHalfSelectionSide("A");
               }}
-              className="cursor-pointer hover:brightness-110"
-              style={{ opacity: halfSelectionSide === "A" ? 1 : 0.7 }}
+              className={[
+                "pp-halfhalf-half",
+                "is-left",
+                halfSelectionSide === "A" ? "is-active" : "",
+              ].join(" ")}
+              style={{ opacity: halfSelectionSide === "A" ? 1 : 0.82 }}
             >
               <path
                 d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
                 fill={halfA ? "url(#halfAImagePattern)" : "#fff"}
                 fillOpacity={halfA ? "1" : "0.3"}
+              />
+              <path
+                d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
+                className={[
+                  "pp-halfhalf-halfOutline",
+                  halfSelectionSide === "A" ? "is-active" : "",
+                ].join(" ")}
+                pointerEvents="none"
               />
               {!halfA && (
                 <text
@@ -756,13 +771,25 @@ const HalfAndHalfSelector = ({
                 e.stopPropagation();
                 setHalfSelectionSide("B");
               }}
-              className="cursor-pointer hover:brightness-110"
-              style={{ opacity: halfSelectionSide === "B" ? 1 : 0.7 }}
+              className={[
+                "pp-halfhalf-half",
+                "is-right",
+                halfSelectionSide === "B" ? "is-active" : "",
+              ].join(" ")}
+              style={{ opacity: halfSelectionSide === "B" ? 1 : 0.82 }}
             >
               <path
                 d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
                 fill={halfB ? "url(#halfBImagePattern)" : "#fff"}
                 fillOpacity={halfB ? "1" : "0.3"}
+              />
+              <path
+                d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
+                className={[
+                  "pp-halfhalf-halfOutline",
+                  halfSelectionSide === "B" ? "is-active" : "",
+                ].join(" ")}
+                pointerEvents="none"
               />
               {!halfB && (
                 <text
@@ -797,14 +824,45 @@ const HalfAndHalfSelector = ({
 
       <div
         className="detail-panel-body pp-halfhalf-body"
+        ref={halfBodyRef}
         style={{
-          flex: "1 1 auto",
-          minHeight: 0,
-          overflowY: "auto",
-          paddingRight: "0.25rem",
-          paddingBottom: "6rem",
+          padding: "0 1.25rem 1rem",
         }}
       >
+        {/* Half selector (secondary method) */}
+        <div
+          className="pp-halfhalf-sideSwitch"
+          data-active={halfSelectionSide}
+          role="tablist"
+          aria-label="Select half to edit"
+        >
+          <button
+            type="button"
+            className={[
+              "pp-halfhalf-sideBtn",
+              halfSelectionSide === "A" ? "is-active" : "",
+            ].join(" ")}
+            aria-pressed={halfSelectionSide === "A"}
+            onClick={() => setHalfSelectionSide("A")}
+            title="Edit Pizza 1 (left)"
+          >
+            Pizza 1 <span className="pp-halfhalf-sideMeta">Left</span>
+          </button>
+
+          <button
+            type="button"
+            className={[
+              "pp-halfhalf-sideBtn",
+              halfSelectionSide === "B" ? "is-active" : "",
+            ].join(" ")}
+            aria-pressed={halfSelectionSide === "B"}
+            onClick={() => setHalfSelectionSide("B")}
+            title="Edit Pizza 2 (right)"
+          >
+            Pizza 2 <span className="pp-halfhalf-sideMeta">Right</span>
+          </button>
+        </div>
+
         {/* Size selector - pill-style controls for the Half & Half pizza size */}
         <div
           style={{
@@ -1086,6 +1144,11 @@ const HalfAndHalfSelector = ({
           >
             {/* Pizza 1 column */}
             <div
+              className={[
+                "pp-halfhalf-sideCard",
+                halfSelectionSide === "A" ? "is-active" : "",
+              ].join(" ")}
+              onClick={() => setHalfSelectionSide("A")}
               style={{
                 flex: 1,
                 fontSize: "0.9rem",
@@ -1217,6 +1280,11 @@ const HalfAndHalfSelector = ({
 
             {/* Pizza 2 column */}
             <div
+              className={[
+                "pp-halfhalf-sideCard",
+                halfSelectionSide === "B" ? "is-active" : "",
+              ].join(" ")}
+              onClick={() => setHalfSelectionSide("B")}
               style={{
                 flex: 1,
                 fontSize: "0.9rem",
@@ -1340,7 +1408,23 @@ const HalfAndHalfSelector = ({
             </div>
           </div>
 
+          <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.85rem" }}>
+            <button
+              type="button"
+              className="pp-btn pp-btn-primary pp-btn-full"
+              disabled={!canContinue}
+              onClick={() => {
+                if (!canContinue) return;
+                setHalfSelectionSide(nextHalfSide);
+                requestAnimationFrame(scrollToHalfOptions);
+              }}
+            >
+              {canContinue ? continueLabel : continueDisabledLabel}
+            </button>
+          </div>
+
           <div
+            ref={halfOptionsRef}
             style={{
               borderTop: "1px solid rgba(148,163,184,0.2)",
               paddingTop: "1.25rem",
@@ -1348,9 +1432,9 @@ const HalfAndHalfSelector = ({
           >
             <div
               style={{
-                fontSize: "0.65rem",
+                fontSize: "0.7rem",
+                letterSpacing: "0.21em",
                 textTransform: "uppercase",
-                letterSpacing: "0.18em",
                 color: "#a5b4fc",
                 marginBottom: "0.75rem",
               }}
@@ -1412,10 +1496,6 @@ const HalfAndHalfSelector = ({
       <div
         className="pp-halfhalf-cta"
         style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
           padding: "0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom))",
           background: "var(--pp-surface, var(--panel))",
           borderTop: "1px solid var(--line, var(--border-color))",
