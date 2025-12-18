@@ -2439,3 +2439,210 @@ html.pp-halfhalf-open .pp-halfhalf-panel{
   overscroll-behavior: none;
   touch-action: none;
 }
+
+/* ======================================================================
+   PP THEME + MOTION v3 (paste at very bottom of App.css)
+   ====================================================================== */
+
+/* Motion tokens */
+:root{
+  --pp-ease: cubic-bezier(.22, 1, .36, 1);       /* flowy */
+  --pp-ease-soft: cubic-bezier(.25, .8, .25, 1);
+  --pp-dur-1: 140ms;
+  --pp-dur-2: 240ms;
+  --pp-dur-3: 380ms;
+  --pp-dur-4: 520ms;
+
+  --pp-radius-md: 14px;
+  --pp-radius-lg: 18px;
+  --pp-radius-xl: 22px;
+}
+
+/* Light/Dark tokens (also map to your existing vars so nothing breaks) */
+html[data-theme="dark"], body[data-theme="dark"]{
+  color-scheme: dark;
+
+  --pp-bg: #0b0f14;
+  --pp-surface: #0f172a;
+  --pp-surface-2: #111c33;
+  --pp-surface-3: rgba(255,255,255,0.04);
+
+  --pp-text: #eaf2ff;
+  --pp-muted: #9fb1c7;
+  --pp-dim: #7e93aa;
+
+  --pp-border: rgba(255,255,255,0.10);
+  --pp-line: rgba(255,255,255,0.08);
+
+  --pp-shadow-sm: 0 10px 22px rgba(0,0,0,0.22);
+  --pp-shadow-md: 0 16px 40px rgba(0,0,0,0.28);
+  --pp-shadow-lg: 0 24px 60px rgba(0,0,0,0.34);
+
+  /* compatibility with your existing CSS */
+  --background: var(--pp-bg);
+  --background-dark: var(--pp-bg);
+  --background-light: var(--pp-bg);
+
+  --panel: var(--pp-surface);
+  --surface: var(--pp-surface);
+
+  --text-primary: var(--pp-text);
+  --text-medium: var(--pp-muted);
+  --text-light: var(--pp-text);
+
+  --border-color: var(--pp-border);
+  --line: var(--pp-line);
+
+  --shadow-card: var(--pp-shadow-sm);
+  --shadow-float: var(--pp-shadow-md);
+  --shadow-modal: var(--pp-shadow-lg);
+}
+
+html[data-theme="light"], body[data-theme="light"]{
+  color-scheme: light;
+
+  --pp-bg: #f6f8fc;
+  --pp-surface: #ffffff;
+  --pp-surface-2: #f1f5fb;
+  --pp-surface-3: rgba(15,23,42,0.03);
+
+  --pp-text: #0b1220;
+  --pp-muted: #3d4c5f;
+  --pp-dim: #637489;
+
+  --pp-border: rgba(15,23,42,0.12);
+  --pp-line: rgba(15,23,42,0.10);
+
+  --pp-shadow-sm: 0 10px 22px rgba(2,6,23,0.08);
+  --pp-shadow-md: 0 16px 40px rgba(2,6,23,0.10);
+  --pp-shadow-lg: 0 24px 60px rgba(2,6,23,0.14);
+
+  /* compatibility */
+  --background: var(--pp-bg);
+  --background-dark: var(--pp-bg);
+  --background-light: var(--pp-bg);
+
+  --panel: var(--pp-surface);
+  --surface: var(--pp-surface);
+
+  --text-primary: var(--pp-text);
+  --text-medium: var(--pp-muted);
+  --text-light: var(--pp-text);
+
+  --border-color: var(--pp-border);
+  --line: var(--pp-line);
+
+  --shadow-card: var(--pp-shadow-sm);
+  --shadow-float: var(--pp-shadow-md);
+  --shadow-modal: var(--pp-shadow-lg);
+}
+
+/* Base */
+html, body{
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+/* Smooth theme “passage” (only during the switch) */
+html[data-theme-transition="1"] *{
+  transition:
+    background-color var(--pp-dur-3) var(--pp-ease),
+    color var(--pp-dur-3) var(--pp-ease),
+    border-color var(--pp-dur-3) var(--pp-ease),
+    box-shadow var(--pp-dur-3) var(--pp-ease),
+    transform var(--pp-dur-3) var(--pp-ease),
+    filter var(--pp-dur-3) var(--pp-ease),
+    opacity var(--pp-dur-3) var(--pp-ease) !important;
+}
+
+/* Buttons: less rigid, more premium */
+.pp-btn,
+.quantity-btn,
+.place-order-button{
+  border-radius: var(--pp-radius-lg) !important;
+  transition:
+    transform var(--pp-dur-2) var(--pp-ease),
+    box-shadow var(--pp-dur-2) var(--pp-ease),
+    filter var(--pp-dur-2) var(--pp-ease),
+    opacity var(--pp-dur-2) var(--pp-ease) !important;
+  transform: translateY(0);
+}
+
+.pp-btn:hover:enabled,
+.quantity-btn:hover:enabled,
+.place-order-button:hover:enabled{
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-float);
+  filter: brightness(1.02);
+}
+
+.pp-btn:active:enabled,
+.quantity-btn:active:enabled,
+.place-order-button:active:enabled{
+  transform: translateY(0px) scale(0.99);
+  box-shadow: var(--shadow-card);
+}
+
+/* Soft highlight sweep (subtle, not “press bubble”) */
+.pp-btn::after,
+.place-order-button::after{
+  content:"";
+  position:absolute;
+  inset:-45%;
+  pointer-events:none;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.16), rgba(0,0,0,0) 60%);
+  transform: translateX(-18%) rotate(10deg);
+  opacity: 0;
+  transition: opacity var(--pp-dur-4) var(--pp-ease), transform var(--pp-dur-4) var(--pp-ease);
+}
+
+.pp-btn:hover:enabled::after,
+.place-order-button:hover:enabled::after{
+  opacity: 1;
+  transform: translateX(18%) rotate(10deg);
+}
+
+/* Cards: cleaner lift, softer border glow */
+.menu-item-card,
+.detail-panel,
+.order-panel-container{
+  border-radius: var(--pp-radius-xl);
+  transition:
+    transform var(--pp-dur-3) var(--pp-ease),
+    box-shadow var(--pp-dur-3) var(--pp-ease),
+    border-color var(--pp-dur-3) var(--pp-ease),
+    background-color var(--pp-dur-3) var(--pp-ease) !important;
+}
+
+.menu-item-card:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-float);
+  border-color: color-mix(in srgb, var(--border-color) 70%, var(--brand-neon-green) 30%);
+}
+
+/* Panels / glassy surfaces (reduces “plastic slab” look) */
+.order-panel-container,
+.detail-panel{
+  background: color-mix(in srgb, var(--panel) 92%, rgba(255,255,255,0.06) 8%);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-card);
+}
+
+/* Half & Half slider: smoother thumb glide */
+.pp-halfhalf-sideThumb{
+  transition: transform 620ms var(--pp-ease) !important;
+}
+
+/* Quality-of-life: reduce motion if user prefers */
+@media (prefers-reduced-motion: reduce){
+  html[data-theme-transition="1"] *{
+    transition: none !important;
+  }
+  .pp-btn, .quantity-btn, .place-order-button,
+  .menu-item-card, .detail-panel, .order-panel-container{
+    transition: none !important;
+  }
+  .pp-btn::after, .place-order-button::after{
+    display: none !important;
+  }
+}

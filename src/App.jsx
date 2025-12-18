@@ -3915,14 +3915,23 @@ function ThemeProvider({ children }) {
     const stored = window.localStorage.getItem("pp_theme");
     return stored === "light" || stored === "dark" ? stored : "dark";
   });
+  const themeTransitionTimer = React.useRef(null);
   useEffect(() => {
     try {
       document.body.setAttribute("data-theme", theme);
       document.documentElement.setAttribute("data-theme", theme);
       window.localStorage.setItem("pp_theme", theme);
+
+      // smooth theme passage
+      document.documentElement.setAttribute("data-theme-transition", "1");
+      window.clearTimeout(themeTransitionTimer.current);
+      themeTransitionTimer.current = window.setTimeout(() => {
+        document.documentElement.removeAttribute("data-theme-transition");
+      }, 380);
     } catch {
       // ignore
     }
+    return () => window.clearTimeout(themeTransitionTimer.current);
   }, [theme]);
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
