@@ -2160,7 +2160,282 @@ footer,
   }
 }
 
-/* Safety: ensure the Half & Half body doesn’t force scrolling */
+/* Safety: ensure the Half & Half body doesn't force scrolling */
 .pp-halfhalf-body{
   overflow: visible !important;
+}
+
+/* =========================
+   Half & Half — restored UX (pre-reset)
+   ========================= */
+
+/* Body scroll works (but hide scrollbars) */
+.pp-halfhalf-body{
+  overflow: auto !important;
+  scrollbar-width: none;
+}
+.pp-halfhalf-body::-webkit-scrollbar{
+  width: 0;
+  height: 0;
+}
+
+/* Slider half selector */
+.pp-halfhalf-sideSwitch{
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+  margin: 0.5rem 0 1rem;
+}
+
+.pp-halfhalf-sideThumb{
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: calc(50% - 6px);
+  border-radius: 999px;
+  pointer-events: none;
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(148,163,184,0.18);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.12);
+  transform: translateX(0%);
+  transition: transform 520ms cubic-bezier(.22, 1, .36, 1);
+  will-change: transform;
+}
+.pp-halfhalf-sideSwitch[data-active="B"] .pp-halfhalf-sideThumb{
+  transform: translateX(100%);
+}
+
+.pp-halfhalf-sideBtn{
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.62rem 0.85rem;
+  cursor: pointer;
+  font-weight: 850;
+  font-size: 0.88rem;
+  opacity: 0.72;
+  transition: opacity 260ms ease;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.pp-halfhalf-sideBtn.is-active{ opacity: 1; }
+.pp-halfhalf-sideMeta{ opacity: 0.62; font-weight: 750; font-size: 0.82em; }
+.pp-halfhalf-sideCheck{ font-weight: 950; opacity: 0.9; }
+
+/* Selected half outline on the pizza */
+.pp-halfhalf-half{
+  cursor: pointer;
+  transition: filter 200ms ease;
+}
+.pp-halfhalf-half:hover{
+  filter: brightness(1.08);
+}
+
+.pp-halfhalf-halfOutline{
+  fill: none;
+  stroke: rgba(190,242,100,0.55);
+  stroke-width: 0;
+  opacity: 0;
+  transition: opacity 260ms ease, stroke-width 260ms ease, filter 260ms ease;
+}
+.pp-halfhalf-halfOutline.is-active{
+  opacity: 1;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 10px rgba(190,242,100,0.16));
+}
+
+/* Half & Half: lock panel height to avoid extra page/sidebar scrollbars */
+@media (min-width: 1024px){
+  .right-sidebar.right-sidebar--halfhalf{
+    position: sticky !important;
+    top: 0 !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+  .order-panel-container.order-panel-container--halfhalf{
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+}
+
+/* =========================
+   Half & Half — hide scrollbars (keep scroll working)
+   ========================= */
+
+/* 1) Ensure the half/half panel never creates a page scrollbar */
+@media (min-width: 1024px){
+  .right-sidebar.right-sidebar--halfhalf{
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+  .order-panel-container.order-panel-container--halfhalf{
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
+}
+
+/* 2) Body scroll stays, but scrollbar is hidden */
+.pp-halfhalf-body{
+  overflow: auto !important;
+  scrollbar-width: none;           /* Firefox */
+  -ms-overflow-style: none;        /* IE/Edge legacy */
+}
+.pp-halfhalf-body::-webkit-scrollbar{
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 3) If any child container is forcing scrollbars, hide them too */
+.pp-halfhalf-panel *::-webkit-scrollbar{
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Half & Half: no scrollbars anywhere */
+.pp-halfhalf-body{
+  overflow: hidden !important;
+}
+
+@media (min-width: 1024px){
+  .right-sidebar.right-sidebar--halfhalf,
+  .order-panel-container.order-panel-container--halfhalf{
+    overflow: hidden !important;
+  }
+}
+
+/* Half & Half: keep Continue button perfectly inside panel */
+.pp-halfhalf-continueRow{
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+}
+
+.pp-halfhalf-continueRow > button{
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Safety: prevent any tiny horizontal overflow in the half/half body */
+.pp-halfhalf-body{
+  overflow-x: hidden !important;
+}
+
+/* Half & Half: stop tiny horizontal overflow */
+.pp-halfhalf-body,
+.pp-halfhalf-cta{
+  overflow-x: hidden !important;
+}
+
+/* Force any full-width buttons to never exceed the container */
+.pp-halfhalf-body .pp-btn-full,
+.pp-halfhalf-cta .place-order-button{
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* If it’s still 1px out on Windows, clamp it slightly */
+.pp-halfhalf-body .pp-btn-full,
+.pp-halfhalf-cta .place-order-button{
+  width: calc(100% - 2px);
+}
+
+/* Half & Half: stop “squishy” clipped shadows + remove width clamp */
+.pp-halfhalf-body{
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
+}
+
+/* Undo the old clamp */
+.pp-halfhalf-body .pp-btn-full,
+.pp-halfhalf-cta .place-order-button{
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Give the Continue row a tiny safe inset instead of shrinking the button */
+.pp-halfhalf-continueRow{
+  padding: 0 1px 8px;  /* bottom space lets the glow show fully */
+  box-sizing: border-box;
+}
+
+/* Half & Half: prevent the PAGE scrollbar while editor is open */
+html.pp-halfhalf-open,
+body.pp-halfhalf-open{
+  overflow: hidden !important;
+  height: 100% !important;
+}
+
+/* Optional: prevents layout shift when scrollbar disappears (supported browsers) */
+html{
+  scrollbar-gutter: stable;
+}
+
+html.pp-halfhalf-open,
+body.pp-halfhalf-open{
+  overflow: hidden !important;
+}
+
+/* =========================
+   Half & Half: absolutely no visible scrollbars anywhere
+   (scoped to the "pp-halfhalf-open" mode)
+   ========================= */
+
+/* stop reserving gutter space while open (your file sets scrollbar-gutter: stable) */
+html.pp-halfhalf-open{
+  scrollbar-gutter: auto !important;
+}
+
+/* hide scrollbars for ALL descendants while half/half is open */
+html.pp-halfhalf-open *{
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* old Edge/IE */
+}
+
+html.pp-halfhalf-open *::-webkit-scrollbar{
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+html.pp-halfhalf-open *::-webkit-scrollbar-thumb{
+  background: transparent !important;
+}
+
+html.pp-halfhalf-open *::-webkit-scrollbar-track{
+  background: transparent !important;
+}
+
+/* =========================
+   Half & Half: absolutely no scrolling anywhere while editor is open
+   ========================= */
+html.pp-halfhalf-open,
+body.pp-halfhalf-open{
+  overflow: hidden !important;
+  height: 100% !important;
+}
+
+/* prevent any inner element from scrolling */
+html.pp-halfhalf-open .pp-halfhalf-panel,
+html.pp-halfhalf-open .pp-halfhalf-panel *{
+  overflow: hidden !important;
+}
+
+/* belt + braces: disable touch scroll chaining */
+html.pp-halfhalf-open .pp-halfhalf-panel{
+  overscroll-behavior: none;
+  touch-action: none;
 }

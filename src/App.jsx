@@ -85,6 +85,68 @@ const HalfAndHalfSelector = ({
   const [isHalfGlutenFree, setIsHalfGlutenFree] = React.useState(false);
   const [halfQty, setHalfQty] = React.useState(1);
 
+  const halfBodyRef = React.useRef(null);
+  const halfOptionsRef = React.useRef(null);
+
+  const scrollToHalfOptions = React.useCallback(() => {
+    const body = halfBodyRef.current;
+    const target = halfOptionsRef.current;
+    if (!body || !target) return;
+    try {
+      const bodyRect = body.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      body.scrollTop += (targetRect.top - bodyRect.top) - 12;
+    } catch {}
+  }, []);
+
+  React.useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    // Remember scroll position
+    const scrollY = window.scrollY || 0;
+
+    // Add class (keep it for CSS scoping)
+    html.classList.add("pp-halfhalf-open");
+    body.classList.add("pp-halfhalf-open");
+
+    // Hard lock: removes scrollbar reliably
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyPos: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+    };
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+
+    return () => {
+      // Restore styles
+      html.classList.remove("pp-halfhalf-open");
+      body.classList.remove("pp-halfhalf-open");
+
+      html.style.overflow = prev.htmlOverflow;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.position = prev.bodyPos;
+      body.style.top = prev.bodyTop;
+      body.style.left = prev.bodyLeft;
+      body.style.right = prev.bodyRight;
+      body.style.width = prev.bodyWidth;
+
+      // Restore scroll position
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
 
   const resetHalf = React.useCallback((side) => {
     if (side === "A") {
@@ -363,19 +425,19 @@ const HalfAndHalfSelector = ({
   const svgSizeLabel = ((sizeRef || selectedSizeKey) || "").toLowerCase();
 
   // Bigger pizza model (~30% bigger overall)
-  let svgSize = 520; // default / regular (was 400)
+  let svgSize = 300; // default / regular
 
   if (svgSizeLabel.includes("party")) {
-    svgSize = 884; // was 680
+    svgSize = 520;
   } else if (svgSizeLabel.includes("family")) {
-    svgSize = 806; // was 620
+    svgSize = 470;
   } else if (svgSizeLabel.includes("large")) {
-    svgSize = 702; // was 540
+    svgSize = 410;
   } else if (
     svgSizeLabel.includes("mini") ||
     svgSizeLabel.includes("small")
   ) {
-    svgSize = 430; // was 330
+    svgSize = 250;
   }
 
   const pizzaOptions = React.useMemo(() => {
@@ -611,6 +673,15 @@ const HalfAndHalfSelector = ({
     [halfB, pendingHalfB],
   );
 
+  const nextHalfSide = halfSelectionSide === "A" ? "B" : "A";
+  const canContinue = halfSelectionSide === "A" ? hasHalfA : hasHalfB;
+  const continueLabel =
+    halfSelectionSide === "A" ? "Continue to Pizza 2" : "Continue to Pizza 1";
+  const continueDisabledLabel =
+    halfSelectionSide === "A"
+      ? "Select Pizza 1 to continue"
+      : "Select Pizza 2 to continue";
+
   const currentSizeTokenForGF =
     getCurrentSizeToken() || selectedSizeKey || "Default";
   const normalizedSizeForGF = normalizeAddonSizeRef(currentSizeTokenForGF);
@@ -621,6 +692,9 @@ const HalfAndHalfSelector = ({
 
   return (
     <div
+      className="pp-halfhalf-panel"
+      onWheelCapture={(e) => e.preventDefault()}
+      onTouchMove={(e) => e.preventDefault()}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -649,7 +723,7 @@ const HalfAndHalfSelector = ({
         style={{
           width: "100%",
           flex: "0 0 auto",
-          height: "clamp(210px, 34vh, 320px)",
+          height: "clamp(320px, 52vh, 560px)",
           borderRadius: "1rem",
           overflow: "hidden",
           marginBottom: "0.75rem",
@@ -729,13 +803,24 @@ const HalfAndHalfSelector = ({
                 e.stopPropagation();
                 setHalfSelectionSide("A");
               }}
-              className="cursor-pointer hover:brightness-110"
-              style={{ opacity: halfSelectionSide === "A" ? 1 : 0.7 }}
+              className={[
+                "pp-halfhalf-half",
+                halfSelectionSide === "A" ? "is-active" : "",
+              ].join(" ")}
+              style={{ opacity: halfSelectionSide === "A" ? 1 : 0.78 }}
             >
               <path
                 d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
                 fill={halfA ? "url(#halfAImagePattern)" : "#fff"}
                 fillOpacity={halfA ? "1" : "0.3"}
+              />
+              <path
+                d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
+                className={[
+                  "pp-halfhalf-halfOutline",
+                  halfSelectionSide === "A" ? "is-active" : "",
+                ].join(" ")}
+                pointerEvents="none"
               />
               {!halfA && (
                 <text
@@ -756,13 +841,24 @@ const HalfAndHalfSelector = ({
                 e.stopPropagation();
                 setHalfSelectionSide("B");
               }}
-              className="cursor-pointer hover:brightness-110"
-              style={{ opacity: halfSelectionSide === "B" ? 1 : 0.7 }}
+              className={[
+                "pp-halfhalf-half",
+                halfSelectionSide === "B" ? "is-active" : "",
+              ].join(" ")}
+              style={{ opacity: halfSelectionSide === "B" ? 1 : 0.78 }}
             >
               <path
                 d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
                 fill={halfB ? "url(#halfBImagePattern)" : "#fff"}
                 fillOpacity={halfB ? "1" : "0.3"}
+              />
+              <path
+                d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
+                className={[
+                  "pp-halfhalf-halfOutline",
+                  halfSelectionSide === "B" ? "is-active" : "",
+                ].join(" ")}
+                pointerEvents="none"
               />
               {!halfB && (
                 <text
@@ -797,12 +893,13 @@ const HalfAndHalfSelector = ({
 
       <div
         className="detail-panel-body pp-halfhalf-body"
+        ref={halfBodyRef}
         style={{
           flex: "1 1 auto",
           minHeight: 0,
-          overflowY: "auto",
+          overflowY: "visible",
           paddingRight: "0.25rem",
-          paddingBottom: "6rem",
+          paddingBottom: "1.75rem",
         }}
       >
         {/* Size selector - pill-style controls for the Half & Half pizza size */}
@@ -904,7 +1001,43 @@ const HalfAndHalfSelector = ({
             </div>
           </div>
         </div>
-        {/* The Half & Half Pizza details panel � fills the rest of the modal */}
+        {/* Half selector (slider) */}
+        <div
+          className="pp-halfhalf-sideSwitch"
+          data-active={halfSelectionSide}
+          role="tablist"
+          aria-label="Select half to edit"
+        >
+          <div className="pp-halfhalf-sideThumb" aria-hidden="true" />
+          <button
+            type="button"
+            className={[
+              "pp-halfhalf-sideBtn",
+              halfSelectionSide === "A" ? "is-active" : "",
+            ].join(" ")}
+            aria-pressed={halfSelectionSide === "A"}
+            onClick={() => setHalfSelectionSide("A")}
+            title="Edit Pizza 1 (left)"
+          >
+            Pizza 1 <span className="pp-halfhalf-sideMeta">Left</span>
+            {hasHalfA ? <span className="pp-halfhalf-sideCheck">✓</span> : null}
+          </button>
+
+          <button
+            type="button"
+            className={[
+              "pp-halfhalf-sideBtn",
+              halfSelectionSide === "B" ? "is-active" : "",
+            ].join(" ")}
+            aria-pressed={halfSelectionSide === "B"}
+            onClick={() => setHalfSelectionSide("B")}
+            title="Edit Pizza 2 (right)"
+          >
+            Pizza 2 <span className="pp-halfhalf-sideMeta">Right</span>
+            {hasHalfB ? <span className="pp-halfhalf-sideCheck">✓</span> : null}
+          </button>
+        </div>
+        {/* The Half & Half Pizza details panel fills the rest of the modal */}
         <div
           style={{
             margin: "0.9rem 0 1.1rem",
@@ -1341,11 +1474,29 @@ const HalfAndHalfSelector = ({
           </div>
 
           <div
+            ref={halfOptionsRef}
             style={{
               borderTop: "1px solid rgba(148,163,184,0.2)",
               paddingTop: "1.25rem",
             }}
           >
+            <div
+              className="pp-halfhalf-continueRow"
+              style={{ marginBottom: "0.75rem" }}
+            >
+              <button
+                type="button"
+                className="pp-btn pp-btn-primary pp-btn-full"
+                disabled={!canContinue}
+                onClick={() => {
+                  if (!canContinue) return;
+                  setHalfSelectionSide(nextHalfSide);
+                  requestAnimationFrame(scrollToHalfOptions);
+                }}
+              >
+                {canContinue ? continueLabel : continueDisabledLabel}
+              </button>
+            </div>
             <div
               style={{
                 fontSize: "0.65rem",
@@ -1412,10 +1563,7 @@ const HalfAndHalfSelector = ({
       <div
         className="pp-halfhalf-cta"
         style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
+          position: "relative",
           padding: "0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom))",
           background: "var(--pp-surface, var(--panel))",
           borderTop: "1px solid var(--line, var(--border-color))",
