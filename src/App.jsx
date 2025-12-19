@@ -2020,8 +2020,12 @@ const MealDealBuilderPanel = ({
   const [search, setSearch] = React.useState("");
   const [editorItem, setEditorItem] = React.useState(null);
   const [halfHalfOpen, setHalfHalfOpen] = React.useState(false);
+  const halfHalfApplyPizzaRef = React.useRef(null);
   const [activeCategoryRef, setActiveCategoryRef] = React.useState(null);
   const listRef = React.useRef(null);
+  const registerExternalMealHalfHalfPizzaApply = React.useCallback((fnOrNull) => {
+    halfHalfApplyPizzaRef.current = fnOrNull || null;
+  }, []);
 
   const existingBundle = Array.isArray(item?.bundle_items) ? item.bundle_items : [];
 
@@ -2060,12 +2064,14 @@ const MealDealBuilderPanel = ({
     const rows = [];
     cats.forEach((cat) => {
       const catAllowHalf = cat?.allowHalf ?? cat?.allow_half ?? undefined;
+      const ref = String(cat?.ref || cat?.id || "").toUpperCase();
+      const isPizzaCat = ref.endsWith("_PIZZAS") && ref !== "MINI_PIZZAS";
       (cat?.items || []).forEach((item) => {
         rows.push({
           ...item,
-          category: item.category || (cat?.type === "pizza" ? "Pizza" : item.category),
-          __categoryType: cat?.type,
-          __categoryRef: cat?.ref,
+          category: isPizzaCat ? "Pizza" : (item.category || item.categoryName || item.category),
+          __categoryType: isPizzaCat ? "pizza" : (cat?.type || undefined),
+          __categoryRef: ref || cat?.ref,
           allowHalf: item?.allowHalf ?? item?.allow_half ?? catAllowHalf,
         });
       });
@@ -2240,6 +2246,23 @@ const MealDealBuilderPanel = ({
     const handler = (product) => {
       if (!product || !step) return;
       if (product?.enabled === false) return;
+      // If the Meal Deal -> Half & Half overlay is open, route eligible pizza clicks into it
+      if (halfHalfOpen && halfHalfApplyPizzaRef.current) {
+        const categoryRef = String(product.category_ref || product.categoryRef || "").toUpperCase();
+        const allowedHalfSizes = _halfHalfAllowedSizeSet(menuData);
+        const allowHalfFlag = (product?.allowHalf ?? product?.allow_half ?? true) !== false;
+        const isPizzaForHalfHalf =
+          categoryRef.endsWith("_PIZZAS") &&
+          categoryRef !== "MINI_PIZZAS" &&
+          allowHalfFlag &&
+          _productHasAnyAllowedHalfHalfSize(product, allowedHalfSizes);
+
+        if (isPizzaForHalfHalf) {
+          const prepared = prepareItemForPanel(product);
+          halfHalfApplyPizzaRef.current(prepared);
+        }
+        return; // don't let the meal-deal step handler consume the click
+      }
       if (product?.id === "half_half" || product?.isHalfHalf) {
         // Only valid when the current slot is a pizza slot
         if (String(step.slotKey || "").toLowerCase() !== "pizza") return;
@@ -2280,7 +2303,18 @@ const MealDealBuilderPanel = ({
 
     registerExternalMealItemApply(handler);
     return () => registerExternalMealItemApply(null);
-  }, [registerExternalMealItemApply, openEditorForProduct, step, activeCategoryRef, search, setHalfHalfOpen, setEditorItem]);
+  }, [
+    registerExternalMealItemApply,
+    openEditorForProduct,
+    step,
+    activeCategoryRef,
+    search,
+    setHalfHalfOpen,
+    setEditorItem,
+    halfHalfOpen,
+    menuData,
+    prepareItemForPanel,
+  ]);
 
   const isComplete = steps.length > 0 && bundleItems.every(Boolean);
 
@@ -2575,7 +2609,7 @@ const MealDealBuilderPanel = ({
               setSelectedItem={(v) => {
                 if (v == null) setHalfHalfOpen(false);
               }}
-              registerExternalPizzaApply={null}
+              registerExternalPizzaApply={registerExternalMealHalfHalfPizzaApply}
               onAddItemToOrder={(hh) => commitHalfHalfToBundleStep(hh)}
             />
           </div>
