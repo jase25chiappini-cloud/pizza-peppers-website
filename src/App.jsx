@@ -1870,7 +1870,18 @@ function _computeBundleExtrasCents(bundleItems, menuData) {
       bi?.size?.id || bi?.size?.ref || bi?.size?.name || "Default";
     const sizeRef = normalizeAddonSizeRef(sizeToken);
     const addOns = Array.isArray(bi.add_ons) ? bi.add_ons : [];
-    cents += calcExtrasCentsForSize(addOns, sizeRef, menuData) || 0;
+    let extraCents = calcExtrasCentsForSize(addOns, sizeRef, menuData) || 0;
+
+    if (bi.isHalfHalf && (bi.halfA || bi.halfB)) {
+      const a = Array.isArray(bi?.halfA?.add_ons) ? bi.halfA.add_ons : [];
+      const b = Array.isArray(bi?.halfB?.add_ons) ? bi.halfB.add_ons : [];
+      const aC = calcExtrasCentsForSize(a, sizeRef, menuData) || 0;
+      const bC = calcExtrasCentsForSize(b, sizeRef, menuData) || 0;
+      // Match your half/half pricing behavior: charge the higher side only
+      extraCents += Math.max(aC, bC);
+    }
+
+    cents += extraCents;
 
     const isLarge = normalizeProductSizeRef(sizeRef) === "LARGE";
     if (bi.isGlutenFree && isLarge) cents += 400;
@@ -2008,6 +2019,7 @@ const MealDealBuilderPanel = ({
   const [activeStep, setActiveStep] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [editorItem, setEditorItem] = React.useState(null);
+  const [halfHalfOpen, setHalfHalfOpen] = React.useState(false);
   const [activeCategoryRef, setActiveCategoryRef] = React.useState(null);
   const listRef = React.useRef(null);
 
@@ -2042,6 +2054,24 @@ const MealDealBuilderPanel = ({
     () => _filterMenuDataForMealStep(menuData, step, { search }),
     [menuData, step, search],
   );
+
+  const halfHalfMenuRows = React.useMemo(() => {
+    const cats = Array.isArray(stepMenuData?.categories) ? stepMenuData.categories : [];
+    const rows = [];
+    cats.forEach((cat) => {
+      const catAllowHalf = cat?.allowHalf ?? cat?.allow_half ?? undefined;
+      (cat?.items || []).forEach((item) => {
+        rows.push({
+          ...item,
+          category: item.category || (cat?.type === "pizza" ? "Pizza" : item.category),
+          __categoryType: cat?.type,
+          __categoryRef: cat?.ref,
+          allowHalf: item?.allowHalf ?? item?.allow_half ?? catAllowHalf,
+        });
+      });
+    });
+    return rows;
+  }, [stepMenuData]);
 
   const stepCategoryOptions = React.useMemo(() => {
     const cats = Array.isArray(stepMenuData?.categories) ? stepMenuData.categories : [];
@@ -2137,6 +2167,62 @@ const MealDealBuilderPanel = ({
     [editorItem, step, activeStep],
   );
 
+  const commitHalfHalfToBundleStep = React.useCallback(
+    (halfHalfItem) => {
+      if (!halfHalfItem || !step) return;
+
+      // Force meal-slot sizing rules if this slot restricts size
+      const forcedSizes = _slotAllowedSizes(step.slot);
+      const forcedSizeToken = forcedSizes.length ? forcedSizes[0] : null;
+
+      let sizeInfo = makeSizeRecord(halfHalfItem.size || "Default");
+      if (forcedSizeToken) {
+        const forced = makeSizeRecord(forcedSizeToken);
+        const allowed = normalizeAddonSizeRef(forced.id || forced.name);
+        const chosen = normalizeAddonSizeRef(sizeInfo.id || sizeInfo.name);
+        if (allowed && chosen !== allowed) sizeInfo = forced;
+      }
+
+      const sizeRef = normalizeAddonSizeRef(sizeInfo.id || sizeInfo.name);
+      const isLarge = normalizeProductSizeRef(sizeRef) === "LARGE";
+
+      const normalizeHalf = (h) =>
+        h
+          ? {
+              ...h,
+              size: sizeInfo,
+              qty: 1,
+            }
+          : null;
+
+      const chosen = {
+        id: halfHalfItem.id || "half_half_custom",
+        name: halfHalfItem.name || "Half & Half",
+        bundle_slot: step.slotKey,
+        category_ref: "CUSTOM_HALF_HALF",
+        size: sizeInfo,
+        qty: 1,
+        isGlutenFree: !!halfHalfItem.isGlutenFree && isLarge,
+        add_ons: [], // root add-ons not used; halves carry their own
+        removedIngredients: [],
+        isHalfHalf: true,
+        halfA: normalizeHalf(halfHalfItem.halfA),
+        halfB: normalizeHalf(halfHalfItem.halfB),
+      };
+
+      setBundleItems((prev) => {
+        const next = [...prev];
+        next[activeStep] = chosen;
+        const nextEmpty = next.findIndex((x) => !x);
+        if (nextEmpty !== -1) setActiveStep(nextEmpty);
+        return next;
+      });
+
+      setHalfHalfOpen(false);
+    },
+    [step, activeStep],
+  );
+
   React.useEffect(() => {
     if (typeof onMenuFilterChange !== "function") return;
     onMenuFilterChange({ step, activeCategoryRef, search });
@@ -2154,7 +2240,13 @@ const MealDealBuilderPanel = ({
     const handler = (product) => {
       if (!product || !step) return;
       if (product?.enabled === false) return;
-      if (product?.id === "half_half" || product?.isHalfHalf) return;
+      if (product?.id === "half_half" || product?.isHalfHalf) {
+        // Only valid when the current slot is a pizza slot
+        if (String(step.slotKey || "").toLowerCase() !== "pizza") return;
+        setEditorItem(null);
+        setHalfHalfOpen(true);
+        return;
+      }
       if (product?.bundle && Array.isArray(product.bundle.slots) && product.bundle.slots.length)
         return;
 
@@ -2188,7 +2280,7 @@ const MealDealBuilderPanel = ({
 
     registerExternalMealItemApply(handler);
     return () => registerExternalMealItemApply(null);
-  }, [registerExternalMealItemApply, openEditorForProduct, step, activeCategoryRef, search]);
+  }, [registerExternalMealItemApply, openEditorForProduct, step, activeCategoryRef, search, setHalfHalfOpen, setEditorItem]);
 
   const isComplete = steps.length > 0 && bundleItems.every(Boolean);
 
@@ -2436,6 +2528,55 @@ const MealDealBuilderPanel = ({
                 }
                 setEditorItem(null);
               }}
+            />
+          </div>
+        </div>
+      )}
+
+      {halfHalfOpen && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 70,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "center",
+            padding: "1.2rem 1rem",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="order-panel-container"
+            style={{
+              width: "95%",
+              maxWidth: 760,
+              margin: "0 auto",
+              position: "relative",
+              height: "90vh",
+              maxHeight: "90vh",
+              minHeight: 0,
+              overflow: "hidden",
+              padding: "1.2rem 1.4rem",
+              borderRadius: "22px",
+              background: "var(--pp-surface)",
+              border: "1px solid var(--border-color)",
+              boxShadow: "var(--shadow-modal)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <HalfAndHalfSelector
+              menuItems={halfHalfMenuRows}
+              menuData={menuData}
+              selectedItem={HALF_HALF_FORCED_ITEM}
+              setSelectedItem={(v) => {
+                if (v == null) setHalfHalfOpen(false);
+              }}
+              registerExternalPizzaApply={null}
+              onAddItemToOrder={(hh) => commitHalfHalfToBundleStep(hh)}
             />
           </div>
         </div>
