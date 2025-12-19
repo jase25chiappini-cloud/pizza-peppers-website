@@ -2429,9 +2429,10 @@ body.pp-halfhalf-open{
 }
 
 /* prevent any inner element from scrolling */
-html.pp-halfhalf-open .pp-halfhalf-panel,
-html.pp-halfhalf-open .pp-halfhalf-panel *{
-  overflow: hidden !important;
+/* DO NOT force overflow:hidden on all descendants — it clips SVG glow/filters.
+   We already lock the page scroll via html/body + the JS lock in App.jsx. */
+html.pp-halfhalf-open .pp-halfhalf-panel{
+  overflow: visible !important;
 }
 
 /* belt + braces: disable touch scroll chaining */
@@ -2645,4 +2646,340 @@ html[data-theme-transition="1"] *{
   .pp-btn::after, .place-order-button::after{
     display: none !important;
   }
+}
+
+/* ======================================================================
+   HALF & HALF — v2 THEME + MOTION (scoped)
+   Paste at the VERY BOTTOM of App.css
+   ====================================================================== */
+
+/* Motion tokens (half/half only) */
+.pp-halfhalf-panel{
+  --hh-ease: cubic-bezier(.22, 1, .36, 1);
+  --hh-ease-soft: cubic-bezier(.25, .8, .25, 1);
+  --hh-d1: 140ms;
+  --hh-d2: 240ms;
+  --hh-d3: 380ms;
+  --hh-d4: 620ms;
+
+  --hh-r-lg: 18px;
+  --hh-r-xl: 22px;
+}
+
+/* Theme tokens (half/half only) */
+body[data-theme="dark"] .pp-halfhalf-panel{
+  --hh-bg: rgba(15,23,42,0.92);
+  --hh-surface: rgba(255,255,255,0.05);
+  --hh-surface-2: rgba(255,255,255,0.035);
+  --hh-text: rgba(226,232,240,0.92);
+  --hh-muted: rgba(226,232,240,0.62);
+  --hh-border: rgba(226,232,240,0.12);
+  --hh-accent: rgba(190,242,100,0.70);
+  --hh-shadow: 0 18px 46px rgba(0,0,0,0.34);
+  --hh-shadow-soft: 0 10px 28px rgba(0,0,0,0.24);
+}
+
+body[data-theme="light"] .pp-halfhalf-panel{
+  --hh-bg: rgba(255,255,255,0.92);
+  --hh-surface: rgba(15,23,42,0.04);
+  --hh-surface-2: rgba(15,23,42,0.03);
+  --hh-text: rgba(15,23,42,0.90);
+  --hh-muted: rgba(15,23,42,0.58);
+  --hh-border: rgba(15,23,42,0.12);
+  --hh-accent: rgba(22,163,74,0.52);
+  --hh-shadow: 0 18px 46px rgba(2,6,23,0.12);
+  --hh-shadow-soft: 0 10px 28px rgba(2,6,23,0.08);
+}
+
+/* Panel baseline */
+.pp-halfhalf-panel{
+  color: var(--hh-text);
+}
+
+/* HERO: richer but clean (no “plastic”) */
+.pp-halfhalf-panel .pp-halfhalf-hero{
+  border-radius: var(--hh-r-xl);
+  background:
+    radial-gradient(720px 380px at 50% 18%, color-mix(in srgb, var(--hh-accent) 18%, transparent), transparent 60%),
+    radial-gradient(520px 340px at 20% 12%, rgba(59,130,246,0.08), transparent 55%),
+    radial-gradient(520px 340px at 80% 12%, rgba(236,72,153,0.06), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0));
+  border: 1px solid var(--hh-border);
+  box-shadow: var(--hh-shadow);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+/* subtle grain */
+.pp-halfhalf-panel .pp-halfhalf-hero::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.020) 0px,
+      rgba(255,255,255,0.020) 2px,
+      rgba(0,0,0,0.020) 2px,
+      rgba(0,0,0,0.020) 4px
+    );
+  mix-blend-mode: overlay;
+  opacity: 0.28;
+}
+
+/* PIZZA: float + breathe on side change */
+.pp-halfhalf-panel .pp-halfhalf-svg{
+  filter: drop-shadow(0 18px 34px rgba(0,0,0,0.14));
+  animation: hhFloat 9.5s var(--hh-ease-soft) infinite;
+  will-change: transform;
+}
+
+@keyframes hhFloat{
+  0%,100% { transform: translateY(0px) rotate(0deg); }
+  50%     { transform: translateY(-7px) rotate(-0.35deg); }
+}
+
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="A"],
+.pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="B"]{
+  animation: hhBreathe var(--hh-d4) var(--hh-ease) 1;
+}
+@keyframes hhBreathe{
+  0%   { transform: scale(0.996); }
+  55%  { transform: scale(1.012); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .pp-halfhalf-panel .pp-halfhalf-svg{ animation: none !important; }
+  .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="A"],
+  .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="B"]{ animation: none !important; }
+}
+
+/* SLIDER SWITCH: glide + glass track */
+.pp-halfhalf-panel .pp-halfhalf-sideSwitch{
+  border-radius: 999px;
+  border: 1px solid var(--hh-border);
+  background: color-mix(in srgb, var(--hh-bg) 70%, transparent);
+  box-shadow: var(--hh-shadow-soft);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow: hidden;
+}
+
+.pp-halfhalf-panel .pp-halfhalf-sideThumb{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.08));
+  border: 1px solid var(--hh-border);
+  box-shadow: 0 18px 34px rgba(0,0,0,0.12);
+  transition: transform var(--hh-d4) var(--hh-ease) !important;
+}
+
+.pp-halfhalf-panel .pp-halfhalf-sideBtn{
+  color: var(--hh-text);
+  opacity: 0.68;
+  transition: opacity var(--hh-d2) var(--hh-ease-soft), transform var(--hh-d3) var(--hh-ease);
+}
+
+.pp-halfhalf-panel .pp-halfhalf-sideBtn.is-active{
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.pp-halfhalf-panel .pp-halfhalf-sideMeta{
+  color: var(--hh-muted);
+  opacity: 1;
+}
+
+/* HALF SELECTED: clearer outline, less neon */
+.pp-halfhalf-panel .pp-halfhalf-half{
+  transition: opacity var(--hh-d3) var(--hh-ease), filter var(--hh-d4) var(--hh-ease);
+}
+.pp-halfhalf-panel .pp-halfhalf-half.is-active{
+  filter: brightness(1.03) contrast(1.03);
+}
+
+.pp-halfhalf-panel .pp-halfhalf-halfOutline{
+  stroke: var(--hh-accent);
+  transition: opacity var(--hh-d3) var(--hh-ease), stroke-width var(--hh-d3) var(--hh-ease), filter var(--hh-d4) var(--hh-ease);
+}
+.pp-halfhalf-panel .pp-halfhalf-halfOutline.is-active{
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--hh-accent) 28%, transparent));
+}
+
+/* OPTIONS: smoother hover + selected state */
+.pp-halfhalf-panel .pp-halfhalf-option{
+  border-radius: 16px;
+  border: 1px solid var(--hh-border);
+  background: var(--hh-surface);
+  box-shadow: none;
+  transition:
+    transform var(--hh-d2) var(--hh-ease),
+    box-shadow var(--hh-d3) var(--hh-ease),
+    border-color var(--hh-d3) var(--hh-ease),
+    background-color var(--hh-d3) var(--hh-ease);
+}
+
+.pp-halfhalf-panel .pp-halfhalf-option:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--hh-shadow-soft);
+  border-color: color-mix(in srgb, var(--hh-border) 60%, var(--hh-accent) 40%);
+}
+
+.pp-halfhalf-panel .pp-halfhalf-option--selected{
+  background: color-mix(in srgb, var(--hh-accent) 14%, var(--hh-surface) 86%);
+  border-color: color-mix(in srgb, var(--hh-accent) 55%, var(--hh-border) 45%);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--hh-accent) 14%, transparent);
+}
+
+/* CTA + Continue: consistent, premium lift */
+.pp-halfhalf-panel .pp-halfhalf-continueRow > button,
+.pp-halfhalf-panel .pp-halfhalf-cta .place-order-button{
+  border-radius: var(--hh-r-lg);
+  transition:
+    transform var(--hh-d2) var(--hh-ease),
+    box-shadow var(--hh-d3) var(--hh-ease),
+    filter var(--hh-d2) var(--hh-ease);
+}
+
+.pp-halfhalf-panel .pp-halfhalf-continueRow > button:hover:enabled,
+.pp-halfhalf-panel .pp-halfhalf-cta .place-order-button:hover:enabled{
+  transform: translateY(-1px);
+  box-shadow: var(--hh-shadow-soft);
+  filter: brightness(1.02);
+}
+
+/* Half & Half: keep pizza perfectly centered even while animating */
+.pp-halfhalf-panel .pp-halfhalf-svg{
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+
+  will-change: transform;
+  animation: hhFloatCentered 9.5s cubic-bezier(.25, .8, .25, 1) infinite;
+}
+
+@keyframes hhFloatCentered{
+  0%, 100% { transform: translate(-50%, -50%) translateY(0px) rotate(0deg); }
+  50%      { transform: translate(-50%, -50%) translateY(-7px) rotate(-0.35deg); }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .pp-halfhalf-panel .pp-halfhalf-svg{
+    animation: none !important;
+    transform: translate(-50%, -50%) !important;
+  }
+}
+
+/* =========================
+   Half & Half — FINAL glow (single source of truth)
+   - Tight neon ring with feathered edges (dense, not aura)
+   ========================= */
+
+/* keep room so glow doesn’t feel clipped */
+.pp-halfhalf-panel .pp-halfhalf-hero{
+  padding: 30px 22px 20px !important;
+}
+
+/* stage sizing + isolation for clean blending */
+.pp-halfhalf-panel .pp-halfhalf-heroStage{
+  width: min(520px, 88%) !important;  /* was ~92% */
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  position: relative;
+  isolation: isolate;
+}
+
+/* kill any old aura pseudo-element */
+.pp-halfhalf-panel .pp-halfhalf-heroStage::before{
+  content: none !important;
+  display: none !important;
+  opacity: 0 !important;
+}
+
+/* Outer soft band (feathered) — dense neon green */
+.pp-halfhalf-panel .pp-halfhalf-halfGlow{
+  display: block !important;
+  fill: none !important;
+  stroke: rgba(0, 255, 145, 0.22) !important; /* dark neon */
+  stroke-width: 12 !important;
+  opacity: 0;
+  filter:
+    blur(1.4px)
+    drop-shadow(0 0 18px rgba(0, 255, 145, 0.30))
+    drop-shadow(0 0 54px rgba(0, 255, 145, 0.16)) !important;
+  transition: opacity 320ms cubic-bezier(.22,1,.36,1);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pp-halfhalf-panel .pp-halfhalf-halfGlow.is-active{ opacity: 1; }
+
+/* Inner line = the “neon tube” (tight + punchy) */
+.pp-halfhalf-panel .pp-halfhalf-halfLine{
+  fill: none !important;
+  stroke: rgba(0, 255, 145, 0.72) !important;
+  stroke-width: 2.35 !important;
+  opacity: 0;
+  filter:
+    drop-shadow(0 0 8px rgba(0, 255, 145, 0.65))
+    drop-shadow(0 0 22px rgba(0, 255, 145, 0.38))
+    drop-shadow(0 0 60px rgba(0, 255, 145, 0.14)) !important;
+  transition: opacity 320ms cubic-bezier(.22,1,.36,1);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pp-halfhalf-panel .pp-halfhalf-halfLine.is-active{ opacity: 1; }
+
+/* Light mode: same geometry, lower intensity */
+body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfGlow{
+  stroke: rgba(0, 200, 120, 0.16) !important;
+  filter:
+    blur(1.2px)
+    drop-shadow(0 0 14px rgba(0, 200, 120, 0.18))
+    drop-shadow(0 0 42px rgba(0, 200, 120, 0.10)) !important;
+}
+body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
+  stroke: rgba(0, 200, 120, 0.54) !important;
+  filter:
+    drop-shadow(0 0 6px rgba(0, 200, 120, 0.30))
+    drop-shadow(0 0 16px rgba(0, 200, 120, 0.16))
+    drop-shadow(0 0 44px rgba(0, 200, 120, 0.06)) !important;
+}
+
+/* =========================
+   Half & Half — HERO container (this is the clipping boundary)
+   ========================= */
+/* Add a “glow-safe gutter” so the neon never hits the rounded clip */
+.pp-halfhalf-panel{
+  --hh-glow-safe: 14px; /* increase if you still see clipping */
+}
+
+.pp-halfhalf-panel .pp-halfhalf-hero{
+  border-radius: 1.9rem !important;
+  overflow: hidden !important;
+
+  /* original padding + safe gutter */
+  padding:
+    calc(74px + var(--hh-glow-safe))
+    calc(58px + var(--hh-glow-safe))
+    calc(54px + var(--hh-glow-safe)) !important;
+}
+
+/* Shrink stage a touch so the glow stays inside the rounded frame */
+.pp-halfhalf-panel .pp-halfhalf-heroStage{
+  width: min(560px, 68%) !important; /* was 72% */
+  max-width: none !important;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  position: relative;
+  overflow: visible; /* hero remains the clip */
+}
+
+/* If the SVG is bigger than the stage, scale it down instead of clipping */
+.pp-halfhalf-panel .pp-halfhalf-svg{
+  width: min(100%, 560px) !important;
+  height: min(100%, 560px) !important;
 }

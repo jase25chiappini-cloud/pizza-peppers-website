@@ -423,6 +423,7 @@ const HalfAndHalfSelector = ({
   }, []);
 
   const svgSizeLabel = ((sizeRef || selectedSizeKey) || "").toLowerCase();
+  const pizzaStageSize = svgSizeLabel || "regular";
 
   // Bigger pizza model (~30% bigger overall)
   let svgSize = 300; // default / regular
@@ -439,6 +440,9 @@ const HalfAndHalfSelector = ({
   ) {
     svgSize = 250;
   }
+
+  const HH_GLOW_PAD = 10; // viewBox units of padding for glow (try 12–14 if needed)
+  const hhViewBox = `${-HH_GLOW_PAD} ${-HH_GLOW_PAD} ${100 + HH_GLOW_PAD * 2} ${100 + HH_GLOW_PAD * 2}`;
 
   const pizzaOptions = React.useMemo(() => {
     if (!Array.isArray(menuItems)) return [];
@@ -701,7 +705,7 @@ const HalfAndHalfSelector = ({
         height: "100%",
         position: "relative",
         minHeight: 0,
-        overflow: "hidden",
+        overflow: "visible",
       }}
     >
       <button
@@ -719,41 +723,35 @@ const HalfAndHalfSelector = ({
       </button>
 
       <div
-        className="detail-image-wrapper"
+        className="detail-image-wrapper pp-halfhalf-hero"
         style={{
           width: "100%",
           flex: "0 0 auto",
-          height: "clamp(320px, 52vh, 560px)",
-          borderRadius: "1rem",
-          overflow: "hidden",
           marginBottom: "0.75rem",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "var(--surface)",
           position: "relative",
+          boxSizing: "border-box",
         }}
       >
         <div
-          className="relative"
-          style={{
-            width: "100%",
-            maxWidth: "720px",
-            aspectRatio: "1 / 1",
-          }}
+          className="relative pp-halfhalf-heroStage"
+          data-size={pizzaStageSize}
+          data-side={halfSelectionSide}
         >
           <svg
             width={svgSize}
             height={svgSize}
-            viewBox="0 0 100 100"
-            className="drop-shadow-2xl"
+            viewBox={hhViewBox}
+            className="drop-shadow-2xl pp-halfhalf-svg"
             style={{
               position: "absolute",
               top: "50%",
               left: "50%",
-              transform: "translate(-50%, -50%)",
-              transition: "width 0.25s ease, height 0.25s ease, transform 0.25s ease",
+              transition: "width 0.25s ease, height 0.25s ease",
               display: "block",
+              overflow: "visible",
             }}
           >
             <defs>
@@ -761,6 +759,95 @@ const HalfAndHalfSelector = ({
                 <stop offset="0%" stopColor="#ffed90" />
                 <stop offset="100%" stopColor="#f0b429" />
               </radialGradient>
+              <filter id="ppHalo" x="-70%" y="-70%" width="240%" height="240%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3.2" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <linearGradient id="ppHaloStroke" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="rgb(190,242,100)" stopOpacity="0.15" />
+                <stop offset="45%" stopColor="rgb(255,255,255)" stopOpacity="0.20" />
+                <stop offset="55%" stopColor="rgb(190,242,100)" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="rgb(190,242,100)" stopOpacity="0.14" />
+              </linearGradient>
+              <filter id="ppRingGlow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur" />
+                <feColorMatrix
+                  in="blur"
+                  type="matrix"
+                  values="
+                    0 0 0 0 0.745
+                    0 0 0 0 0.949
+                    0 0 0 0 0.392
+                    0 0 0 0.55 0"
+                  result="glow"
+                />
+                <feMerge>
+                  <feMergeNode in="glow" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              {/* Dark neon green, heavy feathering, but fades out before container edge */}
+              <filter id="ppHaloDeep" x="-180%" y="-180%" width="460%" height="460%">
+                {/* wide cloud */}
+                <feGaussianBlur in="SourceGraphic" stdDeviation="11.5" result="b1" />
+
+                {/* tint to dark neon green */}
+                <feColorMatrix
+                  in="b1"
+                  type="matrix"
+                  values="
+                    0 0 0 0 0.00
+                    0 0 0 0 0.85
+                    0 0 0 0 0.18
+                    0 0 0 0 0.85 0"
+                  result="c1"
+                />
+
+                {/* IMPORTANT: compress alpha so the far edges die off sooner */}
+                <feComponentTransfer in="c1" result="a1">
+                  <feFuncA type="gamma" amplitude="1" exponent="1.65" offset="0" />
+                </feComponentTransfer>
+
+                <feComponentTransfer in="a1" result="a1dim">
+                  <feFuncA type="linear" slope="0.72" intercept="0" />
+                </feComponentTransfer>
+
+                {/* extra feather */}
+                <feGaussianBlur in="a1dim" stdDeviation="7.4" result="b2" />
+
+                {/* tighter core for depth */}
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3.6" result="core" />
+                <feColorMatrix
+                  in="core"
+                  type="matrix"
+                  values="
+                    0 0 0 0 0.00
+                    0 0 0 0 0.85
+                    0 0 0 0 0.18
+                    0 0 0 0 0.55 0"
+                  result="coreTint"
+                />
+                <feComponentTransfer in="coreTint" result="coreA">
+                  <feFuncA type="gamma" amplitude="1" exponent="1.35" offset="0" />
+                </feComponentTransfer>
+
+                <feMerge>
+                  <feMergeNode in="b2" />
+                  <feMergeNode in="coreA" />
+                </feMerge>
+              </filter>
+
+              {/* Feather the thin outline too (soft edge, still crisp) */}
+              <filter id="ppLineFeather" x="-80%" y="-80%" width="260%" height="260%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="lb" />
+                <feMerge>
+                  <feMergeNode in="lb" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
               {halfA && (
                 <pattern
                   id="halfAImagePattern"
@@ -817,9 +904,19 @@ const HalfAndHalfSelector = ({
               <path
                 d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
                 className={[
-                  "pp-halfhalf-halfOutline",
+                  "pp-halfhalf-halfGlow",
                   halfSelectionSide === "A" ? "is-active" : "",
                 ].join(" ")}
+                fill="none"
+                pointerEvents="none"
+              />
+              <path
+                d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
+                className={[
+                  "pp-halfhalf-halfLine",
+                  halfSelectionSide === "A" ? "is-active" : "",
+                ].join(" ")}
+                fill="none"
                 pointerEvents="none"
               />
               {!halfA && (
@@ -855,9 +952,19 @@ const HalfAndHalfSelector = ({
               <path
                 d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
                 className={[
-                  "pp-halfhalf-halfOutline",
+                  "pp-halfhalf-halfGlow",
                   halfSelectionSide === "B" ? "is-active" : "",
                 ].join(" ")}
+                fill="none"
+                pointerEvents="none"
+              />
+              <path
+                d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
+                className={[
+                  "pp-halfhalf-halfLine",
+                  halfSelectionSide === "B" ? "is-active" : "",
+                ].join(" ")}
+                fill="none"
                 pointerEvents="none"
               />
               {!halfB && (
