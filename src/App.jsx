@@ -51,6 +51,12 @@ import {
 import { OVERRIDE_POSTCODES } from "./config/deliveryOverrides";
 import { quoteForPostcode as _quoteForPostcode } from "./config/delivery";
 
+const PP_POS_BASE_URL = (import.meta.env.VITE_PP_POS_BASE_URL ||
+  import.meta.env.VITE_PP_RENDER_BASE_URL ||
+  "").replace(/\/+$/, "");
+
+const PP_PROXY_PREFIX = (import.meta.env.VITE_PP_PROXY_PREFIX || "/pp-proxy").replace(/\/+$/, "");
+
 const HALF_HALF_FORCED_ITEM = {
   id: "half_half",
   name: "The Half & Half Pizza",
@@ -58,7 +64,7 @@ const HALF_HALF_FORCED_ITEM = {
   category: "Pizza",
   price: 0,
   isHalfHalf: true,
-  image: "https://placehold.co/400x300?text=Half+%26+Half",
+  image: "half-half.jpg",
   available: true,
 };
 
@@ -416,10 +422,7 @@ const HalfAndHalfSelector = ({
   const resolveHalfImage = React.useCallback((p) => {
     const target = p?.product || p;
     if (!target) return getImagePath("Half & Half");
-    if (target.image && /^https?:\/\//.test(target.image)) {
-      return target.image;
-    }
-    return getImagePath(target.name) || getImagePath("Half & Half");
+    return getImagePath(target) || getImagePath(target.name) || getImagePath("Half & Half");
   }, []);
 
   const svgSizeLabel = ((sizeRef || selectedSizeKey) || "").toLowerCase();
@@ -3340,7 +3343,8 @@ function useApp() {
 }
 
 // ----------------- MENU PIPELINE (stable) -----------------
-const MENU_URL = "/pp-proxy/public/menu";
+const MENU_URL = PP_POS_BASE_URL ? `${PP_POS_BASE_URL}/public/menu` : "/public/menu";
+const MENU_URL_FALLBACK = `${PP_PROXY_PREFIX}/public/menu`;
 
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
 function unwrapMenuApi(raw) {
@@ -3369,14 +3373,22 @@ function unwrapMenuApi(raw) {
 }
 
 async function fetchMenu(url = MENU_URL) {
-  console.log("[menu] GET", url);
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  const ct = res.headers.get("content-type") || "";
-  try {
-    console.log("[menu][debug] status:", res.status, "content-type:", ct);
-  } catch {}
-  const raw = await res.json();
-  return unwrapMenuApi(raw);
+  const candidates = [url, MENU_URL_FALLBACK].filter(Boolean);
+
+  let lastErr = null;
+  for (const u of candidates) {
+    try {
+      console.log("[menu] GET", u);
+      const res = await fetch(u, { cache: "no-store", headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error(`Menu fetch failed: ${res.status} ${res.statusText}`);
+      const raw = await res.json();
+      return unwrapMenuApi(raw);
+    } catch (err) {
+      lastErr = err;
+      console.warn("[menu] failed:", u, err);
+    }
+  }
+  throw lastErr || new Error("Menu fetch failed");
 }
 
 // cfg: choose keys from API (kept compatible with your JSON)
@@ -4050,154 +4062,74 @@ function useTheme() {
   return useContext(ThemeContext);
 }
 
-// Helpers
-// Render base used to turn img.url into a full URL
-const PP_RENDER_BASE_URL =
-  import.meta.env.VITE_PP_RENDER_BASE_URL ||
-  "https://pizzapepperspos.onrender.com";
-
-// Public (proxied) index of images; /pp-proxy should strip and inject key in dev
-const PP_IMAGES_INDEX_URL =
-  import.meta.env.VITE_PP_IMAGES_INDEX_URL || "/pp-proxy/api/images";
-
-// Base URL for product images (fallback when index isn't loaded)
-const BROTHER_IMAGE_BASE_URL = (
-  import.meta.env.VITE_PP_IMAGE_BASE_URL || "/pp-proxy/api/images"
-).replace(/\/+$/, "");
-
-// Local fallback that definitely exists in /public
+// =========================
+// Images (PUBLIC)
+// =========================
 const FALLBACK_IMAGE_URL = "/pizza-peppers-logo.jpg";
 
-// Optional manual filename overrides for odd menu names
-// Key = menu item name (exactly as in menu.json), value = filename (with extension)
-const IMAGE_FILENAME_OVERRIDES = {
-  // Example if you ever need it:
-  // "Half & Half": "half-half.jpg",
+const slugify = (text) =>
+  String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/&/g, "")
+    .replace(/[^\w\-]+/g, "")
+    .replace(/\-\-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
+
+const joinBase = (base, path) => {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  if (!base) return p;
+  return `${String(base).replace(/\\/+$/, "")}${p}`;
 };
 
-let __PP_REMOTE_BY_FILENAME = null;
-let __PP_REMOTE_BY_NORM = null;
+const getProductImageUrl = (p, base = "") => {
+  if (!p) return FALLBACK_IMAGE_URL;
 
-function __ppNormStem(stem) {
-  return String(stem || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-}
+  // If backend ever sends a full URL, respect it.
+  if (typeof p.image === "string" && /^https?:\\/\\//i.test(p.image)) return p.image;
 
-function _ppStripExt(filename) {
-  return String(filename || "").replace(/\.[^.]+$/, "");
-}
-
-function _ppNormKey(s) {
-  return __ppNormStem(_ppStripExt(s));
-}
-
-function __ppIngestRemoteImages(images) {
-  const byFilename = new Map();
-  const byNorm = new Map();
-
-  const base = String(PP_RENDER_BASE_URL).replace(/\/+$/, "");
-  const proxyPrefix = "/pp-proxy";
-
-  for (const img of images || []) {
-    const filename = String(img?.filename || "").trim();
-    const urlRaw = String(img?.url || "").trim();
-    if (!filename || !urlRaw) continue;
-
-    const fullUrl = /^https?:\/\//i.test(urlRaw)
-      ? urlRaw
-      : `${proxyPrefix}${urlRaw.startsWith("/") ? urlRaw : `/${urlRaw}`}`;
-
-    byFilename.set(filename, fullUrl);
-
-    const stem = filename.replace(/\.[^.]+$/, "");
-    const norm = __ppNormStem(stem);
-
-    const existing = byNorm.get(norm);
-    const isCleaner = (s) => !/[() ]/.test(s);
-    if (!existing) {
-      byNorm.set(norm, fullUrl);
-    } else {
-      const existingName = existing.split("/").pop() || "";
-      if (isCleaner(filename) && !isCleaner(existingName)) {
-        byNorm.set(norm, fullUrl);
-      }
-    }
+  if (typeof p.image === "string" && p.image.trim()) {
+    return joinBase(base, `/static/uploads/${p.image.trim()}`);
   }
 
-  __PP_REMOTE_BY_FILENAME = byFilename;
-  __PP_REMOTE_BY_NORM = byNorm;
+  return joinBase(base, `/static/uploads/${slugify(p.name)}.jpg`);
+};
 
-  try {
-    console.log("[images] remote index loaded:", byFilename.size);
-  } catch {}
-}
+// Try: POS base -> same-origin -> proxy (covers localhost + Render + “separate service” setups)
+const getProductImageUrlCandidates = (p) => {
+  const list = [
+    getProductImageUrl(p, PP_POS_BASE_URL),
+    getProductImageUrl(p, ""),
+    getProductImageUrl(p, PP_PROXY_PREFIX),
+  ].filter(Boolean);
 
-function __ppResolveRemoteUrlForFilename(filename) {
-  if (!__PP_REMOTE_BY_FILENAME) return null;
-  const exact = __PP_REMOTE_BY_FILENAME.get(filename);
-  if (exact) return exact;
-
-  const stem = filename.replace(/\.[^.]+$/, "");
-  const norm = __ppNormStem(stem);
-  return __PP_REMOTE_BY_NORM?.get(norm) || null;
-}
-
-// Turn a menu item name into the exact .jpg filename the image API expects
-// Rules:
-//   - lowercase only
-//   - spaces become "-"
-//   - special characters (& ' . ( ) etc) are removed
-//   - "1.25L" style sizes become "125l"
-//   - always ends with .jpg
-function slugifyImageNameForUpload(name) {
-  const base = name
-    .toString()
-    .toLowerCase()
-    .replace(/\s+/g, "-")           // spaces -> dashes
-    .replace(/&/g, "")              // delete '&'
-    .replace(/[^\w\-]+/g, "")       // delete other weird symbols
-    .replace(/\-\-+/g, "-")         // fix double dashes
-    .replace(/^-+/, "").replace(/-+$/, ""); // trim dashes
-
-  if (!base) return "";
-  return `${base}.jpg`;
-}
-
-function buildImageUrlFromName(name) {
-  const safeName = String(name || "").trim();
-  if (!safeName) return FALLBACK_IMAGE_URL;
-
-  const overrideFilename = IMAGE_FILENAME_OVERRIDES[safeName];
-  if (overrideFilename) {
-    const remote = __ppResolveRemoteUrlForFilename(overrideFilename);
-    if (remote) return remote;
-    if (__PP_REMOTE_BY_FILENAME) return FALLBACK_IMAGE_URL;
-    return `${BROTHER_IMAGE_BASE_URL}/${overrideFilename}`;
-  }
-
-  const filename = slugifyImageNameForUpload(safeName);
-  if (!filename) return FALLBACK_IMAGE_URL;
-
-  const remote = __ppResolveRemoteUrlForFilename(filename);
-  if (remote) return remote;
-  if (__PP_REMOTE_BY_FILENAME) return FALLBACK_IMAGE_URL;
-
-  return `${BROTHER_IMAGE_BASE_URL}/${filename}`;
-}
+  // de-dupe
+  return Array.from(new Set(list));
+};
 
 function getImagePath(productOrName) {
   if (!productOrName) return FALLBACK_IMAGE_URL;
-
   if (typeof productOrName === "string") {
-    return buildImageUrlFromName(productOrName);
+    return getProductImageUrl({ name: productOrName }, PP_POS_BASE_URL || "");
   }
+  return getProductImageUrl(productOrName, PP_POS_BASE_URL || "");
+}
 
-  const name =
-    productOrName.imageName ||
-    productOrName.display_name ||
-    productOrName.displayName ||
-    productOrName.name;
-
-  return buildImageUrlFromName(name);
+function cycleImgCandidates(imgEl, candidates) {
+  if (!imgEl || !Array.isArray(candidates) || !candidates.length) {
+    if (imgEl) imgEl.src = FALLBACK_IMAGE_URL;
+    return;
+  }
+  const idx = Number(imgEl.dataset.ppImgTry || "0");
+  const next = candidates[idx + 1];
+  if (next) {
+    imgEl.dataset.ppImgTry = String(idx + 1);
+    imgEl.src = next;
+  } else {
+    imgEl.src = FALLBACK_IMAGE_URL;
+  }
 }
 function formatId(name) {
   return String(name || "")
@@ -5156,27 +5088,27 @@ function ItemDetailPanel({
         }}
       >
         {heroImage && (
-          <img
-            src={item.image || getImagePath(item) || FALLBACK_IMAGE_URL}
-            alt={item.name}
-            className="detail-image"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-            }}
-            onError={(e) => {
-              try {
-                const t = e.currentTarget;
-                if (t.src.includes(FALLBACK_IMAGE_URL)) {
-                  t.style.display = "none";
-                } else {
-                  t.src = FALLBACK_IMAGE_URL;
-                }
-              } catch {}
-            }}
-          />
+          (() => {
+            const heroCandidates = getProductImageUrlCandidates(item);
+            const heroSrc = heroCandidates[0] || FALLBACK_IMAGE_URL;
+            return (
+              <img
+                src={heroSrc}
+                alt={item.name}
+                className="detail-image"
+                data-pp-img-try="0"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                }}
+                onError={(e) => {
+                  cycleImgCandidates(e.currentTarget, heroCandidates);
+                }}
+              />
+            );
+          })()
         )}
       </div>
       <h3 className="panel-title" style={{ marginTop: "1rem" }}>
@@ -9151,33 +9083,6 @@ function AppLayout({ isMapsLoaded }) {
     w.__PP_DIAG_MARK = Math.random().toString(36).slice(2, 8);
     console.log("[PP][diag] AppLayout mount mark =", w.__PP_DIAG_MARK);
   }
-
-  const [ppImagesIndexReady, setPpImagesIndexReady] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(PP_IMAGES_INDEX_URL, {
-          headers: { Accept: "application/json" },
-        });
-        const data = await res.json();
-        if (cancelled) return;
-
-        if (data && data.ok && Array.isArray(data.images)) {
-          // Populate the shared resolver maps used by buildImageUrlFromName/getImagePath
-          __ppIngestRemoteImages(data.images);
-          setPpImagesIndexReady(true);
-        } else {
-          console.warn("[images] index response not ok:", data);
-        }
-      } catch (err) {
-        console.warn("[images] index fetch failed:", err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const authCtx = useAuth();
   const authUser = authCtx.currentUser;
