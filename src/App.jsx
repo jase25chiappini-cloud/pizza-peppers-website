@@ -3336,6 +3336,55 @@ function useApp() {
   return useContext(AppContext);
 }
 
+  // ----------------- MENU PIPELINE (stable) -----------------
+const MENU_URL = "/pp-proxy/public/menu";
+
+// Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
+function unwrapMenuApi(raw) {
+  const root = raw && typeof raw === "object" ? raw : {};
+  const maybe = root.menu || root.data || root;
+  const api = {
+    categories: Array.isArray(maybe.categories) ? maybe.categories : [],
+    products: Array.isArray(maybe.products) ? maybe.products : [],
+    option_lists: Array.isArray(maybe.option_lists)
+      ? maybe.option_lists
+      : Array.isArray(maybe.optionLists)
+        ? maybe.optionLists
+        : [],
+    globals: maybe.globals || {},
+    settings: maybe.settings || {},
+    delivery_zones: Array.isArray(maybe.delivery_zones)
+      ? maybe.delivery_zones
+      : Array.isArray(maybe.deliveryZones)
+        ? maybe.deliveryZones
+        : [],
+  };
+  try {
+    console.log("[menu][client] keys:", Object.keys(api));
+  } catch {}
+  return api;
+}
+
+async function fetchMenu(url = MENU_URL) {
+  console.log("[menu] GET", url);
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const ct = res.headers.get("content-type") || "";
+  try {
+    console.log("[menu][debug] status:", res.status, "content-type:", ct);
+  } catch {}
+  const raw = await res.json();
+  return unwrapMenuApi(raw);
+}
+
+// cfg: choose keys from API (kept compatible with your JSON)
+const MENU_CFG = {
+  catRefKey: "ref",
+  catNameKey: "name",
+  productCatRefKey: "category_ref",
+};
+
+function transformMenu(api, cfg = MENU_CFG) {
+  const cats = Array.isArray(api?.categories) ? api.categories : [];
   const products = Array.isArray(api?.products) ? api.products : [];
   try {
     console.log(
@@ -3367,6 +3416,7 @@ function useApp() {
     if (!ref) continue;
     const bucket = byCatRef.get(ref);
     if (!bucket) continue;
+
     const hasSkus = Array.isArray(p?.skus) && p.skus.length > 0;
     let sizes =
       Array.isArray(p?.sizes) && p.sizes.length
@@ -3374,29 +3424,26 @@ function useApp() {
         : hasSkus
           ? p.skus.map((s) => s?.size || s?.name).filter(Boolean)
           : null;
+
     const prices = {};
     if (hasSkus) {
       for (const sku of p.skus) {
         const keyRaw = sku?.size || sku?.name || "Default";
         const key =
-          typeof keyRaw === "string" && keyRaw.trim()
-            ? keyRaw.trim()
-            : "Default";
+          typeof keyRaw === "string" && keyRaw.trim() ? keyRaw.trim() : "Default";
         const cents = toCents(
           sku?.price_cents ?? sku?.price ?? sku?.amount ?? sku?.value,
         );
-        if (Number.isFinite(cents)) {
-          prices[key] = cents;
-        }
+        if (Number.isFinite(cents)) prices[key] = cents;
       }
     } else {
       const cents = toCents(p?.price_cents ?? p?.price ?? p?.amount);
-      if (Number.isFinite(cents)) {
-        prices.Default = cents;
-      }
+      if (Number.isFinite(cents)) prices.Default = cents;
     }
+
     const priceValues = Object.values(prices).filter((v) => Number.isFinite(v));
     const minPriceCents = priceValues.length ? Math.min(...priceValues) : 0;
+
     bucket.items.push({
       ...p,
       sizes,
@@ -3412,14 +3459,15 @@ function useApp() {
     settings: api?.settings || {},
     raw: api,
   };
+
   try {
     console.log(
       "[menu][transform] output categories=" + normalized.categories.length,
     );
   } catch {}
+
   return normalized;
 }
-// ----------------------------------------------------------
 
 // Stable reference for HMR: keep the helper on window once it exists
 if (typeof window !== "undefined") {
@@ -3429,52 +3477,6 @@ if (typeof window !== "undefined") {
   }
 }
 
-// import { formatId, getImagePath } from './utils/helpers';
-const FORCE_REDIRECT =
-  String(import.meta.env.VITE_FORCE_AUTH_REDIRECT ?? "false").toLowerCase() ===
-  "true";
-
-function shouldUseRedirect() {
-  try {
-    if (typeof window === "undefined") return true;
-    if (FORCE_REDIRECT) {
-      console.info("[Auth] Forcing redirect via VITE_FORCE_AUTH_REDIRECT");
-      return true;
-    }
-    const host = window.location.hostname;
-    const isLocal = host === "localhost" || host === "127.0.0.1";
-    const coopMeta =
-      typeof document !== "undefined"
-        ? document.querySelector(
-            'meta[http-equiv="Cross-Origin-Opener-Policy"]',
-          )
-        : null;
-    const crossIso = window.crossOriginIsolated === true;
-
-    if (crossIso || coopMeta) {
-      console.info(
-        "[Auth] Using redirect (COOP/COEP or crossOriginIsolated detected)",
-        { crossIso, hasCoopMeta: !!coopMeta },
-      );
-      return true;
-    }
-    if (!isLocal) {
-      console.info(
-        "[Auth] Non-localhost environment -> prefer redirect (host:",
-        host,
-        ")",
-      );
-      return true;
-    }
-    console.info(
-      "[Auth] Localhost with no COOP/COEP -> will try popup, else fallback to redirect",
-    );
-    return false;
-  } catch (err) {
-    console.info("[Auth] shouldUseRedirect error -> forcing redirect", err);
-    return true;
-  }
-}
 const transformMenuStable = w.__pp_transformMenu || transformMenu;
 
 // --- Safe, optional Google Maps loader (no crash if missing key) ---
@@ -4076,62 +4078,6 @@ function cycleImgCandidates(imgEl, candidates) {
     imgEl.src = FALLBACK_IMAGE_URL;
   }
 }
-
-// ----------------- MENU PIPELINE (stable) -----------------
-const MENU_URL = PP_POS_BASE_URL ? `${PP_POS_BASE_URL}/public/menu` : "/public/menu";
-const MENU_URL_FALLBACK = `${PP_PROXY_PREFIX}/public/menu`;
-
-// Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
-function unwrapMenuApi(raw) {
-  const root = raw && typeof raw === "object" ? raw : {};
-  const maybe = root.menu || root.data || root;
-  const api = {
-    categories: Array.isArray(maybe.categories) ? maybe.categories : [],
-    products: Array.isArray(maybe.products) ? maybe.products : [],
-    option_lists: Array.isArray(maybe.option_lists)
-      ? maybe.option_lists
-      : Array.isArray(maybe.optionLists)
-        ? maybe.optionLists
-        : [],
-    globals: maybe.globals || {},
-    settings: maybe.settings || {},
-    delivery_zones: Array.isArray(maybe.delivery_zones)
-      ? maybe.delivery_zones
-      : Array.isArray(maybe.deliveryZones)
-        ? maybe.deliveryZones
-        : [],
-  };
-  try {
-    console.log("[menu][client] keys:", Object.keys(api));
-  } catch {}
-  return api;
-}
-
-async function fetchMenu(url = MENU_URL) {
-  const candidates = [url, MENU_URL_FALLBACK].filter(Boolean);
-
-  let lastErr = null;
-  for (const u of candidates) {
-    try {
-      console.log("[menu] GET", u);
-      const res = await fetch(u, { cache: "no-store", headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error(`Menu fetch failed: ${res.status} ${res.statusText}`);
-      const raw = await res.json();
-      return unwrapMenuApi(raw);
-    } catch (err) {
-      lastErr = err;
-      console.warn("[menu] failed:", u, err);
-    }
-  }
-  throw lastErr || new Error("Menu fetch failed");
-}
-
-// cfg: choose keys from API (kept compatible with your JSON)
-const MENU_CFG = {
-  catRefKey: "ref",
-  catNameKey: "name",
-  productCatRefKey: "category_ref",
-};
 
 function formatId(name) {
   return String(name || "")
