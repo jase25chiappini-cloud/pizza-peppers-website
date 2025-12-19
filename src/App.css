@@ -1158,8 +1158,14 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 }
 
 .place-order-button, .simple-button, .quantity-btn {
-  transition: all 0.2s ease-in-out;
-  will-change: transform;
+  transition:
+    transform 180ms var(--pp-ease),
+    box-shadow 180ms var(--pp-ease),
+    filter 180ms var(--pp-ease),
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+  will-change: auto;
   cursor: pointer;
 }
 .place-order-button {
@@ -1199,7 +1205,8 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 .place-order-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 .quantity-btn { background-color: var(--border-color); border-radius: 50%; width: 2rem; height: 2rem; font-size: 1.25rem; color: var(--text-light); }
 .quantity-btn:hover { background-color: #4b5563; }
-.quantity-btn:active { transform: scale(0.95); }
+/* Let the shared :active rule handle press feedback (prevents "double bounce") */
+.quantity-btn:active { transform: translateY(0) scale(0.99); }
 
 /* =========================
    Quick Nav (categories) — fixed dark mode
@@ -2519,23 +2526,10 @@ html[data-theme-transition="1"] *{
   box-shadow: var(--shadow-card);
 }
 
-/* Soft highlight sweep (subtle, not “press bubble”) */
+/* Remove highlight sweep (it causes "weird" hover artifacts on some layouts/browsers) */
 .pp-btn::after,
 .place-order-button::after{
-  content:"";
-  position:absolute;
-  inset:-45%;
-  pointer-events:none;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.16), rgba(0,0,0,0) 60%);
-  transform: translateX(-18%) rotate(10deg);
-  opacity: 0;
-  transition: opacity var(--pp-dur-4) var(--pp-ease), transform var(--pp-dur-4) var(--pp-ease);
-}
-
-.pp-btn:hover:enabled::after,
-.place-order-button:hover:enabled::after{
-  opacity: 1;
-  transform: translateX(18%) rotate(10deg);
+  content: none !important;
 }
 
 /* Cards: cleaner lift, softer border glow */
