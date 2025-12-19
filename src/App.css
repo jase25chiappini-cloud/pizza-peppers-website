@@ -2912,3 +2912,27 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
   width: min(100%, 560px) !important;
   height: min(100%, 560px) !important;
 }
+
+/* Meal Deal -> Half & Half overlay: hide scrollbars + tiny shrink */
+.pp-mealdeal-halfhalf{
+  /* tiny, clean shrink without re-laying out all the inline styles */
+  --pp-mealhh-scale: 0.975;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-panel{
+  transform: scale(var(--pp-mealhh-scale));
+  transform-origin: top center;
+}
+
+/* Hide scrollbars inside the overlay (global scrollbar styling is enabled elsewhere) */
+.pp-mealdeal-halfhalf,
+.pp-mealdeal-halfhalf *{
+  scrollbar-width: none !important;     /* Firefox */
+  -ms-overflow-style: none !important;  /* old Edge */
+}
+
+.pp-mealdeal-halfhalf::-webkit-scrollbar,
+.pp-mealdeal-halfhalf *::-webkit-scrollbar{
+  width: 0 !important;
+  height: 0 !important;
+}
