@@ -51,12 +51,6 @@ import {
 import { OVERRIDE_POSTCODES } from "./config/deliveryOverrides";
 import { quoteForPostcode as _quoteForPostcode } from "./config/delivery";
 
-const PP_POS_BASE_URL = (import.meta.env.VITE_PP_POS_BASE_URL ||
-  import.meta.env.VITE_PP_RENDER_BASE_URL ||
-  "").replace(/\/+$/, "");
-
-const PP_PROXY_PREFIX = (import.meta.env.VITE_PP_PROXY_PREFIX || "/pp-proxy").replace(/\/+$/, "");
-
 const HALF_HALF_FORCED_ITEM = {
   id: "half_half",
   name: "The Half & Half Pizza",
@@ -3342,64 +3336,6 @@ function useApp() {
   return useContext(AppContext);
 }
 
-// ----------------- MENU PIPELINE (stable) -----------------
-const MENU_URL = PP_POS_BASE_URL ? `${PP_POS_BASE_URL}/public/menu` : "/public/menu";
-const MENU_URL_FALLBACK = `${PP_PROXY_PREFIX}/public/menu`;
-
-// Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
-function unwrapMenuApi(raw) {
-  const root = raw && typeof raw === "object" ? raw : {};
-  const maybe = root.menu || root.data || root;
-  const api = {
-    categories: Array.isArray(maybe.categories) ? maybe.categories : [],
-    products: Array.isArray(maybe.products) ? maybe.products : [],
-    option_lists: Array.isArray(maybe.option_lists)
-      ? maybe.option_lists
-      : Array.isArray(maybe.optionLists)
-        ? maybe.optionLists
-        : [],
-    globals: maybe.globals || {},
-    settings: maybe.settings || {},
-    delivery_zones: Array.isArray(maybe.delivery_zones)
-      ? maybe.delivery_zones
-      : Array.isArray(maybe.deliveryZones)
-        ? maybe.deliveryZones
-        : [],
-  };
-  try {
-    console.log("[menu][client] keys:", Object.keys(api));
-  } catch {}
-  return api;
-}
-
-async function fetchMenu(url = MENU_URL) {
-  const candidates = [url, MENU_URL_FALLBACK].filter(Boolean);
-
-  let lastErr = null;
-  for (const u of candidates) {
-    try {
-      console.log("[menu] GET", u);
-      const res = await fetch(u, { cache: "no-store", headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error(`Menu fetch failed: ${res.status} ${res.statusText}`);
-      const raw = await res.json();
-      return unwrapMenuApi(raw);
-    } catch (err) {
-      lastErr = err;
-      console.warn("[menu] failed:", u, err);
-    }
-  }
-  throw lastErr || new Error("Menu fetch failed");
-}
-
-// cfg: choose keys from API (kept compatible with your JSON)
-const MENU_CFG = {
-  catRefKey: "ref",
-  catNameKey: "name",
-  productCatRefKey: "category_ref",
-};
-
-function transformMenu(api, cfg = MENU_CFG) {
-  const cats = Array.isArray(api?.categories) ? api.categories : [];
   const products = Array.isArray(api?.products) ? api.products : [];
   try {
     console.log(
@@ -4062,9 +3998,16 @@ function useTheme() {
   return useContext(ThemeContext);
 }
 
-// =========================
-// Images (PUBLIC)
-// =========================
+// Helpers
+
+const PP_POS_BASE_URL = (
+  import.meta.env.VITE_PP_POS_BASE_URL ||
+  import.meta.env.VITE_PP_RENDER_BASE_URL ||
+  ""
+).replace(/\/+$/, "");
+
+const PP_PROXY_PREFIX = (import.meta.env.VITE_PP_PROXY_PREFIX || "/pp-proxy").replace(/\/+$/, "");
+
 const FALLBACK_IMAGE_URL = "/pizza-peppers-logo.jpg";
 
 const slugify = (text) =>
@@ -4081,23 +4024,24 @@ const slugify = (text) =>
 const joinBase = (base, path) => {
   const p = path.startsWith("/") ? path : `/${path}`;
   if (!base) return p;
-  return `${String(base).replace(/\\/+$/, "")}${p}`;
+  return `${String(base).replace(/\/+$/, "")}${p}`;
 };
 
 const getProductImageUrl = (p, base = "") => {
   if (!p) return FALLBACK_IMAGE_URL;
 
-  // If backend ever sends a full URL, respect it.
-  if (typeof p.image === "string" && /^https?:\\/\\//i.test(p.image)) return p.image;
+  // If backend ever sends a full URL, respect it
+  if (typeof p.image === "string" && /^https?:\/\//i.test(p.image)) return p.image;
 
+  // Admin-uploaded filename
   if (typeof p.image === "string" && p.image.trim()) {
     return joinBase(base, `/static/uploads/${p.image.trim()}`);
   }
 
+  // Legacy fallback by slugified name
   return joinBase(base, `/static/uploads/${slugify(p.name)}.jpg`);
 };
 
-// Try: POS base -> same-origin -> proxy (covers localhost + Render + “separate service” setups)
 const getProductImageUrlCandidates = (p) => {
   const list = [
     getProductImageUrl(p, PP_POS_BASE_URL),
@@ -4105,15 +4049,16 @@ const getProductImageUrlCandidates = (p) => {
     getProductImageUrl(p, PP_PROXY_PREFIX),
   ].filter(Boolean);
 
-  // de-dupe
-  return Array.from(new Set(list));
+  return Array.from(new Set(list)); // de-dupe
 };
 
 function getImagePath(productOrName) {
   if (!productOrName) return FALLBACK_IMAGE_URL;
+
   if (typeof productOrName === "string") {
     return getProductImageUrl({ name: productOrName }, PP_POS_BASE_URL || "");
   }
+
   return getProductImageUrl(productOrName, PP_POS_BASE_URL || "");
 }
 
@@ -4131,6 +4076,63 @@ function cycleImgCandidates(imgEl, candidates) {
     imgEl.src = FALLBACK_IMAGE_URL;
   }
 }
+
+// ----------------- MENU PIPELINE (stable) -----------------
+const MENU_URL = PP_POS_BASE_URL ? `${PP_POS_BASE_URL}/public/menu` : "/public/menu";
+const MENU_URL_FALLBACK = `${PP_PROXY_PREFIX}/public/menu`;
+
+// Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
+function unwrapMenuApi(raw) {
+  const root = raw && typeof raw === "object" ? raw : {};
+  const maybe = root.menu || root.data || root;
+  const api = {
+    categories: Array.isArray(maybe.categories) ? maybe.categories : [],
+    products: Array.isArray(maybe.products) ? maybe.products : [],
+    option_lists: Array.isArray(maybe.option_lists)
+      ? maybe.option_lists
+      : Array.isArray(maybe.optionLists)
+        ? maybe.optionLists
+        : [],
+    globals: maybe.globals || {},
+    settings: maybe.settings || {},
+    delivery_zones: Array.isArray(maybe.delivery_zones)
+      ? maybe.delivery_zones
+      : Array.isArray(maybe.deliveryZones)
+        ? maybe.deliveryZones
+        : [],
+  };
+  try {
+    console.log("[menu][client] keys:", Object.keys(api));
+  } catch {}
+  return api;
+}
+
+async function fetchMenu(url = MENU_URL) {
+  const candidates = [url, MENU_URL_FALLBACK].filter(Boolean);
+
+  let lastErr = null;
+  for (const u of candidates) {
+    try {
+      console.log("[menu] GET", u);
+      const res = await fetch(u, { cache: "no-store", headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error(`Menu fetch failed: ${res.status} ${res.statusText}`);
+      const raw = await res.json();
+      return unwrapMenuApi(raw);
+    } catch (err) {
+      lastErr = err;
+      console.warn("[menu] failed:", u, err);
+    }
+  }
+  throw lastErr || new Error("Menu fetch failed");
+}
+
+// cfg: choose keys from API (kept compatible with your JSON)
+const MENU_CFG = {
+  catRefKey: "ref",
+  catNameKey: "name",
+  productCatRefKey: "category_ref",
+};
+
 function formatId(name) {
   return String(name || "")
     .toLowerCase()
