@@ -2169,16 +2169,6 @@ footer,
    Half & Half — restored UX (pre-reset)
    ========================= */
 
-/* Body scroll works (but hide scrollbars) */
-.pp-halfhalf-body{
-  overflow: auto !important;
-  scrollbar-width: none;
-}
-.pp-halfhalf-body::-webkit-scrollbar{
-  width: 0;
-  height: 0;
-}
-
 /* Slider half selector */
 .pp-halfhalf-sideSwitch{
   position: relative;
@@ -2285,34 +2275,12 @@ footer,
   }
 }
 
-/* 2) Body scroll stays, but scrollbar is hidden */
-.pp-halfhalf-body{
-  overflow: auto !important;
-  scrollbar-width: none;           /* Firefox */
-  -ms-overflow-style: none;        /* IE/Edge legacy */
-}
-.pp-halfhalf-body::-webkit-scrollbar{
-  width: 0 !important;
-  height: 0 !important;
-}
-
 /* 3) If any child container is forcing scrollbars, hide them too */
 .pp-halfhalf-panel *::-webkit-scrollbar{
   width: 0 !important;
   height: 0 !important;
 }
 
-/* Half & Half: no scrollbars anywhere */
-.pp-halfhalf-body{
-  overflow: hidden !important;
-}
-
-@media (min-width: 1024px){
-  .right-sidebar.right-sidebar--halfhalf,
-  .order-panel-container.order-panel-container--halfhalf{
-    overflow: hidden !important;
-  }
-}
 
 /* Half & Half: keep Continue button perfectly inside panel */
 .pp-halfhalf-continueRow{
@@ -2372,23 +2340,6 @@ footer,
   box-sizing: border-box;
 }
 
-/* Half & Half: prevent the PAGE scrollbar while editor is open */
-html.pp-halfhalf-open,
-body.pp-halfhalf-open{
-  overflow: hidden !important;
-  height: 100% !important;
-}
-
-/* Optional: prevents layout shift when scrollbar disappears (supported browsers) */
-html{
-  scrollbar-gutter: stable;
-}
-
-html.pp-halfhalf-open,
-body.pp-halfhalf-open{
-  overflow: hidden !important;
-}
-
 /* =========================
    Half & Half: absolutely no visible scrollbars anywhere
    (scoped to the "pp-halfhalf-open" mode)
@@ -2419,26 +2370,10 @@ html.pp-halfhalf-open *::-webkit-scrollbar-track{
   background: transparent !important;
 }
 
-/* =========================
-   Half & Half: absolutely no scrolling anywhere while editor is open
-   ========================= */
-html.pp-halfhalf-open,
-body.pp-halfhalf-open{
-  overflow: hidden !important;
-  height: 100% !important;
-}
-
-/* prevent any inner element from scrolling */
-/* DO NOT force overflow:hidden on all descendants — it clips SVG glow/filters.
-   We already lock the page scroll via html/body + the JS lock in App.jsx. */
-html.pp-halfhalf-open .pp-halfhalf-panel{
-  overflow: visible !important;
-}
-
 /* belt + braces: disable touch scroll chaining */
 html.pp-halfhalf-open .pp-halfhalf-panel{
   overscroll-behavior: none;
-  touch-action: none;
+  touch-action: pan-y;
 }
 
 /* ======================================================================

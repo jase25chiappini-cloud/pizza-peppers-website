@@ -89,13 +89,12 @@ const HalfAndHalfSelector = ({
   const halfOptionsRef = React.useRef(null);
 
   const scrollToHalfOptions = React.useCallback(() => {
-    const body = halfBodyRef.current;
     const target = halfOptionsRef.current;
-    if (!body || !target) return;
+    if (!target) return;
     try {
-      const bodyRect = body.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      body.scrollTop += (targetRect.top - bodyRect.top) - 12;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      // small offset so it doesn't kiss the top
+      requestAnimationFrame(() => window.scrollBy(0, -12));
     } catch {}
   }, []);
 
@@ -103,47 +102,12 @@ const HalfAndHalfSelector = ({
     const html = document.documentElement;
     const body = document.body;
 
-    // Remember scroll position
-    const scrollY = window.scrollY || 0;
-
-    // Add class (keep it for CSS scoping)
     html.classList.add("pp-halfhalf-open");
     body.classList.add("pp-halfhalf-open");
 
-    // Hard lock: removes scrollbar reliably
-    const prev = {
-      htmlOverflow: html.style.overflow,
-      bodyOverflow: body.style.overflow,
-      bodyPos: body.style.position,
-      bodyTop: body.style.top,
-      bodyLeft: body.style.left,
-      bodyRight: body.style.right,
-      bodyWidth: body.style.width,
-    };
-
-    html.style.overflow = "hidden";
-    body.style.overflow = "hidden";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.left = "0";
-    body.style.right = "0";
-    body.style.width = "100%";
-
     return () => {
-      // Restore styles
       html.classList.remove("pp-halfhalf-open");
       body.classList.remove("pp-halfhalf-open");
-
-      html.style.overflow = prev.htmlOverflow;
-      body.style.overflow = prev.bodyOverflow;
-      body.style.position = prev.bodyPos;
-      body.style.top = prev.bodyTop;
-      body.style.left = prev.bodyLeft;
-      body.style.right = prev.bodyRight;
-      body.style.width = prev.bodyWidth;
-
-      // Restore scroll position
-      window.scrollTo(0, scrollY);
     };
   }, []);
 
@@ -438,7 +402,7 @@ const HalfAndHalfSelector = ({
     svgSize = 250;
   }
 
-  const HH_GLOW_PAD = 10; // viewBox units of padding for glow (try 12–14 if needed)
+  const HH_GLOW_PAD = 10; // viewBox units of padding for glow (try 12-14 if needed)
   const hhViewBox = `${-HH_GLOW_PAD} ${-HH_GLOW_PAD} ${100 + HH_GLOW_PAD * 2} ${100 + HH_GLOW_PAD * 2}`;
 
   const pizzaOptions = React.useMemo(() => {
@@ -694,8 +658,6 @@ const HalfAndHalfSelector = ({
   return (
     <div
       className="pp-halfhalf-panel"
-      onWheelCapture={(e) => e.preventDefault()}
-      onTouchMove={(e) => e.preventDefault()}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -1001,7 +963,7 @@ const HalfAndHalfSelector = ({
         style={{
           flex: "1 1 auto",
           minHeight: 0,
-          overflowY: "visible",
+          overflow: "visible",
           paddingRight: "0.25rem",
           paddingBottom: "1.75rem",
         }}
