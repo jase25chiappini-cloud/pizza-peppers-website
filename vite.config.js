@@ -20,6 +20,10 @@ export default defineConfig(({ mode }) => {
     env.VITE_PP_PROXY_TARGET ||
     env.VITE_PP_RENDER_BASE_URL ||
     "https://pizzapepperspos.onrender.com"
+  const LOCAL =
+    env.VITE_PP_LOCAL_BACKEND ||
+    env.PP_LOCAL_BACKEND ||
+    "http://127.0.0.1:5055"
 
   return {
     plugins: [react()],
@@ -57,12 +61,17 @@ export default defineConfig(({ mode }) => {
           },
         },
         "/public": {
-          target: "http://localhost:5055",
+          target: LOCAL,
+          changeOrigin: true,
+          secure: false,
+        },
+        "/static": {
+          target: LOCAL,
           changeOrigin: true,
           secure: false,
         },
         "/api": {
-          target: "http://127.0.0.1:5055",
+          target: LOCAL,
           changeOrigin: true,
           secure: false,
           configure: (proxy) => {
