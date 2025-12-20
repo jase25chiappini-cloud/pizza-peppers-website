@@ -2979,3 +2979,13 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
 .pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
   width: min(460px, 86%) !important;
 }
+
+.pp-mealdeal-halfhalf{
+  overflow: hidden !important;
+  touch-action: none;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-panel,
+.pp-mealdeal-halfhalf .pp-halfhalf-body{
+  overflow: hidden !important;
+}
