@@ -69,6 +69,7 @@ const HalfAndHalfSelector = ({
   selectedItem,
   setSelectedItem,
   registerExternalPizzaApply,
+  compactUi = false,
 }) => {
   const [activeHalf, setActiveHalf] = React.useState("A");
   const [sizeRef, setSizeRef] = React.useState("LARGE");
@@ -399,6 +400,11 @@ const HalfAndHalfSelector = ({
     svgSizeLabel.includes("small")
   ) {
     svgSize = 250;
+  }
+
+  // Meal-deal overlay: tiny shrink to avoid needing any scroll
+  if (compactUi) {
+    svgSize = Math.round(svgSize * 0.92);
   }
 
   const HH_GLOW_PAD = 10; // viewBox units of padding for glow (try 12-14 if needed)
@@ -1075,35 +1081,35 @@ const HalfAndHalfSelector = ({
               halfSelectionSide === "B" ? "is-active" : "",
             ].join(" ")}
             aria-pressed={halfSelectionSide === "B"}
-            onClick={() => setHalfSelectionSide("B")}
-            title="Edit Pizza 2 (right)"
-          >
-            Pizza 2 <span className="pp-halfhalf-sideMeta">Right</span>
-            {hasHalfB ? <span className="pp-halfhalf-sideCheck">✓</span> : null}
-          </button>
-        </div>
-        {/* The Half & Half Pizza details panel fills the rest of the modal */}
+          onClick={() => setHalfSelectionSide("B")}
+          title="Edit Pizza 2 (right)"
+        >
+          Pizza 2 <span className="pp-halfhalf-sideMeta">Right</span>
+          {hasHalfB ? <span className="pp-halfhalf-sideCheck">✓</span> : null}
+        </button>
+      </div>
+      {/* The Half & Half Pizza details panel fills the rest of the modal */}
+      <div
+        style={{
+          margin: compactUi ? "0.65rem 0 0.85rem" : "0.9rem 0 1.1rem",
+          padding: compactUi ? "1.05rem 1.25rem" : "1.35rem 1.6rem",
+          borderRadius: "22px",
+          background: "var(--pp-surface)",
+          boxShadow: "var(--shadow-float)",
+          display: "flex",
+          flexDirection: "column",
+          gap: compactUi ? "0.9rem" : "1.15rem",
+          minHeight: compactUi ? "130px" : "150px",
+        }}
+      >
         <div
           style={{
-            margin: "0.9rem 0 1.1rem",
-            padding: "1.35rem 1.6rem",
-            borderRadius: "22px",
-            background: "var(--pp-surface)",
-            boxShadow: "var(--shadow-float)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "1.15rem",
-            minHeight: "150px",
+            fontSize: compactUi ? "1.05rem" : "1.2rem",
+            fontWeight: 820,
+            color: "var(--brand-neon-green, #bef264)",
+            letterSpacing: "0.07em",
           }}
         >
-          <div
-            style={{
-              fontSize: "1.2rem",
-              fontWeight: 820,
-              color: "var(--brand-neon-green, #bef264)",
-              letterSpacing: "0.07em",
-            }}
-          >
             The Half &amp; Half Pizza
           </div>
           <div
@@ -1565,8 +1571,8 @@ const HalfAndHalfSelector = ({
           style={{
             opacity: !halfA || !halfB ? 0.5 : 1,
             cursor: !halfA || !halfB ? "not-allowed" : "pointer",
-            padding: "0.7rem 0.9rem",
-            fontSize: "0.9rem",
+            padding: compactUi ? "0.6rem 0.85rem" : "0.7rem 0.9rem",
+            fontSize: compactUi ? "0.84rem" : "0.9rem",
             lineHeight: 1.15,
             whiteSpace: "normal",
           }}
@@ -2510,6 +2516,7 @@ const MealDealBuilderPanel = ({
                 if (v == null) setHalfHalfOpen(false);
               }}
               registerExternalPizzaApply={registerExternalMealHalfHalfPizzaApply}
+              compactUi
               onAddItemToOrder={(hh) => commitHalfHalfToBundleStep(hh)}
             />
           </div>

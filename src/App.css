@@ -2936,3 +2936,11 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
   width: 0 !important;
   height: 0 !important;
 }
+
+/* Meal Deal Half & Half only: slightly tighter hero */
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-hero{
+  padding: 24px 18px 16px !important;
+}
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
+  width: min(480px, 84%) !important;
+}
