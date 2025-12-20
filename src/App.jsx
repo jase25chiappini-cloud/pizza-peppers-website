@@ -406,7 +406,7 @@ const HalfAndHalfSelector = ({
 
   // Meal-deal overlay: tiny shrink to avoid needing any scroll
   if (compactUi) {
-    svgSize = Math.round(svgSize * 0.92);
+    svgSize = Math.round(svgSize * 0.82); // stronger shrink for overlay
   }
 
   const pizzaOptions = React.useMemo(() => {
@@ -1113,20 +1113,20 @@ const HalfAndHalfSelector = ({
       {/* The Half & Half Pizza details panel fills the rest of the modal */}
       <div
         style={{
-          margin: compactUi ? "0.65rem 0 0.85rem" : "0.9rem 0 1.1rem",
-          padding: compactUi ? "1.05rem 1.25rem" : "1.35rem 1.6rem",
+          margin: compactUi ? "0.55rem 0 0.75rem" : "0.9rem 0 1.1rem",
+          padding: compactUi ? "0.9rem 1.05rem" : "1.35rem 1.6rem",
           borderRadius: "22px",
           background: "var(--pp-surface)",
           boxShadow: "var(--shadow-float)",
           display: "flex",
           flexDirection: "column",
-          gap: compactUi ? "0.9rem" : "1.15rem",
-          minHeight: compactUi ? "130px" : "150px",
+          gap: compactUi ? "0.75rem" : "1.15rem",
+          minHeight: compactUi ? "118px" : "150px",
         }}
       >
         <div
           style={{
-            fontSize: compactUi ? "1.05rem" : "1.2rem",
+            fontSize: compactUi ? "1.02rem" : "1.2rem",
             fontWeight: 820,
             color: "var(--brand-neon-green, #bef264)",
             letterSpacing: "0.07em",

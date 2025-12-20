@@ -2944,3 +2944,30 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
 .pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
   width: min(480px, 84%) !important;
 }
+
+/* Meal Deal Half/Half ONLY: compact vertical footprint */
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-hero{
+  /* override the big safe-gutter padding */
+  padding: 16px 14px 12px !important;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
+  width: min(480px, 86%) !important;
+}
+
+/* tighten switch + CTA a touch */
+.pp-mealdeal-halfhalf .pp-halfhalf-sideBtn{
+  padding: 0.52rem 0.72rem !important;
+  font-size: 0.82rem !important;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-cta{
+  margin-top: 6px !important;
+  padding-top: 6px !important;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom)) !important;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-cta .place-order-button{
+  padding: 0.6rem 0.85rem !important;
+  font-size: 0.84rem !important;
+}
