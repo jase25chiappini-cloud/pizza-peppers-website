@@ -64,11 +64,13 @@ const HALF_HALF_FORCED_ITEM = {
 
 // --- RESTORED HALF & HALF COMPONENT ---
 const HalfAndHalfSelector = ({
+  menuItems,
   menuData,
   onAddItemToOrder,
   selectedItem,
   setSelectedItem,
   registerExternalPizzaApply,
+  useExternalMenuSelection = false,
   compactUi = false,
 }) => {
   const [activeHalf, setActiveHalf] = React.useState("A");
@@ -406,6 +408,26 @@ const HalfAndHalfSelector = ({
   if (compactUi) {
     svgSize = Math.round(svgSize * 0.92);
   }
+
+  const pizzaOptions = React.useMemo(() => {
+    if (!Array.isArray(menuItems)) return [];
+
+    return menuItems.filter((p) => {
+      if (!p) return false;
+      if (p.id === "half_half") return false;
+
+      const isPizzaType =
+        p.__categoryType === "pizza" ||
+        p.category === "Pizza";
+      if (!isPizzaType) return false;
+
+      if (p.__categoryRef === "MINI_PIZZAS") return false;
+
+      if (p.allowHalf === false) return false;
+
+      return true;
+    });
+  }, [menuItems]);
 
   const HH_GLOW_PAD = 10; // viewBox units of padding for glow (try 12-14 if needed)
   const hhViewBox = `${-HH_GLOW_PAD} ${-HH_GLOW_PAD} ${100 + HH_GLOW_PAD * 2} ${100 + HH_GLOW_PAD * 2}`;
@@ -1542,11 +1564,74 @@ const HalfAndHalfSelector = ({
                 onClick={() => {
                   if (!canContinue) return;
                   setHalfSelectionSide(nextHalfSide);
+                  if (!useExternalMenuSelection) requestAnimationFrame(scrollToHalfOptions);
                 }}
               >
                 {canContinue ? continueLabel : continueDisabledLabel}
               </button>
             </div>
+
+            {!useExternalMenuSelection && (
+              <>
+                <div
+                  style={{
+                    fontSize: "0.65rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.18em",
+                    color: "#a5b4fc",
+                    marginBottom: "0.75rem",
+                  }}
+                >
+                  {`Choose pizza for ${
+                    halfSelectionSide === "A" ? "Pizza 1" : "Pizza 2"
+                  }`}
+                </div>
+
+                <div className="pp-halfhalf-options">
+                  {pizzaOptions.map((p) => {
+                    const matchesHalfA =
+                      halfA?.id === p.id || pendingHalfA?.id === p.id;
+                    const matchesHalfB =
+                      halfB?.id === p.id || pendingHalfB?.id === p.id;
+                    const isSelected = matchesHalfA || matchesHalfB;
+                    const priceValue =
+                      typeof p.price === "number"
+                        ? p.price
+                        : typeof p.price_cents === "number"
+                        ? p.price_cents
+                        : null;
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={(e) => handlePizzaSelect(e, p)}
+                        className={
+                          "pp-halfhalf-option " +
+                          (isSelected ? "pp-halfhalf-option--selected" : "")
+                        }
+                      >
+                        <div className="pp-halfhalf-option__text">
+                          <div className="pp-halfhalf-option__name">
+                            {p.name}
+                          </div>
+                          <div className="pp-halfhalf-option__desc">
+                            {p.description}
+                          </div>
+                          <div className="pp-halfhalf-option__price">
+                            {typeof priceValue === "number"
+                              ? `$${(priceValue / 100).toFixed(2)}`
+                              : ""}
+                          </div>
+                        </div>
+                        <div className="pp-halfhalf-option__plus">
+                          +
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -1985,6 +2070,26 @@ const MealDealBuilderPanel = ({
     () => _filterMenuDataForMealStep(menuData, step, { search }),
     [menuData, step, search],
   );
+
+  const halfHalfMenuRows = React.useMemo(() => {
+    const cats = Array.isArray(stepMenuData?.categories) ? stepMenuData.categories : [];
+    const rows = [];
+    cats.forEach((cat) => {
+      const catAllowHalf = cat?.allowHalf ?? cat?.allow_half ?? undefined;
+      const ref = String(cat?.ref || cat?.id || "").toUpperCase();
+      const isPizzaCat = ref.endsWith("_PIZZAS") && ref !== "MINI_PIZZAS";
+      (cat?.items || []).forEach((item) => {
+        rows.push({
+          ...item,
+          category: isPizzaCat ? "Pizza" : (item.category || item.categoryName || item.category),
+          __categoryType: isPizzaCat ? "pizza" : (cat?.type || undefined),
+          __categoryRef: ref || cat?.ref,
+          allowHalf: item?.allowHalf ?? item?.allow_half ?? catAllowHalf,
+        });
+      });
+    });
+    return rows;
+  }, [stepMenuData]);
 
   const stepCategoryOptions = React.useMemo(() => {
     const cats = Array.isArray(stepMenuData?.categories) ? stepMenuData.categories : [];
@@ -2510,6 +2615,7 @@ const MealDealBuilderPanel = ({
             onClick={(e) => e.stopPropagation()}
           >
             <HalfAndHalfSelector
+              menuItems={halfHalfMenuRows}
               menuData={menuData}
               selectedItem={HALF_HALF_FORCED_ITEM}
               setSelectedItem={(v) => {
@@ -2517,6 +2623,7 @@ const MealDealBuilderPanel = ({
               }}
               registerExternalPizzaApply={registerExternalMealHalfHalfPizzaApply}
               compactUi
+              useExternalMenuSelection
               onAddItemToOrder={(hh) => commitHalfHalfToBundleStep(hh)}
             />
           </div>
@@ -9803,6 +9910,7 @@ function AppLayout({ isMapsLoaded }) {
             {selectedItem && (
               selectedItem.isHalfHalf ? (
                 <HalfAndHalfSelector
+                  menuItems={menuItems}
                   menuData={menuData}
                   onAddItemToOrder={handleAddHalfHalfToOrder} // uses the existing add-to-cart bridge
                   selectedItem={selectedItem}

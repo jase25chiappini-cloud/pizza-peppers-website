@@ -2916,7 +2916,7 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
 /* Meal Deal -> Half & Half overlay: hide scrollbars + tiny shrink */
 .pp-mealdeal-halfhalf{
   /* tiny, clean shrink without re-laying out all the inline styles */
-  --pp-mealhh-scale: 0.975;
+  --pp-mealhh-scale: 0.965;
 }
 
 .pp-mealdeal-halfhalf .pp-halfhalf-panel{
