@@ -2971,3 +2971,11 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
   padding: 0.6rem 0.85rem !important;
   font-size: 0.84rem !important;
 }
+
+/* Meal Deal Half & Half ONLY: slightly tighter hero (final override) */
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-hero{
+  padding: 12px 12px 10px !important;
+}
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
+  width: min(460px, 86%) !important;
+}
