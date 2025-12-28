@@ -76,6 +76,7 @@ const HalfAndHalfSelector = ({
   initialHalfA = null,
   initialHalfB = null,
   initialSizeRef = "LARGE",
+  onRequestChangeHalf = null,
 }) => {
   const [activeHalf, setActiveHalf] = React.useState("A");
   const [sizeRef, setSizeRef] = React.useState(initialSizeRef || "LARGE");
@@ -150,16 +151,26 @@ const HalfAndHalfSelector = ({
   }, []);
 
 
-  const resetHalf = React.useCallback((side) => {
-    if (side === "A") {
-      setHalfA(null);
-      setPendingHalfA(null);
-    } else {
-      setHalfB(null);
-      setPendingHalfB(null);
-    }
-    setHalfSelectionSide(side);
-  }, []);
+  const resetHalf = React.useCallback(
+    (side) => {
+      if (side === "A") {
+        setHalfA(null);
+        setPendingHalfA(null);
+      } else {
+        setHalfB(null);
+        setPendingHalfB(null);
+      }
+      // If the editor is open for this side, close it.
+      if (halfEditorSide === side) {
+        setHalfEditorItem(null);
+        setHalfEditorSide(null);
+        setHalfEditorInitialModal(null);
+        setHalfEditorSuppressPanel(false);
+      }
+      setHalfSelectionSide(side);
+    },
+    [halfEditorSide],
+  );
 
   // --- Size handling for Half & Half builder ---
   const collectSizesFor = React.useCallback((source) => {
@@ -1411,6 +1422,25 @@ const HalfAndHalfSelector = ({
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    if (typeof onRequestChangeHalf === "function") {
+                      onRequestChangeHalf("A");
+                      return;
+                    }
+                    resetHalf("A");
+                    if (!allowInlinePicker) {
+                      try {
+                        scrollToHalfOptions();
+                      } catch {}
+                    }
+                  }}
+                  disabled={!hasHalfA}
+                  className="pp-hh-actionBtn pp-hh-actionBtn--neutral"
+                >
+                  Change pizza
+                </button>
+                <button
+                  type="button"
                   onClick={() => resetHalf("A")}
                   disabled={!hasHalfA}
                   className="pp-hh-actionBtn pp-hh-actionBtn--danger"
@@ -1504,6 +1534,25 @@ const HalfAndHalfSelector = ({
                   className="pp-hh-actionBtn pp-hh-actionBtn--warn"
                 >
                   Add-ons
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof onRequestChangeHalf === "function") {
+                      onRequestChangeHalf("B");
+                      return;
+                    }
+                    resetHalf("B");
+                    if (!allowInlinePicker) {
+                      try {
+                        scrollToHalfOptions();
+                      } catch {}
+                    }
+                  }}
+                  disabled={!hasHalfB}
+                  className="pp-hh-actionBtn pp-hh-actionBtn--neutral"
+                >
+                  Change pizza
                 </button>
                 <button
                   type="button"
@@ -9509,9 +9558,15 @@ function AppLayout({ isMapsLoaded }) {
           size: hhMobileDraft?.sizeRef || "LARGE",
         };
 
+        const selectionSide = hhMobileDraft?.side || "A";
+        const otherPicked =
+          selectionSide === "A"
+            ? Boolean(hhMobileDraft?.halfB)
+            : Boolean(hhMobileDraft?.halfA);
+
         setHhMobileDraft((prev) => {
           const side = prev?.side || "A";
-          const next = { ...(prev || {}), step: "pick" };
+          const next = { ...(prev || {}), step: otherPicked ? "edit" : "pick" };
 
           if (side === "A") {
             next.halfA = base;
@@ -9519,15 +9574,13 @@ function AppLayout({ isMapsLoaded }) {
             return next;
           }
 
-          // side === "B" -> finish selection, open editor modal
           next.halfB = base;
           next.side = "A";
-          next.step = "edit";
           return next;
         });
 
-        // If we just picked Pizza 2, open the modal editor
-        if (hhMobileDraft?.side === "B") {
+        // If the other half already exists, open the modal editor.
+        if (otherPicked) {
           setSelectedItem(HALF_HALF_FORCED_ITEM);
         }
 
@@ -10022,6 +10075,26 @@ function AppLayout({ isMapsLoaded }) {
                           initialHalfB={isMobileScreen ? hhMobileDraft?.halfB : null}
                           initialSizeRef={
                             isMobileScreen ? (hhMobileDraft?.sizeRef || "LARGE") : "LARGE"
+                          }
+                          onRequestChangeHalf={
+                            isMobileScreen
+                              ? (side) => {
+                                  setSelectedItem(null);
+                                  setHhMobileDraft((prev) => ({
+                                    ...(prev || {}),
+                                    step: "pick",
+                                    side: side === "B" ? "B" : "A",
+                                    halfA: side === "A" ? null : prev?.halfA || null,
+                                    halfB: side === "B" ? null : prev?.halfB || null,
+                                    sizeRef: prev?.sizeRef || "LARGE",
+                                  }));
+                                  try {
+                                    requestAnimationFrame(() => {
+                                      window.scrollTo({ top: 0, behavior: "smooth" });
+                                    });
+                                  } catch {}
+                                }
+                              : null
                           }
                         />
                       </div>
