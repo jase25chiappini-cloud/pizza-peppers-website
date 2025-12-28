@@ -1,5 +1,5 @@
 ﻿/* ===============================
-   Pizza Peppers â€” App.css (clean)
+   Pizza Peppers — App.css (clean)
    =============================== */
 
 /* 1) Design tokens */
@@ -1840,7 +1840,7 @@ footer,
 
 /* === DARK MODE CONTAINER POLISH === */
 
-/* Main content containers â€“ match light mode rounding, lighter depth */
+/* Main content containers - match light mode rounding, lighter depth */
 [data-theme='dark'] .menu-item-card,
 [data-theme='dark'] .order-panel-container,
 [data-theme='dark'] .about-panel-list-item,
@@ -1862,7 +1862,7 @@ footer,
   box-shadow: 0 14px 40px rgba(0,0,0,0.6);
 }
 
-/* Dark mode PP modal: cleaner, less â€œdeepâ€ */
+/* Dark mode PP modal: cleaner, less "deep" */
 /* =========================
    Top Navbar (App.jsx) — dark mode fix
    ========================= */
@@ -2013,10 +2013,6 @@ footer,
    Half & Half - force "no scrollbars" + compact fit
    ========================= */
 
-.pp-halfhalf-body{
-  overflow: visible; /* guarantees no scroll bar in the half/half panel */
-}
-
 /* Compact grid so we can show more options without scrolling */
 .pp-halfhalf-options{
   display: grid;
@@ -2147,153 +2143,25 @@ footer,
   width: 0;
   height: 0;
 }
-.pp-halfhalf-cta .place-order-button {
-  width: 100%;
-}
-
-/* Half & Half: allow right panel to expand (no internal scrollbars) */
-@media (min-width: 1024px){
-  .right-sidebar.right-sidebar--halfhalf{
-    position: static;
-    top: auto;
-    height: auto;
-    overflow: visible;
-    border-left: 1px solid var(--border-color);
-  }
-
-  .order-panel-container.order-panel-container--halfhalf{
-    height: auto;
-    overflow: visible;
-  }
-}
-
-/* Safety: ensure the Half & Half body doesn't force scrolling */
 .pp-halfhalf-body{
-  overflow: visible !important;
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
 }
 
-/* =========================
-   Half & Half — restored UX (pre-reset)
-   ========================= */
-
-/* Slider half selector */
-.pp-halfhalf-sideSwitch{
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  padding: 6px;
-  border-radius: 999px;
-  border: 1px solid rgba(148,163,184,0.22);
-  background: rgba(255,255,255,0.05);
-  overflow: hidden;
-  margin: 0.5rem 0 1rem;
+.pp-halfhalf-cta .place-order-button,
+.pp-halfhalf-body .pp-btn-full{
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
 }
 
-.pp-halfhalf-sideThumb{
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  left: 6px;
-  width: calc(50% - 6px);
-  border-radius: 999px;
-  pointer-events: none;
-  background: rgba(255,255,255,0.16);
-  border: 1px solid rgba(148,163,184,0.18);
-  box-shadow: 0 12px 26px rgba(0,0,0,0.12);
-  transform: translateX(0%);
-  transition: transform 520ms cubic-bezier(.22, 1, .36, 1);
-  will-change: transform;
-}
-.pp-halfhalf-sideSwitch[data-active="B"] .pp-halfhalf-sideThumb{
-  transform: translateX(100%);
-}
-
-.pp-halfhalf-sideBtn{
-  position: relative;
-  z-index: 1;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  padding: 0.62rem 0.85rem;
-  cursor: pointer;
-  font-weight: 850;
-  font-size: 0.88rem;
-  opacity: 0.72;
-  transition: opacity 260ms ease;
-  display: inline-flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 0.5rem;
-}
-.pp-halfhalf-sideBtn.is-active{ opacity: 1; }
-.pp-halfhalf-sideMeta{ opacity: 0.62; font-weight: 750; font-size: 0.82em; }
-.pp-halfhalf-sideCheck{ font-weight: 950; opacity: 0.9; }
-
-/* Selected half outline on the pizza */
-.pp-halfhalf-half{
-  cursor: pointer;
-  transition: filter 200ms ease;
-}
-.pp-halfhalf-half:hover{
-  filter: brightness(1.08);
-}
-
-.pp-halfhalf-halfOutline{
-  fill: none;
-  stroke: rgba(190,242,100,0.55);
-  stroke-width: 0;
-  opacity: 0;
-  transition: opacity 260ms ease, stroke-width 260ms ease, filter 260ms ease;
-}
-.pp-halfhalf-halfOutline.is-active{
-  opacity: 1;
-  stroke-width: 3;
-  filter: drop-shadow(0 0 10px rgba(190,242,100,0.16));
-}
-
-/* Half & Half: lock panel height to avoid extra page/sidebar scrollbars */
-@media (min-width: 1024px){
-  .right-sidebar.right-sidebar--halfhalf{
-    position: sticky !important;
-    top: 0 !important;
-    height: 100vh !important;
-    overflow: hidden !important;
-  }
-  .order-panel-container.order-panel-container--halfhalf{
-    height: 100vh !important;
-    overflow: hidden !important;
-  }
-}
-
-/* =========================
-   Half & Half — hide scrollbars (keep scroll working)
-   ========================= */
-
-/* 1) Ensure the half/half panel never creates a page scrollbar */
-@media (min-width: 1024px){
-  .right-sidebar.right-sidebar--halfhalf{
-    height: 100vh !important;
-    overflow: hidden !important;
-  }
-  .order-panel-container.order-panel-container--halfhalf{
-    height: 100vh !important;
-    overflow: hidden !important;
-  }
-}
-
-/* 3) If any child container is forcing scrollbars, hide them too */
-.pp-halfhalf-panel *::-webkit-scrollbar{
-  width: 0 !important;
-  height: 0 !important;
-}
-
-
-/* Half & Half: keep Continue button perfectly inside panel */
+/* Keep Continue row perfectly inside the panel */
 .pp-halfhalf-continueRow{
   width: 100%;
   box-sizing: border-box;
   display: flex;
+  padding: 0 1px 8px;
 }
 
 .pp-halfhalf-continueRow > button{
@@ -2302,85 +2170,46 @@ footer,
   box-sizing: border-box;
 }
 
-/* Safety: prevent any tiny horizontal overflow in the half/half body */
-.pp-halfhalf-body{
-  overflow-x: hidden !important;
+/* Lock panel height to avoid extra page/sidebar scrollbars */
+@media (min-width: 1024px){
+  .right-sidebar.right-sidebar--halfhalf{
+    position: sticky !important;
+    top: 0 !important;
+    height: 100vh !important;
+    overflow: hidden !important;
+    border-left: 1px solid var(--border-color);
+  }
+  .order-panel-container.order-panel-container--halfhalf{
+    height: 100vh !important;
+    overflow: hidden !important;
+  }
 }
 
-/* Half & Half: stop tiny horizontal overflow */
-.pp-halfhalf-body,
-.pp-halfhalf-cta{
-  overflow-x: hidden !important;
-}
-
-/* Force any full-width buttons to never exceed the container */
-.pp-halfhalf-body .pp-btn-full,
-.pp-halfhalf-cta .place-order-button{
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* If it’s still 1px out on Windows, clamp it slightly */
-.pp-halfhalf-body .pp-btn-full,
-.pp-halfhalf-cta .place-order-button{
-  width: calc(100% - 2px);
-}
-
-/* Half & Half: stop “squishy” clipped shadows + remove width clamp */
-.pp-halfhalf-body{
-  overflow-y: visible !important;
-  overflow-x: hidden !important;
-}
-
-/* Undo the old clamp */
-.pp-halfhalf-body .pp-btn-full,
-.pp-halfhalf-cta .place-order-button{
-  width: 100% !important;
-  max-width: 100% !important;
-}
-
-/* Give the Continue row a tiny safe inset instead of shrinking the button */
-.pp-halfhalf-continueRow{
-  padding: 0 1px 8px;  /* bottom space lets the glow show fully */
-  box-sizing: border-box;
-}
-
-/* =========================
-   Half & Half: absolutely no visible scrollbars anywhere
-   (scoped to the "pp-halfhalf-open" mode)
-   ========================= */
-
-/* stop reserving gutter space while open (your file sets scrollbar-gutter: stable) */
-html.pp-halfhalf-open{
-  scrollbar-gutter: auto !important;
-}
-
-/* hide scrollbars for ALL descendants while half/half is open */
-html.pp-halfhalf-open *{
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* old Edge/IE */
-}
-
-html.pp-halfhalf-open *::-webkit-scrollbar{
-  width: 0 !important;
-  height: 0 !important;
-  display: none !important;
-}
-
-html.pp-halfhalf-open *::-webkit-scrollbar-thumb{
-  background: transparent !important;
-}
-
-html.pp-halfhalf-open *::-webkit-scrollbar-track{
-  background: transparent !important;
-}
+/* Optional: prevents layout shift when scrollbars appear/disappear */
+html{ scrollbar-gutter: stable; }
 
 /* belt + braces: disable touch scroll chaining */
 html.pp-halfhalf-open .pp-halfhalf-panel{
   overscroll-behavior: none;
   touch-action: pan-y;
+}
+
+/* Half & Half open: hard-hide scrollbars everywhere (final override) */
+html.pp-halfhalf-open,
+body.pp-halfhalf-open,
+html.pp-halfhalf-open *,
+body.pp-halfhalf-open *{
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+html.pp-halfhalf-open::-webkit-scrollbar,
+body.pp-halfhalf-open::-webkit-scrollbar,
+html.pp-halfhalf-open *::-webkit-scrollbar,
+body.pp-halfhalf-open *::-webkit-scrollbar{
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 /* ======================================================================
@@ -2625,9 +2454,9 @@ body[data-theme="light"] .pp-halfhalf-panel{
   color: var(--hh-text);
 }
 
-/* HERO: richer but clean (no “plastic”) */
+/* HERO: richer but clean (no "plastic") */
 .pp-halfhalf-panel .pp-halfhalf-hero{
-  border-radius: var(--hh-r-xl);
+  border-radius: 1.9rem !important;
   background:
     radial-gradient(720px 380px at 50% 18%, color-mix(in srgb, var(--hh-accent) 18%, transparent), transparent 60%),
     radial-gradient(520px 340px at 20% 12%, rgba(59,130,246,0.08), transparent 55%),
@@ -2659,17 +2488,6 @@ body[data-theme="light"] .pp-halfhalf-panel{
 }
 
 /* PIZZA: float + breathe on side change */
-.pp-halfhalf-panel .pp-halfhalf-svg{
-  filter: drop-shadow(0 18px 34px rgba(0,0,0,0.14));
-  animation: hhFloat 9.5s var(--hh-ease-soft) infinite;
-  will-change: transform;
-}
-
-@keyframes hhFloat{
-  0%,100% { transform: translateY(0px) rotate(0deg); }
-  50%     { transform: translateY(-7px) rotate(-0.35deg); }
-}
-
 .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="A"],
 .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="B"]{
   animation: hhBreathe var(--hh-d4) var(--hh-ease) 1;
@@ -2681,13 +2499,21 @@ body[data-theme="light"] .pp-halfhalf-panel{
 }
 
 @media (prefers-reduced-motion: reduce){
-  .pp-halfhalf-panel .pp-halfhalf-svg{ animation: none !important; }
+  .pp-halfhalf-panel .pp-halfhalf-svg{
+    animation: none !important;
+    transform: translate(-50%, -50%) !important;
+  }
   .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="A"],
   .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="B"]{ animation: none !important; }
 }
 
 /* SLIDER SWITCH: glide + glass track */
 .pp-halfhalf-panel .pp-halfhalf-sideSwitch{
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
   border-radius: 999px;
   border: 1px solid var(--hh-border);
   background: color-mix(in srgb, var(--hh-bg) 70%, transparent);
@@ -2695,9 +2521,18 @@ body[data-theme="light"] .pp-halfhalf-panel{
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   overflow: hidden;
+  align-items: stretch;
+  user-select: none;
 }
 
 .pp-halfhalf-panel .pp-halfhalf-sideThumb{
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  pointer-events: none;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.08));
   border: 1px solid var(--hh-border);
@@ -2706,6 +2541,19 @@ body[data-theme="light"] .pp-halfhalf-panel{
 }
 
 .pp-halfhalf-panel .pp-halfhalf-sideBtn{
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.62rem 0.85rem;
+  cursor: pointer;
+  font-weight: 850;
+  font-size: 0.88rem;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
   color: var(--hh-text);
   opacity: 0.68;
   transition: opacity var(--hh-d2) var(--hh-ease-soft), transform var(--hh-d3) var(--hh-ease);
@@ -2781,6 +2629,9 @@ body[data-theme="light"] .pp-halfhalf-panel{
 
 /* Half & Half: keep pizza perfectly centered even while animating */
 .pp-halfhalf-panel .pp-halfhalf-svg{
+  max-width: min(100%, 560px) !important;
+  max-height: min(100%, 560px) !important;
+  filter: drop-shadow(0 18px 34px rgba(0,0,0,0.14));
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
@@ -2795,31 +2646,14 @@ body[data-theme="light"] .pp-halfhalf-panel{
   50%      { transform: translate(-50%, -50%) translateY(-7px) rotate(-0.35deg); }
 }
 
-@media (prefers-reduced-motion: reduce){
-  .pp-halfhalf-panel .pp-halfhalf-svg{
-    animation: none !important;
-    transform: translate(-50%, -50%) !important;
-  }
-}
-
 /* =========================
-   Half & Half — FINAL glow (single source of truth)
+   Half & Half - FINAL glow (single source of truth)
    - Tight neon ring with feathered edges (dense, not aura)
    ========================= */
 
 /* keep room so glow doesn’t feel clipped */
 .pp-halfhalf-panel .pp-halfhalf-hero{
   padding: 30px 22px 20px !important;
-}
-
-/* stage sizing + isolation for clean blending */
-.pp-halfhalf-panel .pp-halfhalf-heroStage{
-  width: min(520px, 88%) !important;  /* was ~92% */
-  aspect-ratio: 1 / 1;
-  display: grid;
-  place-items: center;
-  position: relative;
-  isolation: isolate;
 }
 
 /* kill any old aura pseudo-element */
@@ -2879,38 +2713,20 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
 }
 
 /* =========================
-   Half & Half — HERO container (this is the clipping boundary)
+   Half & Half - HERO container sizing
    ========================= */
-/* Add a “glow-safe gutter” so the neon never hits the rounded clip */
-.pp-halfhalf-panel{
-  --hh-glow-safe: 14px; /* increase if you still see clipping */
-}
-
-.pp-halfhalf-panel .pp-halfhalf-hero{
-  border-radius: 1.9rem !important;
-  overflow: hidden !important;
-
-  /* original padding + safe gutter */
-  padding:
-    calc(74px + var(--hh-glow-safe))
-    calc(58px + var(--hh-glow-safe))
-    calc(54px + var(--hh-glow-safe)) !important;
-}
 
 /* Shrink stage a touch so the glow stays inside the rounded frame */
 .pp-halfhalf-panel .pp-halfhalf-heroStage{
   width: min(560px, 68%) !important; /* was 72% */
   max-width: none !important;
   aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
   margin: 0 auto;
   position: relative;
   overflow: visible; /* hero remains the clip */
-}
-
-/* If the SVG is bigger than the stage, scale it down instead of clipping */
-.pp-halfhalf-panel .pp-halfhalf-svg{
-  width: min(100%, 560px) !important;
-  height: min(100%, 560px) !important;
+  isolation: isolate;
 }
 
 /* Meal Deal -> Half & Half overlay: hide scrollbars + tiny shrink */
@@ -2922,37 +2738,6 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
 .pp-mealdeal-halfhalf .pp-halfhalf-panel{
   transform: scale(var(--pp-mealhh-scale));
   transform-origin: top center;
-}
-
-/* Hide scrollbars inside the overlay (global scrollbar styling is enabled elsewhere) */
-.pp-mealdeal-halfhalf,
-.pp-mealdeal-halfhalf *{
-  scrollbar-width: none !important;     /* Firefox */
-  -ms-overflow-style: none !important;  /* old Edge */
-}
-
-.pp-mealdeal-halfhalf::-webkit-scrollbar,
-.pp-mealdeal-halfhalf *::-webkit-scrollbar{
-  width: 0 !important;
-  height: 0 !important;
-}
-
-/* Meal Deal Half & Half only: slightly tighter hero */
-.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-hero{
-  padding: 24px 18px 16px !important;
-}
-.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
-  width: min(480px, 84%) !important;
-}
-
-/* Meal Deal Half/Half ONLY: compact vertical footprint */
-.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-hero{
-  /* override the big safe-gutter padding */
-  padding: 16px 14px 12px !important;
-}
-
-.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
-  width: min(480px, 86%) !important;
 }
 
 /* tighten switch + CTA a touch */
@@ -2980,12 +2765,875 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
   width: min(460px, 86%) !important;
 }
 
+/* =========================
+   Close (X) buttons — TRUE center using 2 bars
+   ========================= */
+
+:root{
+  --pp-xbtn-size: 38px;
+  --pp-xbar-len: 16px;
+  --pp-xbar-thick: 2px;
+  --pp-xbtn-nudge-x: 0px; /* tweak if ever needed */
+  --pp-xbtn-nudge-y: 0px;
+}
+
+/* Target ONLY real close buttons */
+button.pp-modal-close,
+button.quantity-btn[title="Close"],
+button.pp-btn.pp-btn-subtle[aria-label="Close"]{
+  width: var(--pp-xbtn-size);
+  height: var(--pp-xbtn-size);
+  padding: 0 !important;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  position: relative;              /* needed for bars */
+  border-radius: 999px;
+
+  border: 1px solid rgba(148,163,184,0.35);
+  background: rgba(15,23,42,0.35);
+
+  /* kill font glyph influence completely */
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: transparent !important;
+  text-indent: -9999px;            /* if any text remains */
+  overflow: hidden;
+
+  cursor: pointer;
+
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+/* Draw the X with two perfectly centered bars */
+button.pp-modal-close::before,
+button.pp-modal-close::after,
+button.quantity-btn[title="Close"]::before,
+button.quantity-btn[title="Close"]::after,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]::before,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]::after{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--pp-xbar-len);
+  height: var(--pp-xbar-thick);
+  background: var(--text-light);
+  border-radius: 999px;
+  transform-origin: center;
+}
+
+/* bar 1 */
+button.pp-modal-close::before,
+button.quantity-btn[title="Close"]::before,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]::before{
+  transform: translate(calc(-50% + var(--pp-xbtn-nudge-x)), calc(-50% + var(--pp-xbtn-nudge-y))) rotate(45deg);
+}
+
+/* bar 2 */
+button.pp-modal-close::after,
+button.quantity-btn[title="Close"]::after,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]::after{
+  transform: translate(calc(-50% + var(--pp-xbtn-nudge-x)), calc(-50% + var(--pp-xbtn-nudge-y))) rotate(-45deg);
+}
+
+/* Hover: subtle lift + glow */
+button.pp-modal-close:hover,
+button.quantity-btn[title="Close"]:hover,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]:hover{
+  transform: translateY(-1px) scale(1.04);
+  background: rgba(15,23,42,0.55);
+  border-color: rgba(190,242,100,0.55);
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.14), 0 10px 30px rgba(0,0,0,0.35);
+  filter: brightness(1.03);
+}
+
+/* Optional: tiny “sleek” micro-rotate on hover */
+button.pp-modal-close:hover::before,
+button.quantity-btn[title="Close"]:hover::before,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]:hover::before{
+  transform: translate(calc(-50% + var(--pp-xbtn-nudge-x)), calc(-50% + var(--pp-xbtn-nudge-y))) rotate(50deg);
+}
+button.pp-modal-close:hover::after,
+button.quantity-btn[title="Close"]:hover::after,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]:hover::after{
+  transform: translate(calc(-50% + var(--pp-xbtn-nudge-x)), calc(-50% + var(--pp-xbtn-nudge-y))) rotate(-50deg);
+}
+
+/* Active press */
+button.pp-modal-close:active,
+button.quantity-btn[title="Close"]:active,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]:active{
+  transform: translateY(0px) scale(0.98);
+}
+
+/* Keyboard focus */
+button.pp-modal-close:focus-visible,
+button.quantity-btn[title="Close"]:focus-visible,
+button.pp-btn.pp-btn-subtle[aria-label="Close"]:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.22), 0 0 0 1px rgba(190,242,100,0.35);
+}
+
+/* =========================
+   Half & Half action buttons (Edit ingredients / Add-ons / Reset half)
+   ========================= */
+
+.pp-halfhalf-panel .pp-hh-actionBtn{
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.55);
+  background: rgba(148,163,184,0.12);
+  color: var(--text-light);
+
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.74rem;
+
+  padding: 0.42rem 0.92rem;
+  cursor: pointer;
+
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    filter 160ms ease;
+}
+
+.pp-halfhalf-panel[data-compact="1"] .pp-hh-actionBtn{
+  font-size: 0.70rem;
+  padding: 0.36rem 0.82rem;
+}
+
+/* Disabled state */
+.pp-halfhalf-panel .pp-hh-actionBtn:disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Hover / active animation */
+.pp-halfhalf-panel .pp-hh-actionBtn:not(:disabled):hover{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+  filter: brightness(1.05);
+}
+.pp-halfhalf-panel .pp-hh-actionBtn:not(:disabled):active{
+  transform: translateY(0px) scale(0.98);
+}
+
+/* Focus */
+.pp-halfhalf-panel .pp-hh-actionBtn:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.22);
+}
+
+/* Variants */
+.pp-halfhalf-panel .pp-hh-actionBtn--neutral{
+  border-color: rgba(148,163,184,0.55);
+  background: rgba(148,163,184,0.14);
+}
+.pp-halfhalf-panel .pp-hh-actionBtn--warn{
+  border-color: rgba(251,191,36,0.55);
+  background: rgba(251,191,36,0.18);
+  color: rgba(253,230,138,1);
+}
+.pp-halfhalf-panel .pp-hh-actionBtn--danger{
+  border-color: rgba(248,113,113,0.55);
+  background: rgba(239,68,68,0.16);
+  color: rgba(254,202,202,1);
+}
+
+/* Light mode: make them actually visible on white/near-white */
+html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn{
+  background: rgba(15,23,42,0.06);
+  border-color: rgba(15,23,42,0.20);
+  color: rgba(15,23,42,0.92);
+  box-shadow: 0 6px 18px rgba(15,23,42,0.10);
+}
+
+html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--warn{
+  background: rgba(251,191,36,0.20);
+  border-color: rgba(161,98,7,0.28);
+  color: rgba(120,53,15,0.95);
+}
+
+html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
+  background: rgba(239,68,68,0.14);
+  border-color: rgba(190,18,60,0.28);
+  color: rgba(136,19,55,0.95);
+}
+
+/* ======================================================================
+   Half & Half — action buttons DARK MODE (FINAL, vibrant + feels interactive)
+   Put this at the VERY BOTTOM so it wins.
+   ====================================================================== */
+
+@keyframes ppHhDisabledPulse {
+  0%, 100% { box-shadow: 0 10px 26px rgba(0,0,0,0.45); }
+  50%      { box-shadow: 0 0 0 3px rgba(190,242,100,0.08), 0 14px 34px rgba(0,0,0,0.55); }
+}
+
+/* Base in dark mode: more contrast */
+[data-theme="dark"] .pp-halfhalf-panel .pp-hh-actionBtn{
+  border-color: rgba(226,232,240,0.22) !important;
+  background: rgba(255,255,255,0.10) !important;
+  color: rgba(241,245,249,0.96) !important;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.45) !important;
+  filter: saturate(1.15);
+}
+
+/* Disabled: still obvious, not "dead" */
+[data-theme="dark"] .pp-halfhalf-panel .pp-hh-actionBtn:disabled{
+  opacity: 1 !important;                 /* kills the dull look */
+  cursor: not-allowed;
+  animation: ppHhDisabledPulse 1.25s ease-in-out infinite;
+}
+
+/* Disabled variants keep their "meaning" */
+[data-theme="dark"] .pp-halfhalf-panel .pp-hh-actionBtn--neutral:disabled{
+  background: rgba(129,140,248,0.16) !important;
+  border-color: rgba(129,140,248,0.45) !important;
+  color: rgba(224,231,255,0.82) !important;
+}
+
+[data-theme="dark"] .pp-halfhalf-panel .pp-hh-actionBtn--warn:disabled{
+  background: rgba(251,191,36,0.16) !important;
+  border-color: rgba(251,191,36,0.48) !important;
+  color: rgba(255,247,210,0.82) !important;
+}
+
+[data-theme="dark"] .pp-halfhalf-panel .pp-hh-actionBtn--danger:disabled{
+  background: rgba(248,113,113,0.14) !important;
+  border-color: rgba(248,113,113,0.48) !important;
+  color: rgba(254,226,226,0.82) !important;
+}
+
+/* =========================================================
+   MOBILE RESPONSIVE PACK (site-wide)
+   Paste at VERY BOTTOM of App.css so it overrides everything
+   ========================================================= */
+
+/* 0) Baseline mobile ergonomics */
+@media (max-width: 1023.98px) {
+  html, body {
+    overflow-x: hidden;
+  }
+
+  /* comfortable padding on small screens */
+  .app-grid-layout {
+    padding-inline: 0.85rem;
+    padding-block: 0.85rem;
+    gap: 0.9rem;
+  }
+
+  /* main slab tighter */
+  .main-content-area {
+    padding: 1rem;
+  }
+
+  /* categories: less chunky */
+  .menu-category {
+    margin-bottom: 1.5rem;
+    padding: 0.95rem 0.95rem 1.15rem;
+  }
+
+  /* category title scroll offset should match taller mobile nav */
+  .category-title {
+    scroll-margin-top: 12rem;
+    font-size: 1.15rem;
+  }
+
+  /* menu grid spacing tighter */
+  .menu-grid {
+    gap: 0.95rem;
+  }
+
+  /* card text slightly tighter */
+  .card-text-container {
+    padding: 0.7rem;
+  }
+  .card-item-name {
+    font-size: 0.92rem;
+  }
+  .card-item-description {
+    font-size: 0.78rem;
+  }
+
+  /* Buttons: tap targets */
+  .pp-btn,
+  .place-order-button,
+  .simple-button {
+    min-height: 44px;
+  }
+
+  .quantity-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* ✅ Show the order panel on mobile as a normal section BELOW the menu */
+  .right-sidebar {
+    display: block;        /* overrides desktop hide */
+    position: relative;
+    top: auto;
+    height: auto;
+    border-left: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  /* remove desktop sticky + viewport lock */
+  .order-panel-container {
+    position: relative;
+    top: auto;
+    height: auto;
+    max-height: none;
+    margin-top: 0.9rem;
+    padding: 1.05rem;
+    border-radius: 1rem;
+  }
+
+  /* half/half overlay variants should not lock height on mobile */
+  .right-sidebar.right-sidebar--halfhalf,
+  .order-panel-container.order-panel-container--halfhalf {
+    position: relative !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* 1) Top navbar (pp-topnav) stacking */
+@media (max-width: 900px) {
+  .pp-topnav {
+    padding: 0.6rem 0.85rem;
+  }
+
+  .pp-topnav__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .pp-topnav__left,
+  .pp-topnav__right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pp-topnav__logoImg {
+    height: 2.7rem;
+  }
+
+  /* make searches usable */
+  .pp-topnav__searchWrap {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .pp-topnav__searchInput {
+    min-height: 40px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 460px) {
+  .pp-topnav__searchWrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 2) Quick-nav sticky offset (nav gets taller on mobile) */
+@media (max-width: 900px) {
+  .quick-nav-container {
+    top: 9.0rem;
+    padding: 0.5rem;
+  }
+
+  .quick-nav-item a {
+    padding: 0.44rem 0.8rem;
+    font-size: 0.7rem;
+  }
+}
+
+/* 3) Touch devices: kill “hover jump” effects so taps don’t bounce */
+@media (hover: none) and (pointer: coarse) {
+  .menu-item-card:hover {
+    transform: none !important;
+    box-shadow: var(--shadow-card) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  .place-order-button:hover,
+  .pp-btn:hover,
+  .quantity-btn:hover {
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+/* 4) Modals become full-screen sheets on phones */
+@media (max-width: 640px) {
+  /* Your legacy modal */
+  .modal-overlay {
+    align-items: stretch;
+  }
+  .modal-content {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+    padding: 1rem;
+  }
+  .modal-body {
+    padding: 0.5rem 0;
+  }
+
+  /* Your pp-modal system */
+  .pp-modal-backdrop {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+  }
+  .pp-modal {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+    padding: 1rem;
+  }
+  .pp-modal-body {
+    max-height: none;
+    height: calc(100vh - 140px);
+  }
+}
+
+/* 5) Item detail panel bits (common “too wide / cramped”) */
+@media (max-width: 640px) {
+  .detail-image {
+    height: 10.5rem;
+  }
+
+  .size-quantity-row {
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .quantity-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* 6) Half & Half: make sure it fits nicely on small screens */
+@media (max-width: 640px) {
+  .pp-halfhalf-panel .pp-halfhalf-hero {
+    padding: 18px 14px 14px !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .pp-halfhalf-panel .pp-halfhalf-heroStage {
+    width: min(460px, 92%) !important;
+  }
+
+  .pp-halfhalf-panel .pp-halfhalf-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Hard fallback: stack layout as normal blocks on small screens */
+@media (max-width: 1023.98px) {
+  .app-grid-layout {
+    display: block !important;
+  }
+
+  .left-pane,
+  .right-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .main-content-area {
+    display: block !important;
+  }
+}
+
+/* Mobile menu grid: 2-up cards */
+@media (max-width: 639.98px) {
+  .menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* =========================================================
+   MOBILE LAYOUT (<= 1024px)
+   - Show the order panel under the menu
+   - Make navbar + modals mobile-friendly
+   ========================================================= */
+
+@media (max-width: 1023.98px) {
+  /* Page padding a bit tighter */
+  .app-grid-layout {
+    padding-inline: 0.75rem;
+    padding-block: 0.75rem;
+    gap: 0.9rem;
+  }
+
+  .left-pane {
+    min-height: auto;
+  }
+
+  /* Main content: reduce padding */
+  .main-content-area {
+    padding: 1rem;
+  }
+
+  /* ✅ Bring back the right panel on mobile */
+  .right-sidebar {
+    display: block;
+    position: relative;
+    top: auto;
+    height: auto;
+    border-left: none;
+    background: transparent; /* let panel styles handle it */
+    box-shadow: none;
+    padding: 0;
+  }
+
+  /* ✅ Order panel becomes a normal section (not sticky / not 100vh) */
+  .order-panel-container {
+    position: relative;
+    top: auto;
+    height: auto;
+    max-height: none;
+    margin-top: 0.75rem;
+    padding: 1.1rem;
+    border-radius: 1rem;
+  }
+
+  /* When half/half is open on mobile, don’t force 100vh locks */
+  .right-sidebar.right-sidebar--halfhalf,
+  .order-panel-container.order-panel-container--halfhalf {
+    position: relative !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Navbar: stack into two rows */
+  .pp-topnav {
+    padding: 0.6rem 0.85rem;
+  }
+
+  .pp-topnav__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .pp-topnav__left,
+  .pp-topnav__right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pp-topnav__logoImg {
+    height: 2.6rem;
+  }
+
+  /* Search inputs: full width */
+  .pp-topnav__searchWrap {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  /* If the screen is really small, stack searches */
+  @media (max-width: 420px) {
+    .pp-topnav__searchWrap {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Quick-nav sticky offset: navbar gets taller on mobile */
+  .quick-nav-container {
+    top: 9.25rem;
+  }
+}
+
+/* =========================================================
+   MODALS AS MOBILE SHEETS (small screens)
+   ========================================================= */
+@media (max-width: 640px) {
+  /* Generic modal */
+  .modal-content {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+    padding: 1rem;
+  }
+
+  /* PP modal (addons / ingredients / profile) */
+  .pp-modal {
+    width: 100vw;
+    max-width: none;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    padding: 1rem;
+  }
+
+  .pp-modal-body {
+    max-height: none;
+    height: calc(100vh - 140px);
+  }
+}
+
+/* =========================================================
+   HALF & HALF: mobile fit tweaks
+   ========================================================= */
+@media (max-width: 640px) {
+  .pp-halfhalf-panel .pp-halfhalf-hero {
+    padding: 18px 14px 14px !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .pp-halfhalf-panel .pp-halfhalf-heroStage {
+    width: min(520px, 92%) !important;
+  }
+
+  .pp-halfhalf-panel .pp-halfhalf-sideBtn {
+    font-size: 0.82rem;
+    padding: 0.54rem 0.7rem;
+  }
+}
+
+/* Enabled hover feels premium */
+[data-theme="dark"] .pp-halfhalf-panel .pp-hh-actionBtn:not(:disabled):hover{
+  transform: translateY(-1px) scale(1.06);
+  border-color: rgba(190,242,100,0.60) !important;
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.14), 0 18px 44px rgba(0,0,0,0.60) !important;
+  filter: brightness(1.08) saturate(1.25);
+}
+
+/* ======================================================================
+   Meal Deal Half/Half overlay: hide scrollbars but keep scrolling
+   (scoped so the rest of the site is unchanged)
+   ====================================================================== */
+
 .pp-mealdeal-halfhalf{
-  overflow: hidden !important;
-  touch-action: none;
+  overflow: auto !important;
+  touch-action: pan-y;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pp-mealdeal-halfhalf::-webkit-scrollbar{
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .pp-mealdeal-halfhalf .pp-halfhalf-panel,
 .pp-mealdeal-halfhalf .pp-halfhalf-body{
-  overflow: hidden !important;
+  overflow: visible !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-panel::-webkit-scrollbar,
+.pp-mealdeal-halfhalf .pp-halfhalf-body::-webkit-scrollbar{
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-panel{
+  height: auto !important;
+  min-height: 100%;
+}
+
+/* =========================================================
+   Item detail panel as mobile modal
+   ========================================================= */
+
+.pp-itemdetail-modal__backdrop{
+  display: none;
+}
+
+@media (max-width: 1023.98px) {
+  .order-panel-container--detail{
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pp-itemdetail-modal{
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .pp-itemdetail-modal__backdrop{
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.6);
+  }
+
+  .pp-itemdetail-modal__panel{
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    background: var(--pp-surface, var(--panel));
+    border-radius: 0;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}
+
+/* =========================================================
+   Half & Half - Mobile full-screen modal behavior (final)
+   ========================================================= */
+@media (max-width: 1023.98px) {
+  html.pp-halfhalf-open,
+  body.pp-halfhalf-open {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /* allow the panel to scroll, not the page */
+  .pp-halfhalf-modal__panel {
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* force the builder body to scroll normally */
+  .pp-halfhalf-modal__panel .pp-halfhalf-body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* =========================================================
+   Half & Half editor overlay (ItemDetailPanel) on mobile
+   ========================================================= */
+.pp-hh-editorModal {
+  position: fixed;
+  inset: 0;
+  z-index: 1600;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.pp-hh-editorModal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.66);
+}
+
+.pp-hh-editorModal__panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--pp-surface, var(--panel));
+  padding: 1rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================================
+   Half & Half panel as mobile modal
+   ========================================================= */
+
+.pp-halfhalf-modal__backdrop{
+  display: none;
+}
+
+.pp-halfhalf-modal,
+.pp-halfhalf-modal__panel{
+  height: 100%;
+}
+
+@media (max-width: 1023.98px) {
+  .order-panel-container--halfhalf{
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pp-halfhalf-modal{
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .pp-halfhalf-modal__backdrop{
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.6);
+  }
+
+  .pp-halfhalf-modal__panel{
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    background: var(--pp-surface, var(--panel));
+    border-radius: 0;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pp-halfhalf-modal__panel .pp-halfhalf-panel{
+    height: auto !important;
+    min-height: 100%;
+  }
 }
