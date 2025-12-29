@@ -2729,42 +2729,6 @@ body[data-theme="light"] .pp-halfhalf-panel .pp-halfhalf-halfLine{
   isolation: isolate;
 }
 
-/* Meal Deal -> Half & Half overlay: hide scrollbars + tiny shrink */
-.pp-mealdeal-halfhalf{
-  /* tiny, clean shrink without re-laying out all the inline styles */
-  --pp-mealhh-scale: 0.965;
-}
-
-.pp-mealdeal-halfhalf .pp-halfhalf-panel{
-  transform: scale(var(--pp-mealhh-scale));
-  transform-origin: top center;
-}
-
-/* tighten switch + CTA a touch */
-.pp-mealdeal-halfhalf .pp-halfhalf-sideBtn{
-  padding: 0.52rem 0.72rem !important;
-  font-size: 0.82rem !important;
-}
-
-.pp-mealdeal-halfhalf .pp-halfhalf-cta{
-  margin-top: 6px !important;
-  padding-top: 6px !important;
-  padding-bottom: calc(6px + env(safe-area-inset-bottom)) !important;
-}
-
-.pp-mealdeal-halfhalf .pp-halfhalf-cta .place-order-button{
-  padding: 0.6rem 0.85rem !important;
-  font-size: 0.84rem !important;
-}
-
-/* Meal Deal Half & Half ONLY: slightly tighter hero (final override) */
-.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-hero{
-  padding: 9px 9px 7px !important;
-}
-.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
-  width: min(460px, 86%) !important;
-}
-
 /* =========================
    Close (X) buttons — TRUE center using 2 bars
    ========================= */
@@ -3436,11 +3400,13 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 }
 
 /* ======================================================================
-   Meal Deal Half/Half overlay: hide scrollbars but keep scrolling
+   Meal Deal Half & Half overlay: keep scrolling + compact tweaks
    (scoped so the rest of the site is unchanged)
    ====================================================================== */
 
 .pp-mealdeal-halfhalf{
+  /* tiny, clean shrink without re-laying out all the inline styles */
+  --pp-mealhh-scale: 0.965;
   overflow: auto !important;
   touch-action: pan-y;
   scrollbar-width: none !important;
@@ -3467,8 +3433,35 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 }
 
 .pp-mealdeal-halfhalf .pp-halfhalf-panel{
+  transform: scale(var(--pp-mealhh-scale));
+  transform-origin: top center;
   height: auto !important;
   min-height: 100%;
+}
+
+/* tighten switch + CTA a touch */
+.pp-mealdeal-halfhalf .pp-halfhalf-sideBtn{
+  padding: 0.52rem 0.72rem !important;
+  font-size: 0.82rem !important;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-cta{
+  margin-top: 6px !important;
+  padding-top: 6px !important;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom)) !important;
+}
+
+.pp-mealdeal-halfhalf .pp-halfhalf-cta .place-order-button{
+  padding: 0.6rem 0.85rem !important;
+  font-size: 0.84rem !important;
+}
+
+/* Meal Deal Half & Half ONLY: slightly tighter hero */
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-hero{
+  padding: 9px 9px 7px !important;
+}
+.pp-mealdeal-halfhalf .pp-halfhalf-panel .pp-halfhalf-heroStage{
+  width: min(460px, 86%) !important;
 }
 
 /* =========================================================
@@ -3517,6 +3510,65 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+}
+
+/* =========================================================
+   Item detail panel -- make it fill the right sidebar height
+   ========================================================= */
+
+/* Desktop: the right sidebar has a fixed-height container, so stretch the detail panel into it */
+@media (min-width: 1024px){
+  .order-panel-container--detail{
+    /* keeps your current look, but ensures children can use full height */
+    min-height: 0;
+  }
+
+  .pp-itemdetail-modal{
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pp-itemdetail-modal__panel{
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* your ItemDetailPanel root */
+  .pp-itemdetail-modal__panel .detail-panel{
+    height: 100% !important;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* let the hero take more vertical space */
+  .pp-itemdetail-modal__panel .detail-image-wrapper{
+    height: clamp(260px, 38vh, 520px) !important;
+    margin-bottom: 0.9rem !important;
+  }
+}
+
+/* Mobile: ensure the inner panel + detail panel fully fill the 100vh modal */
+@media (max-width: 1023.98px){
+  .pp-itemdetail-modal__panel{
+    min-height: 0;
+  }
+
+  .pp-itemdetail-modal__panel .detail-panel{
+    height: 100% !important;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* bigger hero on tall phones */
+  .pp-itemdetail-modal__panel .detail-image-wrapper{
+    height: clamp(240px, 40vh, 520px) !important;
   }
 }
 
@@ -3635,5 +3687,1455 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   .pp-halfhalf-modal__panel .pp-halfhalf-panel{
     height: auto !important;
     min-height: 100%;
+  }
+}
+
+/* =========================
+   Half & Half - Enterprise Details Panel
+   ========================= */
+
+.pp-halfhalf-panel .pp-hh-detailsCard{
+  margin: 0.9rem 0 1.1rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 22px;
+  border: 1px solid rgba(148,163,184,0.20);
+  background:
+    radial-gradient(900px 360px at 50% 0%, rgba(190,242,100,0.08), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.10));
+  box-shadow: var(--shadow-float);
+}
+
+.pp-halfhalf-panel[data-compact="1"] .pp-hh-detailsCard{
+  margin: 0.45rem 0 0.55rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 18px;
+}
+
+.pp-hh-detailsHeader{
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.pp-hh-detailsTitle{
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+  color: var(--brand-neon-green);
+}
+
+.pp-hh-detailsSub{
+  font-weight: 650;
+  color: var(--text-medium);
+  font-size: 0.9rem;
+}
+
+.pp-hh-sharedCard{
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-card);
+  padding: 0.85rem 0.95rem;
+  margin-bottom: 1rem;
+}
+
+/* 2 columns + divider */
+.pp-hh-halvesGrid{
+  display: grid;
+  grid-template-columns: 1fr 2px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.pp-hh-divider{
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg,
+    rgba(190,242,100,0.05),
+    rgba(190,242,100,0.75),
+    rgba(190,242,100,0.05)
+  );
+  box-shadow: 0 0 18px rgba(190,242,100,0.28);
+}
+
+/* Column */
+.pp-hh-halfCol{
+  min-width: 0;
+}
+
+.pp-hh-halfHeader{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.pp-hh-halfCol--right{
+  text-align: right;
+}
+
+.pp-hh-halfLabel{
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(190,242,100,0.85);
+}
+
+.pp-hh-activePill{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #0b1220;
+  background: rgba(190,242,100,0.90);
+  box-shadow: 0 10px 22px rgba(190,242,100,0.18);
+}
+
+.pp-hh-halfName{
+  font-weight: 950;
+  font-size: 1.02rem;
+  letter-spacing: 0.02em;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.pp-hh-halfDesc{
+  color: var(--text-medium);
+  font-size: 0.88rem;
+  line-height: 1.25;
+  opacity: 0.95;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.2em; /* keeps both sides aligned */
+}
+
+/* Actions: consistent sizing */
+.pp-hh-actions{
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.pp-halfhalf-panel .pp-hh-actionBtn{
+  width: 100%;
+  min-height: 44px;
+  border-radius: 16px;
+  padding: 0.72rem 0.9rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 950;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+/* Mobile: stack the halves (divider becomes horizontal) */
+@media (max-width: 640px){
+  .pp-hh-halvesGrid{
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .pp-hh-divider{
+    height: 2px;
+    width: 100%;
+  }
+  .pp-hh-halfCol--right{
+    text-align: left; /* feels cleaner on narrow screens */
+  }
+  .pp-hh-halfHeader{
+    justify-content: space-between;
+  }
+}
+
+/* =========================================================
+   Meal Deal - mobile modal + picker overlay
+   ========================================================= */
+
+.pp-mealdeal-modal__backdrop{ display:none; }
+.pp-mealdeal-modal,
+.pp-mealdeal-modal__panel{ height:100%; }
+
+@media (max-width: 1023.98px){
+  .order-panel-container--mealdeal{
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .pp-mealdeal-modal{
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .pp-mealdeal-modal__backdrop{
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.6);
+  }
+
+  .pp-mealdeal-modal__panel{
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--pp-surface, var(--panel));
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+}
+
+/* In-modal picker screen */
+.pp-mealpick{
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  background: var(--pp-surface, var(--panel));
+  display: flex;
+  flex-direction: column;
+}
+
+.pp-mealpick__head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
+  padding: .9rem .9rem .75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pp-mealpick__title{
+  font-weight: 950;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  font-size: .85rem;
+  color: var(--text-primary);
+}
+
+.pp-mealpick__sub{
+  font-size: .9rem;
+  color: var(--text-medium);
+  font-weight: 650;
+  margin-top: .15rem;
+}
+
+.pp-mealpick__body{
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: .85rem .9rem 1rem;
+}
+
+.pp-mealpick__grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .9rem;
+}
+
+@media (min-width: 640px){
+  .pp-mealpick__grid{
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.pp-mealpick__card{
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  display:flex;
+  flex-direction:column;
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+.pp-mealpick__card:hover{
+  transform: translateY(-1px);
+  border-color: rgba(190,242,100,0.35);
+}
+
+.pp-mealpick__img{
+  width:100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  display:block;
+  background: rgba(255,255,255,0.04);
+}
+
+.pp-mealpick__meta{
+  padding: .65rem .7rem .7rem;
+  display:grid;
+  gap:.25rem;
+}
+
+.pp-mealpick__name{
+  font-weight: 900;
+  font-size: .82rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.pp-mealpick__desc{
+  font-size: .78rem;
+  color: var(--text-medium);
+  line-height: 1.2;
+  display:-webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow:hidden;
+}
+
+/* =========================
+   Half & Half - friendly verification chips
+   ========================= */
+.pp-hh-verify{
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
+.pp-hh-verifyRow{
+  display: flex;
+  justify-content: flex-start;
+}
+
+.pp-hh-halfCol--right .pp-hh-verifyRow{
+  justify-content: flex-end; /* lines up with right-aligned column */
+}
+
+.pp-hh-chip{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+
+  font-weight: 850;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-primary);
+}
+
+.pp-hh-chip--addons{
+  border-color: rgba(190,242,100,0.30);
+  background: rgba(190,242,100,0.10);
+}
+
+.pp-hh-chip--removed{
+  border-color: rgba(251,113,133,0.30);
+  background: rgba(251,113,133,0.10);
+}
+
+/* Make action buttons feel friendlier with subtle colour cues */
+.pp-halfhalf-panel .pp-hh-actionBtn--neutral{
+  background: rgba(129,140,248,0.12) !important;   /* soft indigo */
+  border-color: rgba(129,140,248,0.38) !important;
+}
+
+.pp-halfhalf-panel .pp-hh-actionBtn--warn{
+  background: rgba(251,191,36,0.18) !important;    /* warm cheese */
+  border-color: rgba(251,191,36,0.48) !important;
+}
+
+.pp-halfhalf-panel .pp-hh-actionBtn--danger{
+  background: rgba(248,113,113,0.16) !important;   /* tomato */
+  border-color: rgba(248,113,113,0.52) !important;
+}
+
+/* =========================================================
+   Meal Deal - calm, spacious builder layout
+   ========================================================= */
+
+.pp-md-head{
+  margin-top: 0.25rem;
+  margin-bottom: 0.9rem;
+  padding: 1rem 1rem 0.95rem;
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-card);
+}
+
+.pp-md-headRow{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 1rem;
+}
+
+.pp-md-kicker{
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-size: .72rem;
+  color: rgba(190,242,100,0.85);
+  margin-bottom: .25rem;
+}
+
+.pp-md-title{
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 950;
+  letter-spacing: 0.01em;
+}
+
+.pp-md-sub{
+  margin-top: .35rem;
+  color: var(--text-medium);
+  font-weight: 650;
+  font-size: .92rem;
+  line-height: 1.25;
+}
+
+.pp-md-pricePill{
+  flex: 0 0 auto;
+  padding: .55rem .8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(190,242,100,0.35);
+  background: rgba(190,242,100,0.10);
+  font-weight: 950;
+  letter-spacing: .06em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.pp-md-progress{
+  margin-top: .85rem;
+  display:grid;
+  gap: .35rem;
+}
+
+.pp-md-progressTrack{
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(148,163,184,0.18);
+  overflow: hidden;
+}
+
+.pp-md-progressFill{
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(190,242,100,0.85);
+  box-shadow: 0 0 18px rgba(190,242,100,0.22);
+}
+
+.pp-md-progressMeta{
+  font-size: .85rem;
+  font-weight: 650;
+  color: var(--text-medium);
+}
+
+/* Step cards */
+.pp-md-steps{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .55rem;
+  margin-bottom: .9rem;
+}
+
+.pp-md-stepCard{
+  width: 100%;
+  text-align: left;
+  border-radius: 16px;
+  padding: .8rem .9rem;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.02);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+}
+
+.pp-md-stepCard.is-active{
+  border-color: rgba(190,242,100,0.55);
+  background: rgba(190,242,100,0.08);
+}
+
+.pp-md-stepTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: .75rem;
+}
+
+.pp-md-stepLabel{
+  display:flex;
+  align-items:center;
+  gap: .6rem;
+  min-width: 0;
+}
+
+.pp-md-stepNum{
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.20);
+  font-weight: 950;
+  font-size: .8rem;
+}
+
+.pp-md-stepText{
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-size: .78rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pp-md-stepStatus{
+  font-weight: 950;
+  opacity: .85;
+}
+
+.pp-md-stepValue{
+  margin-top: .45rem;
+  font-size: .92rem;
+  font-weight: 650;
+  color: var(--text-medium);
+}
+
+/* Active step focus card */
+.pp-md-active{
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-card);
+  padding: 1rem;
+  margin-bottom: .9rem;
+}
+
+.pp-md-activeHead{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: .9rem;
+  margin-bottom: .75rem;
+}
+
+.pp-md-activeKicker{
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-size: .72rem;
+  color: rgba(190,242,100,0.85);
+}
+
+.pp-md-activeTitle{
+  font-size: 1.05rem;
+  font-weight: 950;
+  margin-top: .2rem;
+}
+
+.pp-md-activePill{
+  padding: .4rem .7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.18);
+  font-weight: 900;
+  font-size: .78rem;
+  white-space: nowrap;
+}
+
+.pp-md-activePill.is-filled{
+  border-color: rgba(190,242,100,0.35);
+  background: rgba(190,242,100,0.10);
+}
+
+.pp-md-activeBody{
+  display:grid;
+  gap: .85rem;
+}
+
+.pp-md-activeSummary{
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(0,0,0,0.18);
+  padding: .75rem .85rem;
+}
+
+.pp-md-activeName{
+  font-weight: 950;
+  font-size: 1.0rem;
+}
+
+.pp-md-activeMeta{
+  margin-top: .25rem;
+  color: var(--text-medium);
+  font-weight: 650;
+  font-size: .9rem;
+}
+
+.pp-md-gfTag{
+  margin-left: .5rem;
+  padding: .15rem .45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(251,191,36,0.45);
+  background: rgba(251,191,36,0.12);
+  font-weight: 950;
+  font-size: .75rem;
+}
+
+.pp-md-activeEmpty{
+  color: var(--text-medium);
+  font-weight: 650;
+  font-size: .92rem;
+}
+
+.pp-md-filters{
+  display:grid;
+  gap: .6rem;
+}
+
+.pp-md-chipRow{
+  display:flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+.pp-md-chip{
+  width: auto;
+  padding: .35rem .65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.12);
+  font-weight: 850;
+  font-size: .82rem;
+  cursor: pointer;
+}
+
+.pp-md-chip.is-active{
+  border-color: rgba(190,242,100,0.55);
+  background: rgba(190,242,100,0.10);
+}
+
+.pp-md-search{
+  width: 100%;
+  padding: .7rem .85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.18);
+  color: var(--text-light);
+  box-sizing: border-box;
+}
+
+.pp-md-body{
+  flex: 1;
+  min-height: 0;
+  padding: .25rem;
+}
+
+.pp-md-bodyHint{
+  border-radius: 14px;
+  border: 1px dashed rgba(148,163,184,0.25);
+  background: rgba(255,255,255,0.02);
+  color: var(--text-medium);
+  padding: .85rem .9rem;
+  font-weight: 650;
+}
+
+/* =========================================================
+   Meal Deal - Calm Mobile Builder (anti-anxiety mode)
+   ========================================================= */
+.pp-mdm{
+  gap: 0.9rem;
+}
+
+.pp-mdm-head{
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-card);
+}
+
+.pp-mdm-kicker{
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-size: .72rem;
+  color: rgba(190,242,100,0.85);
+  margin-bottom: .25rem;
+}
+
+.pp-mdm-title{
+  font-size: 1.2rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.pp-mdm-metaRow{
+  display:flex;
+  gap:.5rem;
+  flex-wrap: wrap;
+  margin-top: .65rem;
+}
+
+.pp-mdm-pill{
+  padding: .35rem .6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.16);
+  font-weight: 850;
+  font-size: .82rem;
+  color: var(--text-primary);
+}
+
+.pp-mdm-pill--price{
+  border-color: rgba(190,242,100,0.35);
+  background: rgba(190,242,100,0.10);
+}
+
+.pp-mdm-progressTrack{
+  margin-top: .75rem;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.06);
+  overflow:hidden;
+}
+.pp-mdm-progressFill{
+  height:100%;
+  border-radius:999px;
+  background: rgba(190,242,100,0.85);
+}
+
+.pp-mdm-next{
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-card);
+}
+
+.pp-mdm-nextTop{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: .75rem;
+}
+
+.pp-mdm-nextLabel{
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-size: .72rem;
+  color: var(--text-medium);
+}
+
+.pp-mdm-nextSlot{
+  margin-top: .2rem;
+  font-weight: 950;
+  font-size: 1.05rem;
+}
+
+.pp-mdm-status{
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.14);
+  font-weight: 950;
+}
+.pp-mdm-status.is-filled{
+  border-color: rgba(190,242,100,0.35);
+  background: rgba(190,242,100,0.10);
+}
+
+.pp-mdm-nextValue{
+  margin-top: .55rem;
+  color: var(--text-medium);
+  font-weight: 650;
+}
+
+.pp-mdm-list{
+  padding: 0.85rem 0.85rem 0.65rem;
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.02);
+}
+
+.pp-mdm-listTitle{
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-size: .72rem;
+  color: var(--text-medium);
+  margin-bottom: .65rem;
+}
+
+.pp-mdm-row{
+  width:100%;
+  text-align:left;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:.75rem;
+  padding: .7rem .75rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(0,0,0,0.14);
+  margin-bottom: .55rem;
+}
+
+.pp-mdm-rowLeft{ min-width: 0; }
+.pp-mdm-rowSlot{
+  font-weight: 900;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  font-size: .72rem;
+  color: rgba(190,242,100,0.85);
+}
+.pp-mdm-rowValue{
+  margin-top: .2rem;
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: .92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 64vw;
+}
+
+.pp-mdm-rowRight{
+  color: var(--text-medium);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.pp-mdm-empty{
+  padding: .75rem;
+  border-radius: 14px;
+  border: 1px dashed rgba(148,163,184,0.22);
+  color: var(--text-medium);
+  background: rgba(255,255,255,0.02);
+}
+
+/* =========================================================
+   ItemDetailPanel - Meal Deal Quick Confirm styling
+   ========================================================= */
+
+.detail-panel--mealdeal_pick .detail-panel-body{
+  padding-top: 0.5rem;
+}
+
+.detail-panel--mealdeal_pick .detail-image-wrapper{
+  height: clamp(230px, 38vh, 360px) !important;
+  margin-bottom: 0.55rem !important;
+}
+
+.detail-panel--mealdeal_pick .ingredients-chip,
+.detail-panel--mealdeal_pick .ingredient-pill{
+  font-size: 0.75rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 999px;
+}
+
+/* Lock size pill */
+.pp-md-sizeLock{
+  margin-top: 0.65rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 14px;
+  border: 1px solid rgba(190,242,100,0.28);
+  background: rgba(190,242,100,0.10);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+/* Make the Add-ons / Edit Ingredients buttons feel lighter */
+.detail-panel--mealdeal_pick .simple-button,
+.detail-panel--mealdeal_pick .pp-btn{
+  min-height: 42px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+}
+
+/* =========================================================
+   ItemDetailPanel - Meal Deal Quick Confirm (less cramped)
+   ========================================================= */
+
+.detail-panel--mealdeal_pick .panel-title{
+  margin-top: 0.55rem !important;
+  margin-bottom: 0.25rem !important;
+  font-size: 1.35rem;
+}
+
+.detail-panel--mealdeal_pick p{
+  margin-top: 0.35rem;
+  margin-bottom: 0.55rem;
+  line-height: 1.25;
+}
+
+/* Hide the Add-ons text section spacing a bit */
+.detail-panel--mealdeal_pick .muted-note,
+.detail-panel--mealdeal_pick .h4{
+  display: none;
+}
+
+/* Compact tool row above Back/Confirm */
+.pp-mdp-footerTools{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+.pp-mdp-footerTools--3{
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.pp-mdp-toolBtn{
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.30);
+  background: rgba(255,255,255,0.06);
+  box-shadow: var(--shadow-card);
+  font-weight: 900;
+  letter-spacing: 0.10em !important;
+  text-transform: uppercase !important;
+  color: var(--text-primary) !important;
+  font-size: 0.78rem !important;
+  line-height: 1 !important;
+}
+
+.pp-mdp-toolBtn:hover{
+  border-color: rgba(190,242,100,0.40);
+  background: rgba(190,242,100,0.10);
+}
+
+.pp-mdp-toolBtn--gf{
+  border-color: rgba(251,191,36,0.35);
+  background: rgba(251,191,36,0.10);
+}
+
+.pp-mdp-toolBtn--gf.is-on{
+  border-color: rgba(251,191,36,0.55);
+  background: rgba(251,191,36,0.18);
+  box-shadow: 0 0 0 3px rgba(251,191,36,0.10);
+}
+
+.pp-mdp-toolBtn.is-disabled,
+.pp-mdp-toolBtn:disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+}
+
+.pp-mdp-toolIcon{
+  font-size: 1rem !important;
+  line-height: 1 !important;
+}
+
+.pp-mdp-toolText{
+  font-weight: 900 !important;
+  letter-spacing: 0.10em !important;
+  text-transform: uppercase !important;
+}
+
+/* Meal deal pick: verification strip */
+.pp-mdp-summary{
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.pp-mdp-chip{
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(255,255,255,0.05);
+  box-shadow: var(--shadow-card);
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.pp-mdp-chip--addons{
+  border-color: rgba(190,242,100,0.32);
+  background: rgba(190,242,100,0.10);
+}
+
+.pp-mdp-chip--removed{
+  border-color: rgba(251,113,133,0.30);
+  background: rgba(251,113,133,0.10);
+}
+
+/* =========================================================
+   Item Detail Panel - Desktop layout (use the space)
+   ========================================================= */
+
+.detail-panel .pp-idp-top{
+  display:flex;
+  flex-direction:column;
+  gap: 0.9rem;
+}
+
+/* Desktop: 2-column header (image left, details right) */
+@media (min-width: 1024px){
+  .detail-panel .pp-idp-top{
+    flex-direction: row;
+    align-items: stretch;
+    gap: 1.15rem;
+  }
+
+  .detail-panel .pp-idp-hero{
+    flex: 0 0 46%;
+    margin-bottom: 0 !important;
+    height: auto !important;        /* overrides inline */
+    min-height: 300px;
+    border-radius: 18px !important;
+  }
+
+  .detail-panel .pp-idp-meta{
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-top: 0.2rem;
+  }
+
+  .detail-panel .pp-idp-title{
+    margin-top: 0 !important;
+    font-size: 1.55rem;
+    line-height: 1.05;
+  }
+
+  .detail-panel .pp-idp-desc{
+    margin-top: 0.35rem;
+    margin-bottom: 0;
+    font-size: 0.95rem;
+    color: var(--text-medium);
+    max-width: 62ch;
+  }
+
+  /* Make the control area feel "desktop", not cramped */
+  .detail-panel .detail-panel-body{
+    padding-top: 0.65rem;
+    padding-right: 0.25rem;
+  }
+
+  .detail-panel .pp-size-row{
+    gap: 0.65rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .detail-panel .pp-size-chip{
+    padding: 0.55rem 0.95rem;
+    border-radius: 0.9rem;
+  }
+
+  .detail-panel .pp-size-label{
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+
+  .detail-panel .pp-size-price{
+    font-size: 0.82rem;
+  }
+
+  .detail-panel .size-quantity-row{
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+  }
+
+  /* Footer tool buttons: bigger, "desktop" taps */
+  .detail-panel .pp-mdp-footerTools{
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .detail-panel .pp-mdp-toolBtn{
+    padding: 0.9rem 1rem;
+    border-radius: 18px;
+  }
+  .detail-panel .pp-mdp-toolText{
+    font-size: 0.92rem;
+    letter-spacing: 0.06em;
+  }
+}
+
+/* =========================================================
+   ItemDetailPanel - Enterprise + friendly (scoped)
+   Paste at VERY BOTTOM so it wins.
+   ========================================================= */
+
+.detail-panel{
+  /* local tokens */
+  --idp-radius: 22px;
+  --idp-radius-sm: 16px;
+  --idp-pad: 18px;
+  --idp-gap: 12px;
+
+  --idp-surface: color-mix(in srgb, var(--pp-surface, var(--panel)) 92%, rgba(255,255,255,0.06) 8%);
+  --idp-surface-2: color-mix(in srgb, var(--pp-surface-2, var(--panel)) 92%, rgba(255,255,255,0.06) 8%);
+  --idp-border: color-mix(in srgb, var(--border-color) 75%, rgba(190,242,100,0.25) 25%);
+  --idp-line: var(--line, var(--border-color));
+}
+
+/* Panel shell */
+.detail-panel{
+  border-radius: var(--idp-radius);
+  border: 1px solid var(--idp-border);
+  background:
+    radial-gradient(720px 320px at 18% 0%, rgba(190,242,100,0.10), transparent 60%),
+    radial-gradient(520px 280px at 82% 0%, rgba(251,113,133,0.08), transparent 58%),
+    linear-gradient(180deg, var(--idp-surface) 0%, var(--idp-surface-2) 120%);
+  box-shadow: var(--shadow-card);
+}
+
+/* Close button already styled globally; just ensure it doesn't clash */
+.detail-panel > button[title="Close"]{
+  border-color: rgba(148,163,184,0.26);
+  background: rgba(15,23,42,0.28);
+}
+
+/* Top block spacing */
+.detail-panel .pp-idp-top{
+  gap: 1.05rem;
+}
+
+/* Hero image: crisp, framed, not "mobile sheet" */
+.detail-panel .pp-idp-hero{
+  border-radius: var(--idp-radius);
+  border: 1px solid rgba(148,163,184,0.18);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.22);
+  overflow: hidden;
+}
+
+/* Title/desc: remove shouty global uppercase just for this panel */
+.detail-panel .pp-idp-title{
+  margin: 0 !important;
+  font-size: 1.45rem;
+  line-height: 1.12;
+  letter-spacing: 0.01em !important;
+  text-transform: none !important;
+  font-weight: 950;
+  color: var(--text-primary);
+}
+
+.detail-panel .pp-idp-desc{
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--text-medium);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  max-width: 64ch;
+}
+
+/* Ingredients summary chip panel: calmer + readable */
+.detail-panel .pp-ingredients-summary{
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.03);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.14);
+}
+[data-theme="light"] .detail-panel .pp-ingredients-summary{
+  background: rgba(15,23,42,0.03);
+  box-shadow: 0 10px 22px rgba(2,6,23,0.08);
+}
+
+/* Body padding / scroll feel */
+.detail-panel .detail-panel-body{
+  padding-top: 0.35rem;
+  padding-right: 0.35rem;
+  scrollbar-gutter: stable;
+}
+
+/* Size row: "enterprise segmented cards" */
+.detail-panel .pp-size-row{
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.detail-panel .pp-size-chip{
+  border-radius: var(--idp-radius-sm);
+  padding: 0.6rem 0.85rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(148,163,184,0.18);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.12);
+  min-height: 44px;
+}
+
+[data-theme="light"] .detail-panel .pp-size-chip{
+  background: rgba(15,23,42,0.03);
+  box-shadow: 0 10px 20px rgba(2,6,23,0.08);
+}
+
+.detail-panel .pp-size-chip:hover{
+  border-color: rgba(190,242,100,0.35);
+}
+
+.detail-panel .pp-size-chip--active{
+  border-color: rgba(190,242,100,0.55) !important;
+  background: rgba(190,242,100,0.08) !important;
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.12), 0 16px 34px rgba(0,0,0,0.16);
+}
+
+.detail-panel .pp-size-label{
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+.detail-panel .pp-size-price{
+  font-size: 0.85rem;
+  font-weight: 850;
+  color: var(--text-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Price/qty row: look like a professional "summary card" */
+.detail-panel .size-quantity-row{
+  border-radius: var(--idp-radius-sm);
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(0,0,0,0.14);
+  padding: 0.9rem 0.95rem;
+  margin-top: 0.65rem;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.16);
+}
+
+[data-theme="light"] .detail-panel .size-quantity-row{
+  background: rgba(15,23,42,0.03);
+  box-shadow: 0 12px 26px rgba(2,6,23,0.08);
+}
+
+.detail-panel .quantity-controls span{
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Add-ons section heading: clearer */
+.detail-panel .h4{
+  margin-top: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 950;
+}
+
+/* Bottom bar: cleaner separation + "enterprise toolbar" */
+.detail-panel .cart-total-section{
+  border-top: 1px solid rgba(148,163,184,0.18) !important;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0), rgba(15,23,42,0.22) 30%, rgba(15,23,42,0.35));
+  padding-top: 0.85rem !important;
+  padding-inline: 0.25rem;
+}
+
+[data-theme="light"] .detail-panel .cart-total-section{
+  background: linear-gradient(180deg, rgba(0,0,0,0), rgba(15,23,42,0.04) 30%, rgba(15,23,42,0.06));
+}
+
+/* Footer tool buttons (Add-ons / Ingredients / GF): consistent + friendly */
+.detail-panel .pp-mdp-footerTools{
+  gap: 0.7rem;
+  margin-bottom: 0.85rem;
+}
+
+.detail-panel .pp-mdp-toolBtn{
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.20);
+  background: rgba(255,255,255,0.04);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.14);
+  padding: 0.85rem 0.95rem;
+}
+
+[data-theme="light"] .detail-panel .pp-mdp-toolBtn{
+  background: rgba(15,23,42,0.03);
+  box-shadow: 0 10px 22px rgba(2,6,23,0.08);
+}
+
+.detail-panel .pp-mdp-toolBtn:hover{
+  border-color: rgba(190,242,100,0.30);
+  transform: translateY(-1px);
+}
+
+.detail-panel .pp-mdp-toolText{
+  font-size: 0.88rem;
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+/* GF button: warm + clear state */
+.detail-panel .pp-mdp-toolBtn--gf.is-on{
+  border-color: rgba(251,191,36,0.45);
+  background: rgba(251,191,36,0.10);
+}
+
+/* Primary CTA: more "product" than "arcade" */
+.detail-panel .place-order-button{
+  border-radius: 16px !important;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  font-weight: 950;
+  box-shadow: 0 18px 46px rgba(34,197,94,0.30);
+}
+
+/* Secondary button (Cancel/Back): less shouty */
+.detail-panel .simple-button{
+  border-radius: 16px !important;
+  letter-spacing: 0.08em;
+  font-weight: 850;
+}
+
+/* Mobile: keep it roomy */
+@media (max-width: 640px){
+  .detail-panel{
+    --idp-pad: 16px;
+  }
+  .detail-panel .pp-idp-title{
+    font-size: 1.25rem;
+  }
+  .detail-panel .pp-idp-desc{
+    font-size: 0.92rem;
+  }
+}
+
+/* =========================================================
+   ItemDetailPanel -- tidy spacing + consistent padding
+   ========================================================= */
+
+.pp-itemdetail-modal__panel{
+  padding: 0.85rem;
+}
+
+@media (min-width: 1024px){
+  .pp-itemdetail-modal__panel{
+    padding: 0.95rem;
+  }
+}
+
+/* keep inner spacing consistent without looking "mobile cramped" */
+.pp-itemdetail-modal__panel .detail-panel .detail-image-wrapper{
+  margin-bottom: 0.65rem !important;
+}
+
+/* scroll body: less random whitespace, nicer rhythm */
+.pp-itemdetail-modal__panel .detail-panel .detail-panel-body{
+  padding-right: 0.15rem !important;
+  padding-top: 0.35rem !important;
+}
+
+/* size chips + price row: a bit tighter */
+.pp-itemdetail-modal__panel .detail-panel .pp-size-row{
+  margin-bottom: 0.55rem !important;
+  gap: 0.55rem !important;
+}
+
+.pp-itemdetail-modal__panel .detail-panel .size-quantity-row{
+  margin-top: 0.55rem !important;
+  padding: 0.8rem 0.9rem !important;
+}
+
+/* Add-ons section: reduce the "big dead zone" feel */
+.pp-itemdetail-modal__panel .detail-panel .h4{
+  margin-top: 0.85rem !important;
+  margin-bottom: 0.35rem !important;
+}
+
+.pp-itemdetail-modal__panel .detail-panel .muted-note{
+  margin: 0.15rem 0 0.55rem !important;
+}
+
+/* footer: tighter + aligned */
+.pp-itemdetail-modal__panel .detail-panel .cart-total-section{
+  padding-top: 0.6rem !important;
+  padding-bottom: calc(0.35rem + env(safe-area-inset-bottom)) !important;
+}
+
+.pp-itemdetail-modal__panel .detail-panel .pp-mdp-footerTools{
+  margin-bottom: 0.55rem !important;
+  gap: 0.6rem !important;
+}
+
+.pp-itemdetail-modal__panel .detail-panel .pp-mdp-toolBtn{
+  padding: 0.78rem 0.9rem !important;
+}
+
+/* =========================================================
+   ItemDetailPanel -- proper inner gutters (don't shrink panel)
+   ========================================================= */
+
+.pp-itemdetail-modal__panel .detail-panel{
+  /* keep panel size the same, just give content breathing room */
+  --idp-gutter: 18px;
+}
+
+/* Apply gutters to the main content areas */
+.pp-itemdetail-modal__panel .detail-panel .pp-idp-top,
+.pp-itemdetail-modal__panel .detail-panel .detail-panel-body,
+.pp-itemdetail-modal__panel .detail-panel .cart-total-section{
+  padding-left: var(--idp-gutter) !important;
+  padding-right: var(--idp-gutter) !important;
+}
+
+/* If your hero image wrapper is inside pp-idp-top, this keeps it aligned */
+.pp-itemdetail-modal__panel .detail-panel .detail-image-wrapper{
+  /* don't let the image touch the edge */
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Footer area: keep the toolbar + CTA aligned with the same gutters */
+.pp-itemdetail-modal__panel .detail-panel .pp-mdp-footerTools{
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Optional: slightly larger gutters on desktop */
+@media (min-width: 1024px){
+  .pp-itemdetail-modal__panel .detail-panel{
+    --idp-gutter: 22px;
+  }
+}
+
+/* Restore outer panel padding to avoid shrinking the panel too much */
+.pp-itemdetail-modal__panel{
+  padding: 1rem;
+}
+
+@media (min-width: 1024px){
+  .pp-itemdetail-modal__panel{
+    padding: 1.05rem;
   }
 }

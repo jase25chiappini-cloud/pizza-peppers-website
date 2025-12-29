@@ -50,7 +50,25 @@ import {
 } from "./utils/authDebug";
 import { OVERRIDE_POSTCODES } from "./config/deliveryOverrides";
 import { quoteForPostcode as _quoteForPostcode } from "./config/delivery";
-
+import {
+  getApplicableOptionGroups,
+  productSupportsIngredientEdit,
+  productSupportsExtras,
+  __categoryGuards,
+  normalizeSizeRef as normalizeProductSizeRef,
+  isGfAllowedForSize,
+  enforceGfSize,
+  groupIngredientsForProduct,
+} from "./utils/options";
+import {
+  normalizeAddonSizeRef,
+  resolveAddonPriceCents,
+  calcExtrasCentsForSize,
+} from "./utils/addonPricing";
+import {
+  normalizeSizeRef as normalizeMenuSizeRef,
+  defaultSize,
+} from "./utils/size";
 const HALF_HALF_FORCED_ITEM = {
   id: "half_half",
   name: "The Half & Half Pizza",
@@ -529,10 +547,55 @@ const HalfAndHalfSelector = ({
     const basePrice = Math.max(totalA, totalB);
 
     const isLarge = (normalizedSizeRef || "").toString().toUpperCase() === "LARGE";
-    const gfUpchargeCents = isHalfGlutenFree && isLarge ? 400 : 0;
+    const aGf = halfA ? getGfSurchargeCentsForProduct(halfA, menuData) : 0;
+    const bGf = halfB ? getGfSurchargeCentsForProduct(halfB, menuData) : 0;
+    const gfUpchargeCents = isHalfGlutenFree && isLarge ? Math.max(aGf, bGf) : 0;
 
     return basePrice + gfUpchargeCents;
   }, [halfA, halfB, selectedSizeKey, menuData, getCurrentSizeToken, isHalfGlutenFree]);
+
+  const summarizeHalf = React.useCallback(
+    (half) => {
+      if (!half) {
+        return {
+          addOnNames: [],
+          removedNames: [],
+          addOnsCents: 0,
+        };
+      }
+
+      const sizeToken = getCurrentSizeToken() || selectedSizeKey || "Default";
+      const sizeRefNorm = normalizeAddonSizeRef(sizeToken);
+
+      const addOnNames = Array.isArray(half.add_ons)
+        ? half.add_ons
+            .map((o) => o?.name || o?.ref || "")
+            .filter(Boolean)
+        : [];
+
+      const removedNames = Array.isArray(half.removedIngredients)
+        ? half.removedIngredients.filter(Boolean)
+        : [];
+
+      const addOnsCents =
+        Array.isArray(half.add_ons) && half.add_ons.length
+          ? (calcExtrasCentsForSize(half.add_ons, sizeRefNorm, menuData) || 0)
+          : 0;
+
+      return { addOnNames, removedNames, addOnsCents };
+    },
+    [getCurrentSizeToken, selectedSizeKey, menuData],
+  );
+
+  const fmtList = (arr, max = 4) => {
+    const list = Array.isArray(arr) ? arr.filter(Boolean) : [];
+    if (!list.length) return "";
+    if (list.length <= max) return list.join(", ");
+    return `${list.slice(0, max).join(", ")} +${list.length - max} more`;
+  };
+
+  const sumA = React.useMemo(() => summarizeHalf(halfA), [summarizeHalf, halfA]);
+  const sumB = React.useMemo(() => summarizeHalf(halfB), [summarizeHalf, halfB]);
 
   const handleAdd = () => {
     if (!halfA || !halfB) return;
@@ -1171,38 +1234,17 @@ const HalfAndHalfSelector = ({
             {hasHalfB ? <span className="pp-halfhalf-sideCheck">*</span> : null}
           </button>
         </div>
-        <div
-          style={{
-            margin: compactUi ? "0.40rem 0 0.50rem" : "0.9rem 0 1.1rem",
-            padding: compactUi ? "0.74rem 0.90rem" : "1.35rem 1.6rem",
-            borderRadius: "22px",
-            background: "var(--pp-surface)",
-            boxShadow: "var(--shadow-float)",
-            display: "flex",
-            flexDirection: "column",
-            gap: compactUi ? "0.58rem" : "1.15rem",
-            minHeight: compactUi ? "104px" : "150px",
-          }}
-        >
-        <div
-          style={{
-            fontSize: compactUi ? "1.02rem" : "1.2rem",
-            fontWeight: 820,
-            color: "var(--brand-neon-green, #bef264)",
-            letterSpacing: "0.07em",
-          }}
-        >
-            The Half &amp; Half Pizza
+        <div className="pp-hh-detailsCard">
+          <div className="pp-hh-detailsHeader">
+            <div className="pp-hh-detailsTitle">Half &amp; Half</div>
+            <div className="pp-hh-detailsSub">
+              {halfA && halfB
+                ? `${halfA.name} / ${halfB.name}`
+                : "Select both halves to continue"}
+            </div>
           </div>
-          <div
-            style={{
-              borderRadius: "18px",
-              border: "1px solid rgba(148,163,184,0.3)",
-              padding: "0.75rem 1rem",
-              background: "var(--pp-surface-2)",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
+
+          <div className="pp-hh-sharedCard">
             <div
               style={{
                 fontSize: "0.74rem",
@@ -1342,75 +1384,48 @@ const HalfAndHalfSelector = ({
               </div>
             </div>
           </div>
-          <div
-          style={{
-            display: "flex",
-            alignItems: "stretch",
-            gap: compactUi ? "1.25rem" : "2.05rem",
-            minHeight: compactUi ? "120px" : "150px",
-          }}
-        >
-          {/* Pizza 1 column */}
-          <div
-            style={{
-              flex: 1,
-              fontSize: compactUi ? "0.85rem" : "0.9rem",
-              color: "var(--text-primary)",
-            }}
+
+          <div className="pp-hh-halvesGrid">
+            <section
+              className={`pp-hh-halfCol ${halfSelectionSide === "A" ? "is-active" : ""}`}
             >
-              <div
-                style={{
-                  fontSize: "0.8rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.135em",
-                  color: "var(--brand-neon-green, #bef264)",
-                  marginBottom: "0.6rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span>Pizza 1 Details</span>
-                {halfSelectionSide === "A" && (
-                  <span
-                    style={{
-                      fontSize: "0.74rem",
-                      letterSpacing: "0.175em",
-                      color: "#fecdd3",
-                    }}
-                  >
-                    Active
-                  </span>
+              <div className="pp-hh-halfHeader">
+                <div className="pp-hh-halfLabel">Pizza 1</div>
+                {halfSelectionSide === "A" ? (
+                  <span className="pp-hh-activePill">Active</span>
+                ) : (
+                  <span />
                 )}
               </div>
-              <div
-                style={{
-                  fontWeight: 740,
-                  marginBottom: "0.32rem",
-                  fontSize: "0.95rem",
-                }}
-              >
+
+              <div className="pp-hh-halfName">
                 {halfA ? halfA.name : "No pizza selected"}
               </div>
-              <div style={{ opacity: 0.84, fontSize: "0.88rem" }}>
-                {halfA?.description ||
-                  "Tap the left side of the pizza above, then choose a base."}
+              <div className="pp-hh-halfDesc">
+                {halfA?.description || "Pick Pizza 1 from the Half & Half menu."}
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.4rem",
-                  flexWrap: "wrap",
-                  marginTop: "0.9rem",
-                }}
-              >
+              <div className="pp-hh-verify">
+                <div className="pp-hh-verifyRow">
+                  <span className="pp-hh-chip pp-hh-chip--addons">
+                    ✅ Add-ons: {sumA.addOnNames.length ? fmtList(sumA.addOnNames) : "None"}
+                    {sumA.addOnsCents > 0 ? ` (+${currency(sumA.addOnsCents)})` : ""}
+                  </span>
+                </div>
+                <div className="pp-hh-verifyRow">
+                  <span className="pp-hh-chip pp-hh-chip--removed">
+                    🚫 Removed: {sumA.removedNames.length ? fmtList(sumA.removedNames) : "None"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pp-hh-actions">
                 <button
                   type="button"
                   onClick={() => openHalfEditorForSide("A", "ingredients")}
                   disabled={!hasHalfA}
                   className="pp-hh-actionBtn pp-hh-actionBtn--neutral"
                 >
-                  Edit ingredients
+                  🧅 Edit ingredients
                 </button>
                 <button
                   type="button"
@@ -1418,7 +1433,7 @@ const HalfAndHalfSelector = ({
                   disabled={!hasHalfA}
                   className="pp-hh-actionBtn pp-hh-actionBtn--warn"
                 >
-                  Add-ons
+                  🧀 Add-ons
                 </button>
                 <button
                   type="button"
@@ -1437,7 +1452,7 @@ const HalfAndHalfSelector = ({
                   disabled={!hasHalfA}
                   className="pp-hh-actionBtn pp-hh-actionBtn--neutral"
                 >
-                  Change pizza
+                  🔁 Change pizza
                 </button>
                 <button
                   type="button"
@@ -1445,87 +1460,55 @@ const HalfAndHalfSelector = ({
                   disabled={!hasHalfA}
                   className="pp-hh-actionBtn pp-hh-actionBtn--danger"
                 >
-                  Reset half
+                  🗑️ Reset half
                 </button>
               </div>
-            </div>
+            </section>
 
-            {/* Neon vertical divider */}
-            <div
-              style={{
-                width: "2px",
-                borderRadius: "999px",
-                background: "var(--brand-neon-green, #bef264)",
-                boxShadow: "var(--glow-neon)",
-                alignSelf: "stretch",
-              }}
-            />
+            <div className="pp-hh-divider" aria-hidden="true" />
 
-            {/* Pizza 2 column */}
-            <div
-              style={{
-                flex: 1,
-                fontSize: "0.9rem",
-                color: "var(--text-primary)",
-                textAlign: "right",
-              }}
+            <section
+              className={`pp-hh-halfCol pp-hh-halfCol--right ${
+                halfSelectionSide === "B" ? "is-active" : ""
+              }`}
             >
-              <div
-                style={{
-                  fontSize: "0.8rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.135em",
-                  color: "var(--brand-neon-green, #bef264)",
-                  marginBottom: "0.6rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                {halfSelectionSide === "B" && (
-                  <span
-                    style={{
-                      fontSize: "0.74rem",
-                      letterSpacing: "0.175em",
-                      color: "#fecdd3",
-                    }}
-                  >
-                    Active
-                  </span>
+              <div className="pp-hh-halfHeader">
+                {halfSelectionSide === "B" ? (
+                  <span className="pp-hh-activePill">Active</span>
+                ) : (
+                  <span />
                 )}
-                <span style={{ flex: 1, textAlign: "right" }}>
-                  Pizza 2 Details
-                </span>
+                <div className="pp-hh-halfLabel">Pizza 2</div>
               </div>
-              <div
-                style={{
-                  fontWeight: 740,
-                  marginBottom: "0.32rem",
-                  fontSize: "0.95rem",
-                }}
-              >
+
+              <div className="pp-hh-halfName">
                 {halfB ? halfB.name : "No pizza selected"}
               </div>
-              <div style={{ opacity: 0.84, fontSize: "0.88rem" }}>
-                {halfB?.description ||
-                  "Tap the right side of the pizza above, then choose a base."}
+              <div className="pp-hh-halfDesc">
+                {halfB?.description || "Pick Pizza 2 from the Half & Half menu."}
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.4rem",
-                  flexWrap: "wrap",
-                  justifyContent: "flex-end",
-                  marginTop: "0.9rem",
-                }}
-              >
+              <div className="pp-hh-verify">
+                <div className="pp-hh-verifyRow">
+                  <span className="pp-hh-chip pp-hh-chip--addons">
+                    ✅ Add-ons: {sumB.addOnNames.length ? fmtList(sumB.addOnNames) : "None"}
+                    {sumB.addOnsCents > 0 ? ` (+${currency(sumB.addOnsCents)})` : ""}
+                  </span>
+                </div>
+                <div className="pp-hh-verifyRow">
+                  <span className="pp-hh-chip pp-hh-chip--removed">
+                    🚫 Removed: {sumB.removedNames.length ? fmtList(sumB.removedNames) : "None"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="pp-hh-actions">
                 <button
                   type="button"
                   onClick={() => openHalfEditorForSide("B", "ingredients")}
                   disabled={!hasHalfB}
                   className="pp-hh-actionBtn pp-hh-actionBtn--neutral"
                 >
-                  Edit ingredients
+                  🧅 Edit ingredients
                 </button>
                 <button
                   type="button"
@@ -1533,7 +1516,7 @@ const HalfAndHalfSelector = ({
                   disabled={!hasHalfB}
                   className="pp-hh-actionBtn pp-hh-actionBtn--warn"
                 >
-                  Add-ons
+                  🧀 Add-ons
                 </button>
                 <button
                   type="button"
@@ -1552,7 +1535,7 @@ const HalfAndHalfSelector = ({
                   disabled={!hasHalfB}
                   className="pp-hh-actionBtn pp-hh-actionBtn--neutral"
                 >
-                  Change pizza
+                  🔁 Change pizza
                 </button>
                 <button
                   type="button"
@@ -1560,10 +1543,10 @@ const HalfAndHalfSelector = ({
                   disabled={!hasHalfB}
                   className="pp-hh-actionBtn pp-hh-actionBtn--danger"
                 >
-                  Reset half
+                  🗑️ Reset half
                 </button>
               </div>
-            </div>
+            </section>
           </div>
         </div>
         
@@ -1695,7 +1678,7 @@ const HalfAndHalfSelector = ({
                 }}
                 primaryActionLabel="Confirm half"
                 initialModal={halfEditorInitialModal}
-                suppressBasePanel={false}
+                suppressBasePanel={halfEditorSuppressPanel}
                 onModalsSettled={handleQuickModalSettled}
                 forcedPriceSizeRef={getCurrentSizeToken()}
                 compactHalfMode
@@ -1870,7 +1853,15 @@ function _computeBundleExtrasCents(bundleItems, menuData) {
     cents += extraCents;
 
     const isLarge = normalizeProductSizeRef(sizeRef) === "LARGE";
-    if (bi.isGlutenFree && isLarge) cents += 400;
+    if (bi.isGlutenFree && isLarge) {
+      let gfCents = getGfSurchargeCentsForProduct(bi, menuData);
+      if (bi.isHalfHalf && (bi.halfA || bi.halfB)) {
+        const a = bi.halfA ? getGfSurchargeCentsForProduct(bi.halfA, menuData) : 0;
+        const b = bi.halfB ? getGfSurchargeCentsForProduct(bi.halfB, menuData) : 0;
+        gfCents = Math.max(a, b);
+      }
+      cents += gfCents;
+    }
   });
   return cents;
 }
@@ -1998,14 +1989,23 @@ const MealDealBuilderPanel = ({
   onCancel,
   registerExternalMealItemApply,
   onMenuFilterChange,
+  isMobile: isMobileProp = false,
+  onCommitAndReview = null,
 }) => {
+  const isMobile =
+    isMobileProp ||
+    (typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(max-width: 1023.98px)").matches);
   const slots = Array.isArray(item?.bundle?.slots) ? item.bundle.slots : [];
   const steps = React.useMemo(() => _expandBundleSlots(slots), [slots]);
 
   const [activeStep, setActiveStep] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [editorItem, setEditorItem] = React.useState(null);
+  const [editorForcedSizeRef, setEditorForcedSizeRef] = React.useState(null);
   const [halfHalfOpen, setHalfHalfOpen] = React.useState(false);
+  const [pickerOpen, setPickerOpen] = React.useState(false);
   const halfHalfApplyPizzaRef = React.useRef(null);
   const [activeCategoryRef, setActiveCategoryRef] = React.useState(null);
   const listRef = React.useRef(null);
@@ -2033,16 +2033,44 @@ const MealDealBuilderPanel = ({
     setActiveStep(0);
     setSearch("");
     setEditorItem(null);
+    setEditorForcedSizeRef(null);
     setActiveCategoryRef(null);
+    setPickerOpen(false);
   }, [item?.id, steps.length]);
 
   const allProducts = React.useMemo(() => _flattenMenuProducts(menuData), [menuData]);
 
   const step = steps[activeStep] || null;
+  const inferMealPizzaSizeFromDeal = React.useCallback(() => {
+    const text = [
+      item?.description || "",
+      ...(Array.isArray(item?.ingredients) ? item.ingredients : []),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    if (text.includes("party")) return "PARTY";
+    if (text.includes("family")) return "FAMILY";
+    if (text.includes("large")) return "LARGE";
+    if (text.includes("regular")) return "REGULAR";
+    return null;
+  }, [item?.description, item?.ingredients]);
+
+  const getForcedSizeForStep = React.useCallback((s) => {
+    const allowed = _slotAllowedSizes(s?.slot);
+    if (allowed.length) return normalizeMenuSizeRef(allowed[0]);
+
+    if (String(s?.slotKey || "").toLowerCase() === "pizza") {
+      const inferred = inferMealPizzaSizeFromDeal();
+      if (inferred) return inferred;
+    }
+
+    return null;
+  }, [inferMealPizzaSizeFromDeal]);
 
   const stepMenuData = React.useMemo(
-    () => _filterMenuDataForMealStep(menuData, step, { search }),
-    [menuData, step, search],
+    () => _filterMenuDataForMealStep(menuData, step, { search, activeCategoryRef }),
+    [menuData, step, search, activeCategoryRef],
   );
 
   const halfHalfMenuRows = React.useMemo(() => {
@@ -2103,6 +2131,8 @@ const MealDealBuilderPanel = ({
     (product) => {
       if (!product || !step) return;
       const prepared = _restrictItemToSlotSizes(prepareItemForPanel(product), step.slot);
+      const forced = getForcedSizeForStep(step);
+      setEditorForcedSizeRef(forced);
 
       const existing = bundleItems[activeStep];
       const forcedSizes = _slotAllowedSizes(step.slot);
@@ -2122,7 +2152,27 @@ const MealDealBuilderPanel = ({
         isGlutenFree: !!existing?.isGlutenFree,
       });
     },
-    [prepareItemForPanel, step, bundleItems, activeStep],
+    [prepareItemForPanel, step, bundleItems, activeStep, getForcedSizeForStep],
+  );
+
+  const pickProductForStep = React.useCallback(
+    (product) => {
+      if (!product || !step) return;
+
+      if (
+        (product.id === "half_half" || product.isHalfHalf) &&
+        String(step.slotKey || "").toLowerCase() === "pizza"
+      ) {
+        setPickerOpen(false);
+        setEditorItem(null);
+        setHalfHalfOpen(true);
+        return;
+      }
+
+      setPickerOpen(false);
+      openEditorForProduct(product);
+    },
+    [step, openEditorForProduct],
   );
 
   const applyEditorResult = React.useCallback(
@@ -2311,6 +2361,15 @@ const MealDealBuilderPanel = ({
   );
   const totalCents = baseMealCents + extrasCents;
 
+  const filledCount = React.useMemo(
+    () => (Array.isArray(bundleItems) ? bundleItems.filter(Boolean).length : 0),
+    [bundleItems],
+  );
+  const progressPct = steps.length
+    ? Math.round((filledCount / steps.length) * 100)
+    : 0;
+  const activeChosen = bundleItems[activeStep] || null;
+
   const commitMeal = () => {
     if (!isComplete) return;
     const payload = {
@@ -2341,158 +2400,100 @@ const MealDealBuilderPanel = ({
     );
   }
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
-      <button
-        onClick={onCancel}
-        className="quantity-btn"
-        style={{ position: "absolute", top: "1.5rem", right: "1.5rem", zIndex: 10 }}
-        title="Close"
-      >
-        &times;
-      </button>
 
-      <h2 className="panel-title" style={{ marginTop: "0.25rem" }}>
-        Build {item?.name}
-      </h2>
-      <p style={{ color: "var(--text-medium)", marginTop: 0, fontSize: "0.9rem" }}>
-        Choose the included items for this meal deal.
-      </p>
+  const overlays = (
+    <>
+      {isMobile && pickerOpen && (
+        <div className="pp-mealpick" role="dialog" aria-modal="true">
+          <div className="pp-mealpick__head">
+            <div>
+              <div className="pp-mealpick__title">Choose item</div>
+              <div className="pp-mealpick__sub">{step?.label || ""}</div>
+            </div>
 
-      <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-        {steps.map((s, idx) => {
-          const chosen = bundleItems[idx];
-          const active = idx === activeStep;
-          return (
             <button
-              key={s.key}
               type="button"
-              onClick={() => setActiveStep(idx)}
               className="simple-button"
-              style={{
-                width: "100%",
-                textAlign: "left",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "0.75rem",
-                padding: "0.7rem 0.85rem",
-                borderRadius: "0.85rem",
-                border: active ? "1px solid rgba(190,242,100,0.65)" : "1px solid var(--border-color)",
-                background: active ? "rgba(190,242,100,0.10)" : "var(--panel)",
-                fontWeight: 750,
-              }}
+              style={{ width: "auto", paddingInline: "1rem" }}
+              onClick={() => setPickerOpen(false)}
             >
-              <span>
-                {idx + 1}. {s.label}
-                <span style={{ display: "block", fontSize: "0.85rem", color: "var(--text-medium)", fontWeight: 600 }}>
-                  {chosen ? `${chosen.name} ${formatSizeSuffix(chosen.size)}` : "Not selected"}
-                </span>
-              </span>
-              <span style={{ opacity: chosen ? 1 : 0.35 }}>{chosen ? "✓" : "○"}</span>
+              Back
             </button>
-          );
-        })}
-      </div>
-
-      <div style={{ marginTop: "0.85rem", marginBottom: "0.5rem" }}>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <div style={{ fontWeight: 800 }}>
-            Step {activeStep + 1} of {steps.length}
           </div>
-          <div style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
-            {step?.label || ""}
+
+          <div className="pp-mealpick__body">
+            {stepCategoryOptions.length > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.4rem",
+                  marginBottom: "0.65rem",
+                }}
+              >
+                {stepCategoryOptions.map((cat) => {
+                  const isActive =
+                    String(activeCategoryRef || "").toUpperCase() === cat.ref;
+                  return (
+                    <button
+                      key={cat.ref}
+                      type="button"
+                      className="simple-button"
+                      style={{
+                        width: "auto",
+                        padding: "0.35rem 0.65rem",
+                        borderRadius: "999px",
+                        fontSize: "0.8rem",
+                        fontWeight: 800,
+                        border: isActive
+                          ? "1px solid rgba(190,242,100,0.65)"
+                          : "1px solid var(--border-color)",
+                        background: isActive
+                          ? "rgba(190,242,100,0.10)"
+                          : "var(--panel)",
+                      }}
+                      onClick={() => setActiveCategoryRef(cat.ref)}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search items..."
+              style={{ width: "100%", marginBottom: "0.85rem" }}
+            />
+
+            <div className="pp-mealpick__grid">
+              {(stepMenuData?.categories || []).flatMap((cat) =>
+                (cat.items || []).map((p) => {
+                  const img = getImagePath(p);
+                  return (
+                    <div
+                      key={p.id || `${cat.ref}-${p.name}`}
+                      className="pp-mealpick__card"
+                      onClick={() => pickProductForStep(p)}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <img className="pp-mealpick__img" src={img} alt={p.name} />
+                      <div className="pp-mealpick__meta">
+                        <div className="pp-mealpick__name">{p.name}</div>
+                        <div className="pp-mealpick__desc">{p.description}</div>
+                      </div>
+                    </div>
+                  );
+                }),
+              )}
+            </div>
           </div>
         </div>
-
-        {stepCategoryOptions.length > 1 && (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.4rem",
-              marginTop: "0.6rem",
-            }}
-          >
-            {stepCategoryOptions.map((cat) => {
-              const isActive =
-                String(activeCategoryRef || "").toUpperCase() === cat.ref;
-              return (
-                <button
-                  key={cat.ref}
-                  type="button"
-                  onClick={() => setActiveCategoryRef(cat.ref)}
-                  className="simple-button"
-                  style={{
-                    width: "auto",
-                    padding: "0.35rem 0.65rem",
-                    borderRadius: "999px",
-                    fontSize: "0.8rem",
-                    fontWeight: 800,
-                    border: isActive
-                      ? "1px solid rgba(190,242,100,0.65)"
-                      : "1px solid var(--border-color)",
-                    background: isActive
-                      ? "rgba(190,242,100,0.10)"
-                      : "var(--panel)",
-                  }}
-                >
-                  {cat.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search items..."
-          style={{ width: "100%", marginTop: "0.6rem" }}
-        />
-      </div>
-
-      <div
-        ref={listRef}
-        style={{
-          flex: 1,
-          paddingRight: "0.35rem",
-          paddingTop: "0.4rem",
-        }}
-      >
-        <div style={{ color: "var(--text-medium)", padding: "0.6rem 0.25rem" }}>
-          Select an item from the menu to fill this step.
-        </div>
-      </div>
-
-      <div className="cart-total-section" style={{ marginTop: "auto" }}>
-        <div style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
-          Base: {currency(baseMealCents)}
-          {extrasCents > 0 ? `  + extras: ${currency(extrasCents)}` : ""}
-        </div>
-
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-          <button
-            type="button"
-            className="simple-button"
-            disabled={activeStep <= 0}
-            onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
-          >
-            Back
-          </button>
-
-          <button
-            type="button"
-            className="place-order-button"
-            disabled={!isComplete}
-            onClick={commitMeal}
-            style={{ opacity: isComplete ? 1 : 0.55 }}
-          >
-            Add meal to order - {currency(totalCents)}
-          </button>
-        </div>
-      </div>
+      )}
 
       {editorItem && (
         <div
@@ -2534,7 +2535,14 @@ const MealDealBuilderPanel = ({
               menuData={menuData}
               editingIndex={null}
               editingItem={editorItem}
+              variant="mealdeal_pick"
               lockQty
+              forcedPriceSizeRef={
+                editorForcedSizeRef
+                  ? normalizeMenuSizeRef(editorForcedSizeRef)
+                  : null
+              }
+              lockSize={Boolean(editorForcedSizeRef)}
               primaryActionLabel="Confirm selection"
               onSaveIngredients={(newRemoved) => {
                 setEditorItem((prev) => (prev ? { ...prev, removedIngredients: newRemoved || [] } : prev));
@@ -2547,6 +2555,7 @@ const MealDealBuilderPanel = ({
                   applyEditorResult(itemsToAdd, isGlutenFree, addOnSelections);
                 }
                 setEditorItem(null);
+                setEditorForcedSizeRef(null);
               }}
             />
           </div>
@@ -2604,34 +2613,359 @@ const MealDealBuilderPanel = ({
           </div>
         </div>
       )}
+    </>
+  );
+
+  const mobileBody = (
+    <div
+      className="pp-mdm"
+      style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}
+    >
+      <header className="pp-mdm-head">
+        <div className="pp-mdm-kicker">Meal deal</div>
+        <div className="pp-mdm-title">{item?.name || "Build your meal"}</div>
+
+        <div className="pp-mdm-metaRow">
+          <div className="pp-mdm-pill">
+            {filledCount}/{steps.length} selected
+          </div>
+          <div className="pp-mdm-pill pp-mdm-pill--price">{currency(totalCents)}</div>
+        </div>
+
+        <div className="pp-mdm-progressTrack" aria-hidden="true">
+          <div className="pp-mdm-progressFill" style={{ width: `${progressPct}%` }} />
+        </div>
+
+        <div style={{ marginTop: "0.65rem", display: "flex", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            className="simple-button"
+            style={{ width: "auto", paddingInline: "1rem" }}
+            onClick={onCancel}
+          >
+            Close
+          </button>
+        </div>
+      </header>
+
+      <section className="pp-mdm-next">
+        <div className="pp-mdm-nextTop">
+          <div>
+            <div className="pp-mdm-nextLabel">Next up</div>
+            <div className="pp-mdm-nextSlot">{step?.label || ""}</div>
+          </div>
+          <div className={["pp-mdm-status", activeChosen ? "is-filled" : ""].join(" ")}>
+            {activeChosen ? "OK" : "..."}
+          </div>
+        </div>
+
+        <div className="pp-mdm-nextValue">
+          {activeChosen
+            ? `${activeChosen.name} ${formatSizeSuffix(activeChosen.size)}`
+            : "Not selected yet"}
+        </div>
+
+        <button
+          type="button"
+          className="place-order-button"
+          onClick={() => setPickerOpen(true)}
+          style={{ marginTop: "0.85rem" }}
+        >
+          Choose {step?.label || "item"}
+        </button>
+      </section>
+
+      <section className="pp-mdm-list">
+        <div className="pp-mdm-listTitle">Selected so far</div>
+
+        {steps.map((s, idx) => {
+          const chosen = bundleItems[idx];
+          if (!chosen) return null;
+
+          return (
+            <button
+              key={s.key}
+              type="button"
+              className="pp-mdm-row"
+              onClick={() => {
+                setActiveStep(idx);
+                setPickerOpen(true);
+              }}
+            >
+              <div className="pp-mdm-rowLeft">
+                <div className="pp-mdm-rowSlot">{s.label}</div>
+                <div className="pp-mdm-rowValue">
+                  {chosen.name} {formatSizeSuffix(chosen.size)}
+                </div>
+              </div>
+              <div className="pp-mdm-rowRight">Change -&gt;</div>
+            </button>
+          );
+        })}
+
+        {!bundleItems.some(Boolean) && (
+          <div className="pp-mdm-empty">
+            Nothing selected yet. Start with the "Next up" button above.
+          </div>
+        )}
+      </section>
+
+      <div className="cart-total-section" style={{ marginTop: "auto" }}>
+        <div style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
+          Base: {currency(baseMealCents)}
+          {extrasCents > 0 ? `  + extras: ${currency(extrasCents)}` : ""}
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+          <button
+            type="button"
+            className="simple-button"
+            onClick={() => {
+              const nextEmpty = bundleItems.findIndex((x) => !x);
+              if (nextEmpty !== -1) {
+                setActiveStep(nextEmpty);
+                setPickerOpen(true);
+              }
+            }}
+            disabled={isComplete}
+          >
+            {isComplete ? "All selected" : "Continue selecting"}
+          </button>
+
+          <button
+            type="button"
+            className="place-order-button"
+            disabled={!isComplete}
+            onClick={commitMeal}
+            style={{ opacity: isComplete ? 1 : 0.55 }}
+          >
+            Add meal to order - {currency(totalCents)}
+          </button>
+        </div>
+
+        {isComplete && typeof onCommitAndReview === "function" && (
+          <button
+            type="button"
+            className="simple-button"
+            onClick={() =>
+              onCommitAndReview?.({
+                ...item,
+                qty: 1,
+                size: { id: "Default", name: "Default", ref: normalizeMenuSizeRef("Default") },
+                price: totalCents / 100,
+                price_cents: totalCents,
+                add_ons: [],
+                removedIngredients: [],
+                bundle_items: bundleItems.map((x) => ({ ...x })),
+                __bundle_editing_index: editingIndex ?? null,
+              })
+            }
+          >
+            Review / change order
+          </button>
+        )}
+      </div>
+
+      {overlays}
     </div>
   );
+
+  const desktopBody = (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
+      <button
+        onClick={onCancel}
+        className="quantity-btn"
+        style={{ position: "absolute", top: "1.5rem", right: "1.5rem", zIndex: 10 }}
+        title="Close"
+      >
+        &times;
+      </button>
+
+      <header className="pp-md-head">
+        <div className="pp-md-headRow">
+          <div>
+            <div className="pp-md-kicker">Meal deal builder</div>
+            <h2 className="pp-md-title">Build {item?.name}</h2>
+            <div className="pp-md-sub">
+              Pick what's included. You can edit each item before adding.
+            </div>
+          </div>
+
+          <div className="pp-md-pricePill" title="Meal deal total (base + extras)">
+            {currency(totalCents)}
+          </div>
+        </div>
+
+        <div className="pp-md-progress">
+          <div className="pp-md-progressTrack">
+            <div className="pp-md-progressFill" style={{ width: `${progressPct}%` }} />
+          </div>
+          <div className="pp-md-progressMeta">
+            {filledCount}/{steps.length} selected - {progressPct}%
+          </div>
+        </div>
+      </header>
+
+      <section className="pp-md-steps">
+        {steps.map((s, idx) => {
+          const chosen = bundleItems[idx];
+          const active = idx === activeStep;
+          return (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => {
+                setActiveStep(idx);
+                if (isMobile) setPickerOpen(true);
+              }}
+              className={[
+                "pp-md-stepCard",
+                active ? "is-active" : "",
+                chosen ? "is-filled" : "",
+              ].join(" ")}
+            >
+              <div className="pp-md-stepTop">
+                <div className="pp-md-stepLabel">
+                  <span className="pp-md-stepNum">{idx + 1}</span>
+                  <span className="pp-md-stepText">{s.label}</span>
+                </div>
+
+                <div className="pp-md-stepStatus" aria-hidden="true">
+                  {chosen ? "OK" : "..."}
+                </div>
+              </div>
+
+              <div className="pp-md-stepValue">
+                {chosen ? `${chosen.name} ${formatSizeSuffix(chosen.size)}` : "Not selected"}
+              </div>
+            </button>
+          );
+        })}
+      </section>
+
+      <section className="pp-md-active">
+        <div className="pp-md-activeHead">
+          <div>
+            <div className="pp-md-activeKicker">
+              Step {activeStep + 1} of {steps.length}
+            </div>
+            <div className="pp-md-activeTitle">{step?.label || ""}</div>
+          </div>
+
+          <div className={["pp-md-activePill", activeChosen ? "is-filled" : ""].join(" ")}>
+            {activeChosen ? "Selected" : "Choose"}
+          </div>
+        </div>
+
+        <div className="pp-md-activeBody">
+          <div className="pp-md-activeSummary">
+            {activeChosen ? (
+              <>
+                <div className="pp-md-activeName">{activeChosen.name}</div>
+                <div className="pp-md-activeMeta">
+                  {formatSizeSuffix(activeChosen.size)}{" "}
+                  {activeChosen.isGlutenFree ? <span className="pp-md-gfTag">GF</span> : null}
+                </div>
+              </>
+            ) : (
+              <div className="pp-md-activeEmpty">
+                Tap an item from the selection list to fill this step.
+              </div>
+            )}
+          </div>
+
+          <div className="pp-md-filters">
+            {stepCategoryOptions.length > 1 ? (
+              <div className="pp-md-chipRow">
+                {stepCategoryOptions.map((cat) => {
+                  const isActive =
+                    String(activeCategoryRef || "").toUpperCase() === cat.ref;
+                  return (
+                    <button
+                      key={cat.ref}
+                      type="button"
+                      onClick={() => setActiveCategoryRef(cat.ref)}
+                      className={["pp-md-chip", isActive ? "is-active" : ""].join(" ")}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search items..."
+              className="pp-md-search"
+            />
+          </div>
+        </div>
+      </section>
+
+      <div ref={listRef} className="pp-md-body">
+        <div className="pp-md-bodyHint">
+          Select an item for <b>{step?.label || "this step"}</b>
+        </div>
+      </div>
+
+      <div className="cart-total-section" style={{ marginTop: "auto" }}>
+        <div style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
+          Base: {currency(baseMealCents)}
+          {extrasCents > 0 ? `  + extras: ${currency(extrasCents)}` : ""}
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+          <button
+            type="button"
+            className="simple-button"
+            disabled={activeStep <= 0}
+            onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
+          >
+            Back
+          </button>
+
+          <button
+            type="button"
+            className="place-order-button"
+            disabled={!isComplete}
+            onClick={commitMeal}
+            style={{ opacity: isComplete ? 1 : 0.55 }}
+          >
+            Add meal to order - {currency(totalCents)}
+          </button>
+          {isComplete && typeof onCommitAndReview === "function" && (
+            <button
+              type="button"
+              className="simple-button"
+              onClick={() =>
+                onCommitAndReview?.({
+                  ...item,
+                  qty: 1,
+                  size: { id: "Default", name: "Default", ref: normalizeMenuSizeRef("Default") },
+                  price: totalCents / 100,
+                  price_cents: totalCents,
+                  add_ons: [],
+                  removedIngredients: [],
+                  bundle_items: bundleItems.map((x) => ({ ...x })),
+                  __bundle_editing_index: editingIndex ?? null,
+                })
+              }
+            >
+              Add & Review order
+            </button>
+          )}
+        </div>
+      </div>
+
+      {overlays}
+    </div>
+  );
+
+  return isMobile ? mobileBody : desktopBody;
 };
-
-
-
-
-
-import {
-  getApplicableOptionGroups,
-  productSupportsIngredientEdit,
-  productSupportsExtras,
-  getBasePriceCents,
-  __categoryGuards,
-  normalizeSizeRef as normalizeProductSizeRef,
-  isGfAllowedForSize,
-  enforceGfSize,
-  groupIngredientsForProduct,
-} from "./utils/options";
-import {
-  normalizeAddonSizeRef,
-  resolveAddonPriceCents,
-  calcExtrasCentsForSize,
-} from "./utils/addonPricing";
-import {
-  normalizeSizeRef as normalizeMenuSizeRef,
-  defaultSize,
-} from "./utils/size";
 
 if (typeof window !== "undefined") {
   console.log(
@@ -3112,6 +3446,39 @@ function currency(valueCents) {
   return value.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
 
+// --- GF surcharge (menu.json-driven) ---
+function getGfSurchargeCentsForProduct(productLike, menuData) {
+  const apiRoot = (menuData && menuData.raw) || menuData || {};
+  const products = Array.isArray(apiRoot?.products) ? apiRoot.products : [];
+
+  const id = productLike?.id || productLike?.product_id || productLike?.ref || null;
+  const name = productLike?.name ? String(productLike.name) : null;
+
+  const base =
+    (id ? products.find((p) => p && p.id === id) : null) ||
+    (name ? products.find((p) => p && String(p.name) === name) : null) ||
+    productLike ||
+    null;
+
+  const raw =
+    base?.gluten_free_surcharge ??
+    base?.glutenFreeSurcharge ??
+    base?.gf_surcharge ??
+    null;
+
+  const cents = toCents(raw);
+  if (Number.isFinite(cents) && cents >= 0) return cents;
+
+  // Optional global fallback if you ever add it later
+  const g = apiRoot?.globals || {};
+  const gRaw = g.gfSurcharge ?? g.gluten_free_surcharge ?? g.glutenFreeSurcharge ?? null;
+  const gCents = toCents(gRaw);
+  if (Number.isFinite(gCents) && gCents >= 0) return gCents;
+
+  // Safety fallback to old behavior if menu doesn't specify
+  return 400; // $4.00
+}
+
 
 // Returns the minimum price (in cents) across all sizes for a product
 function minPriceCents(item) {
@@ -3128,6 +3495,47 @@ function minPriceCents(item) {
   }
   if (Number.isFinite(item?.minPriceCents)) return item.minPriceCents;
   return 0;
+}
+
+// Base price helper used across panels (prevents "getBasePriceCents is not defined")
+function getBasePriceCents(product, sizeToken = "Default") {
+  if (!product) return 0;
+
+  // Prefer transformed menu shape: priceCents map
+  const priceMap =
+    product.priceCents && typeof product.priceCents === "object"
+      ? product.priceCents
+      : null;
+  if (priceMap) {
+    const direct = priceMap[sizeToken];
+    if (Number.isFinite(direct)) return direct;
+
+    // Try common normalized keys
+    const up = String(sizeToken || "").toUpperCase();
+    if (Number.isFinite(priceMap[up])) return priceMap[up];
+
+    const def = priceMap.Default;
+    if (Number.isFinite(def)) return def;
+  }
+
+  // Fallback: raw menu shape: skus array with {name/size, price}
+  if (Array.isArray(product.skus) && product.skus.length) {
+    const wanted = String(sizeToken || "").toLowerCase();
+    const hit =
+      product.skus.find(
+        (s) => String(s?.name || s?.size || "").toLowerCase() === wanted,
+      ) ||
+      product.skus.find(
+        (s) => String(s?.name || s?.size || "").toLowerCase() === "regular",
+      ) ||
+      product.skus[0];
+
+    const cents = toCents(hit?.price_cents ?? hit?.price ?? hit?.amount ?? hit?.value);
+    if (Number.isFinite(cents)) return cents;
+  }
+
+  // Last resort: minimum price
+  return minPriceCents(product) || 0;
 }
 
 function SizePriceDisclaimer({ className = "" }) {
@@ -4674,7 +5082,16 @@ function getAddOnsForProduct(product, menu) {
 function getSizeSourceId(entry) {
   if (!entry) return "";
   if (typeof entry === "string") return entry;
-  return entry.id || entry.ref || entry.name || "";
+  // IMPORTANT: for SKU-shaped size objects, `id` can be a skuId (not "large"/"regular").
+  // Prefer readable size tokens first so GF/size rules work.
+  return (
+    entry.ref ||
+    entry.name ||
+    entry.label ||
+    entry.size ||
+    entry.id ||
+    ""
+  );
 }
 
 function makeSizeRecord(entry, fallback = "Regular") {
@@ -4714,22 +5131,26 @@ function ItemDetailPanel({
   initialModal = null,
   suppressBasePanel = false,
   onModalsSettled = null,
+  variant = "",
+  lockSize = false,
   forcedPriceSizeRef = null,
   compactHalfMode = false,
   onApplyAddOns = null,
   lockQty = false,
 }) {
+  const isMealDealPick = variant === "mealdeal_pick";
   const sizeOptions = useMemo(() => {
     if (Array.isArray(item?.rawSizes) && item.rawSizes.length) {
       return item.rawSizes;
     }
     if (Array.isArray(item?.sizes) && item.sizes.length) {
-      return item.sizes.map((entry, idx) =>
+      return item.sizes.map((entry) =>
         typeof entry === "object"
           ? entry
           : {
-              id: `${item.id || "product"}-${idx}`,
+              id: entry,
               name: entry,
+              ref: normalizeMenuSizeRef(entry),
             },
       );
     }
@@ -4765,6 +5186,17 @@ function ItemDetailPanel({
   useEffect(() => {
     setSelectedSize(defaultSelectedSize);
   }, [defaultSelectedSize]);
+  useEffect(() => {
+    if (!lockSize || !forcedPriceSizeRef) return;
+    const target = normalizeProductSizeRef(forcedPriceSizeRef);
+    const match =
+      sizeOptions.find(
+        (size) =>
+          normalizeProductSizeRef(getSizeSourceId(size) || size.name) === target,
+      ) || null;
+    if (match) setSelectedSize(match);
+  }, [lockSize, forcedPriceSizeRef, sizeOptions]);
+  const lockedSizeRef = lockSize && forcedPriceSizeRef ? forcedPriceSizeRef : null;
   const selectedSizeLabel =
     (selectedSize &&
       (selectedSize.name ||
@@ -5009,6 +5441,19 @@ function ItemDetailPanel({
     [selectedAddOnDetails, priceSizeRef, menuData],
   );
   const addOnsCount = selectedAddOnDetails.length;
+  const listFmt = (arr, max = 3) => {
+    const a = Array.isArray(arr) ? arr.filter(Boolean) : [];
+    if (!a.length) return "";
+    if (a.length <= max) return a.join(", ");
+    return `${a.slice(0, max).join(", ")} +${a.length - max}`;
+  };
+  const addOnNames = selectedAddOnDetails
+    .map((o) => o?.name || o?.ref || "")
+    .filter(Boolean);
+  const removedNames = Array.isArray(removedIngredientsLocal)
+    ? removedIngredientsLocal.filter(Boolean)
+    : [];
+  const addOnsCents = Number.isFinite(addOnsTotalCents) ? addOnsTotalCents : 0;
   const applyAddOns = useCallback(() => {
     if (typeof onApplyAddOns === "function") {
       onApplyAddOns(selectedAddOnDetails);
@@ -5050,12 +5495,102 @@ function ItemDetailPanel({
     return result;
   }, [ingredientGroups]);
 
-  const supportsGF =
-    canEditIngredients &&
-    sizeOptions.some((size) => isGfAllowedForSize(getSizeSourceId(size)));
+  const categoryRefUpper = String(
+    item?.category_ref || item?.categoryRef || "",
+  ).toUpperCase();
+  const isPizzaItem =
+    categoryRefUpper.endsWith("_PIZZAS") ||
+    item?.category === "Pizza" ||
+    item?.__categoryType === "pizza";
+
+  // ---------- GF (Large-only) unified logic ----------
+  const settings = menuData?.data?.settings || menuData?.settings || {};
+  const gfEnabledGlobal =
+    settings.gf_enabled === true || settings.gfEnabled === true;
+
+  // menu.json can specify allowed sizes globally (your data uses ["large"])
+  const gfAllowedSizes = Array.isArray(settings.gf_allowed_sizes)
+    ? settings.gf_allowed_sizes
+    : null;
+
+  const gfFlag = item?.allow_gf === true || item?.allowGF === true;
+  const gfRule = item?.gf_size_rule || item?.gfSizeRule || item?.gfRule || null;
+
+  // Pizza-only: show GF if explicitly allowed OR globally enabled (and not explicitly disallowed)
+  const gfEligible =
+    isPizzaItem &&
+    (gfFlag ||
+      (gfEnabledGlobal &&
+        item?.allow_gf !== false &&
+        item?.allowGF !== false));
+
+  // surcharge: per-product overrides global
+  const gfSurchargeCents = toCents(
+    item?.gluten_free_surcharge ??
+      item?.glutenFreeSurcharge ??
+      settings.gf_surcharge ??
+      settings.gfSurcharge ??
+      0,
+  );
+  const gfSurchargeLabel = currency(gfSurchargeCents);
+  const gfFeeText = gfSurchargeCents > 0 ? ` (+${gfSurchargeLabel})` : "";
+
+  const gfSizeKey = (sizeLike) => {
+    const raw =
+      typeof sizeLike === "string"
+        ? sizeLike
+        : getSizeSourceId(sizeLike) || sizeLike?.name || sizeLike?.id || "";
+    return normalizeProductSizeRef(raw);
+  };
+
+  const gfAllowedSet = gfAllowedSizes
+    ? new Set(gfAllowedSizes.map((s) => normalizeProductSizeRef(String(s))))
+    : null;
+
+  // Allowed size check (locks to LARGE via menu settings / rule)
+  const gfAllowedFor = (sizeLike) => {
+    const k = gfSizeKey(sizeLike);
+
+    // Belt + braces: if the product says large_only, enforce it
+    if (String(gfRule).toLowerCase() === "large_only") return k === "LARGE";
+
+    // If menu has a global allowed size list, use it
+    if (gfAllowedSet) return gfAllowedSet.has(k);
+
+    // Fallback to existing util behaviour
+    return isGfAllowedForSize(k);
+  };
+
+  const gfPossible =
+    gfEligible &&
+    Array.isArray(sizeOptions) &&
+    sizeOptions.length > 0 &&
+    sizeOptions.some((sz) => gfAllowedFor(sz));
+
+  const gfIsLargeNow =
+    normalizeProductSizeRef(lockedSizeRef || selectedSizeToken) === "LARGE";
+
+  // If size is locked and not LARGE, user cannot enable GF
+  const gfDisabled = !!lockSize && !gfIsLargeNow;
+
+  // When GF is on, it must be LARGE (enforced)
   useEffect(() => {
+    if (!isGlutenFree) return;
+    if (gfIsLargeNow) return;
+
+    const forced = sizeOptions?.find((sz) => gfAllowedFor(sz)) || null;
+    if (forced && !lockSize) {
+      setSelectedSize(forced);
+    } else {
+      setIsGlutenFree(false);
+    }
+  }, [isGlutenFree, gfIsLargeNow, sizeOptions, gfAllowedFor, lockSize]);
+
+  const supportsGF = gfPossible;
+  useEffect(() => {
+    if (isMealDealPick) return;
     if (!supportsGF && isGlutenFree) setIsGlutenFree(false);
-  }, [supportsGF, isGlutenFree]);
+  }, [supportsGF, isGlutenFree, isMealDealPick]);
   useEffect(() => {
     if (!supportsGF) return;
     if (!isGlutenFree) return;
@@ -5094,26 +5629,25 @@ function ItemDetailPanel({
   const handleSelectSize = useCallback(
     (size) => {
       if (isGlutenFree) {
-        const ref = getSizeSourceId(size);
-        if (!isGfAllowedForSize(ref)) return;
+        if (!gfAllowedFor(size)) return;
       }
       setSelectedSize(size);
     },
-    [isGlutenFree],
+    [isGlutenFree, gfAllowedFor],
   );
   const handleGlutenFreeToggle = useCallback(() => {
+    if (!gfPossible) return;
+    if (gfDisabled) return;
+
     setIsGlutenFree((prev) => {
       const next = !prev;
-      if (next) {
-        const forced =
-          sizeOptions.find((size) =>
-            isGfAllowedForSize(getSizeSourceId(size)),
-          ) || null;
+      if (next && !gfIsLargeNow && !lockSize) {
+        const forced = sizeOptions?.find((sz) => gfAllowedFor(sz)) || null;
         if (forced) setSelectedSize(forced);
       }
       return next;
     });
-  }, [sizeOptions]);
+  }, [gfPossible, gfDisabled, gfIsLargeNow, lockSize, sizeOptions, gfAllowedFor]);
   const getPriceCents = (sizeKey) => {
     const key = sizeKey || "Default";
     if (item?.priceCents && Number.isFinite(item.priceCents[key]))
@@ -5126,8 +5660,12 @@ function ItemDetailPanel({
   const heroImage = getImagePath(item);
   const quantityTotal = quantity || 0;
   const secondaryActionLabel = lockQty ? "Back" : "Cancel";
+  const rootClassName = variant
+    ? `detail-panel detail-panel--${variant}`
+    : "detail-panel";
   const basePanel = (
     <div
+      className={rootClassName}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -5150,19 +5688,19 @@ function ItemDetailPanel({
       >
         &times;
       </button>
-      <div
-        className="detail-image-wrapper"
-        style={{
-          width: "100%",
-          flex: "0 0 auto",
-          height: "clamp(170px, 30vh, 280px)",
-          borderRadius: "1rem",
-          overflow: "hidden",
-          marginBottom: "0.75rem",
-        }}
-      >
-        {heroImage && (
-          (() => {
+      <div className="pp-idp-top">
+        <div
+          className="detail-image-wrapper pp-idp-hero"
+          style={{
+            width: "100%",
+            flex: "0 0 auto",
+            height: "clamp(170px, 30vh, 280px)",
+            borderRadius: "1rem",
+            overflow: "hidden",
+            marginBottom: "0.75rem",
+          }}
+        >
+          {heroImage && (() => {
             const heroCandidates = getProductImageUrlCandidates(item);
             const heroSrc = heroCandidates[0] || FALLBACK_IMAGE_URL;
             return (
@@ -5171,76 +5709,53 @@ function ItemDetailPanel({
                 alt={item.name}
                 className="detail-image"
                 data-pp-img-try="0"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-                onError={(e) => {
-                  cycleImgCandidates(e.currentTarget, heroCandidates);
-                }}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                onError={(e) => cycleImgCandidates(e.currentTarget, heroCandidates)}
               />
             );
-          })()
-        )}
-      </div>
-      <h3 className="panel-title" style={{ marginTop: "1rem" }}>
-        {item.name}
-      </h3>
-      <p
-        style={{
-          color: "var(--text-medium)",
-          fontSize: "0.875rem",
-          marginTop: 0,
-        }}
-      >
-        {item.description}
-      </p>
+          })()}
+        </div>
 
-      {ingredientSummary.length > 0 && (
-        <div
-          className="pp-ingredients-summary"
-          style={{
-            marginTop: "0.75rem",
-            padding: "0.75rem 0.75rem 0.25rem",
-            borderRadius: "0.75rem",
-            background: "var(--pp-surface-soft, rgba(0,0,0,0.035))",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "0.75rem",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "var(--pp-text-dim)",
-              marginBottom: "0.35rem",
-            }}
-          >
-            Ingredients
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.35rem",
-            }}
-          >
-            {ingredientSummary.map((name) => (
-              <span
-                key={name}
-                className="pp-chip"
+        <div className="pp-idp-meta">
+          <h3 className="panel-title pp-idp-title">{item.name}</h3>
+          <p className="pp-idp-desc">{item.description}</p>
+
+          {!isMealDealPick && ingredientSummary.length > 0 && (
+            <div
+              className="pp-ingredients-summary"
+              style={{
+                marginTop: "0.75rem",
+                padding: "0.75rem 0.75rem 0.25rem",
+                borderRadius: "0.75rem",
+                background: "var(--pp-surface-soft, rgba(0,0,0,0.035))",
+              }}
+            >
+              <div
                 style={{
                   fontSize: "0.75rem",
-                  padding: "0.2rem 0.5rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: "var(--pp-text-dim)",
+                  marginBottom: "0.35rem",
                 }}
               >
-                {name}
-              </span>
-            ))}
-          </div>
+                Ingredients
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                {ingredientSummary.map((name) => (
+                  <span
+                    key={name}
+                    className="pp-chip"
+                    style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <div
         className="detail-panel-body"
@@ -5254,7 +5769,18 @@ function ItemDetailPanel({
       >
         {!compactHalfMode && (
           <>
-            {sizeOptions.length ? (
+            {lockedSizeRef ? (
+              <div className="pp-md-sizeLock">
+                🔒 Size: <b>{String(lockedSizeRef).replaceAll("_", " ")}</b>
+                {isMealDealPick ? (
+                  <span style={{ marginLeft: 10, opacity: 0.9 }}>
+                    {gfPossible && gfIsLargeNow
+                      ? (isGlutenFree ? "GF ON" : "GF OFF")
+                      : null}
+                  </span>
+                ) : null}
+              </div>
+            ) : sizeOptions.length ? (
               <>
                 <div
                   role="radiogroup"
@@ -5265,7 +5791,7 @@ function ItemDetailPanel({
                     const id = getSizeSourceId(size) || size.name;
                     const optionRef = normalizeAddonSizeRef(id || size.name);
                     const checked = optionRef === activeSizeRef;
-                    const gfLocked = isGlutenFree && !isGfAllowedForSize(id);
+                    const gfLocked = isGlutenFree && !gfAllowedFor(id);
                     return (
                       <label
                         key={id || size.name}
@@ -5292,50 +5818,44 @@ function ItemDetailPanel({
                 <SizePriceDisclaimer />
               </>
             ) : null}
-            <div className="size-quantity-row">
-              <div>
-                <span style={{ fontWeight: 500 }}>Price</span>
-                <span
-                  style={{ color: "var(--text-medium)", marginLeft: "0.5rem" }}
-                >
-                  {currency(
-                    getPriceCents(
-                      sizeOptions.length ? selectedSize?.name : "Default",
-                    ),
-                  )}
-                </span>
-              </div>
-              <div className="quantity-controls">
-                  <button
-                    className="quantity-btn"
-                    onClick={() => handleQuantityChange(-1)}
-                    disabled={lockQty || quantityTotal <= 1}
-                  >
-                    -
-                  </button>
-                  <span>{quantityTotal}</span>
-                  <button
-                    className="quantity-btn"
-                    onClick={() => handleQuantityChange(1)}
-                    disabled={lockQty}
-                  >
-                    +
-                  </button>
-              </div>
-            </div>
-            {supportsGF ? (
-              <div className="gluten-free-toggle">
-                <label htmlFor="gf-checkbox">Gluten Free (Large Only) +$4.00</label>
-                <input
-                  type="checkbox"
-                  id="gf-checkbox"
-                  checked={isGlutenFree}
-                  onChange={handleGlutenFreeToggle}
-                />
-              </div>
-            ) : null}
+            {!isMealDealPick && (
+              <>
+                <div className="size-quantity-row">
+                  <div>
+                    <span style={{ fontWeight: 500 }}>Price</span>
+                    <span
+                      style={{ color: "var(--text-medium)", marginLeft: "0.5rem" }}
+                    >
+                      {currency(
+                        getPriceCents(
+                          sizeOptions.length ? selectedSize?.name : "Default",
+                        ),
+                      )}
+                    </span>
+                  </div>
+                  <div className="quantity-controls">
+                    <button
+                      className="quantity-btn"
+                      onClick={() => handleQuantityChange(-1)}
+                      disabled={lockQty || quantityTotal <= 1}
+                    >
+                      -
+                    </button>
+                    <span>{quantityTotal}</span>
+                    <button
+                      className="quantity-btn"
+                      onClick={() => handleQuantityChange(1)}
+                      disabled={lockQty}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
+
         {isMealDealLine ? (
           <div
             className="muted-note"
@@ -5362,32 +5882,7 @@ function ItemDetailPanel({
             No add-ons available for this item.
           </div>
         )}
-        {(hasAddOns || canEditIngredients) && !compactHalfMode && (
-          <div className="pp-actions pp-actions--sticky">
-            {hasAddOns && (
-              <button
-                type="button"
-                onClick={handleOpenAddOns}
-                className="pp-btn pp-btn-secondary pp-btn-full"
-                aria-haspopup="dialog"
-                aria-controls="addons-modal"
-              >
-                Add-ons & Extras
-              </button>
-            )}
-            {canEditIngredients && (
-              <button
-                type="button"
-                onClick={() => setShowIngredientsModal(true)}
-                className="pp-btn pp-btn-secondary pp-btn-full"
-                aria-haspopup="dialog"
-                aria-controls="ingredients-modal"
-              >
-                Edit Ingredients
-              </button>
-            )}
-          </div>
-        )}
+        {/* Removed: old sticky actions row (we use the footer toolbar buttons instead) */}
       </div>
       <div
         className="cart-total-section"
@@ -5402,6 +5897,69 @@ function ItemDetailPanel({
           paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))",
         }}
       >
+        {(hasAddOns || canEditIngredients || gfPossible) && (
+          <div
+            className={`pp-mdp-footerTools ${gfPossible ? "pp-mdp-footerTools--3" : ""}`}
+          >
+            {hasAddOns && (
+              <button
+                type="button"
+                onClick={handleOpenAddOns}
+                className="pp-mdp-toolBtn"
+                aria-haspopup="dialog"
+                aria-controls="addons-modal"
+              >
+                <span className="pp-mdp-toolText">{"\uD83E\uDDC0"} Add-ons</span>
+              </button>
+            )}
+            {canEditIngredients && (
+              <button
+                type="button"
+                onClick={() => setShowIngredientsModal(true)}
+                className="pp-mdp-toolBtn"
+                aria-haspopup="dialog"
+                aria-controls="ingredients-modal"
+              >
+                <span className="pp-mdp-toolText">{"\uD83E\uDDC5"} Ingredients</span>
+              </button>
+            )}
+            {gfPossible && (
+              <button
+                type="button"
+                onClick={handleGlutenFreeToggle}
+                disabled={gfDisabled}
+                className={`pp-mdp-toolBtn pp-mdp-toolBtn--gf ${isGlutenFree ? "is-on" : ""} ${gfDisabled ? "is-disabled" : ""}`}
+                aria-pressed={isGlutenFree}
+                title={
+                  gfDisabled
+                    ? "Gluten-free is available on LARGE pizzas only"
+                    : `Gluten-free base (Large only)${
+                        gfSurchargeCents > 0 ? ` +${gfSurchargeLabel}` : ""
+                      }`
+                }
+              >
+                <span className="pp-mdp-toolText">
+                  {"\uD83C\uDF3E"}{" "}
+                  {gfIsLargeNow
+                    ? `GF ${isGlutenFree ? `ON${gfFeeText}` : "OFF"}`
+                    : "GF (Large only)"}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+        {isMealDealPick && (
+          <div className="pp-mdp-summary">
+            <div className="pp-mdp-chip pp-mdp-chip--addons">
+              ✅ Add-ons: {addOnNames.length ? listFmt(addOnNames) : "None"}
+              {addOnsCents > 0 ? ` (+${currency(addOnsCents)})` : ""}
+            </div>
+
+            <div className="pp-mdp-chip pp-mdp-chip--removed">
+              🚫 Removed: {removedNames.length ? listFmt(removedNames) : "None"}
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <button
             type="button"
@@ -9111,7 +9669,15 @@ function Footer() {
 }
 
 // --- PAGE COMPONENT ---
-function Home({ menuData, handleItemClick, hhMobilePicking, hhMobileDraft, setHhMobileDraft }) {
+function Home({
+  menuData,
+  handleItemClick,
+  hhMobilePicking,
+  hhMobileDraft,
+  setHhMobileDraft,
+  mealDealDraft,
+  onResumeMealDeal,
+}) {
   const [activeCategory, setActiveCategory] = useState("");
 
   useEffect(() => {
@@ -9142,6 +9708,37 @@ function Home({ menuData, handleItemClick, hhMobilePicking, hhMobileDraft, setHh
 
   return (
     <>
+      {mealDealDraft && (
+        <div
+          style={{
+            marginBottom: "0.85rem",
+            padding: "0.85rem 1rem",
+            borderRadius: "16px",
+            border: "1px solid rgba(148,163,184,0.28)",
+            background: "var(--panel)",
+            boxShadow: "var(--shadow-card)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 900 }}>Meal deal in progress</div>
+            <div style={{ color: "var(--text-medium)", fontWeight: 700 }}>
+              Tap to resume building
+            </div>
+          </div>
+          <button
+            type="button"
+            className="place-order-button"
+            style={{ width: "auto", paddingInline: "1rem" }}
+            onClick={onResumeMealDeal}
+          >
+            Resume
+          </button>
+        </div>
+      )}
       <QuickNav menuData={menuData} activeCategory={activeCategory} />
       {hhMobilePicking && (
         <div
@@ -9208,6 +9805,7 @@ function AppLayout({ isMapsLoaded }) {
   const [searchName, setSearchName] = useState("");
   const [searchTopping, setSearchTopping] = useState("");
   const [mealDealMenuFilter, setMealDealMenuFilter] = useState(null);
+  const [mealDealDraft, setMealDealDraft] = useState(null);
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -9614,6 +10212,7 @@ function AppLayout({ isMapsLoaded }) {
 
       const isMealBundle = clickedIsMealBundle;
       if (isMealBundle) {
+        setMealDealDraft(prepared);
         setSelectedItem(prepared);
         setCustomizingItem(null);
         setEditingIndex(null);
@@ -9676,6 +10275,7 @@ function AppLayout({ isMapsLoaded }) {
       hhMobilePicking,
       hhMobileDraft,
       setHhMobileDraft,
+      setMealDealDraft,
       setSelectedItem,
       setCustomizingItem,
       setEditingIndex,
@@ -9683,6 +10283,14 @@ function AppLayout({ isMapsLoaded }) {
       mealDealApplyItemRef,
     ],
   );
+
+  const handleResumeMealDeal = useCallback(() => {
+    if (!mealDealDraft) return;
+    setSelectedItem(mealDealDraft);
+    setCustomizingItem(null);
+    setEditingIndex(null);
+    setRightPanelView("order");
+  }, [mealDealDraft, setSelectedItem, setCustomizingItem, setEditingIndex, setRightPanelView]);
 
   const handleEditItem = (item, index) => {
     const prepared = item?.prices ? { ...item } : prepareItemForPanel(item);
@@ -9727,7 +10335,10 @@ function AppLayout({ isMapsLoaded }) {
             menuData,
           ) / 100;
         const isLarge = normalizeProductSizeRef(normalizedSizeRef) === "LARGE";
-        const gfUpcharge = isGlutenFree && isLarge ? 4.0 : 0;
+        const gfUpcharge =
+          isGlutenFree && isLarge
+            ? (getGfSurchargeCentsForProduct(selectedItem, menuData) || 0) / 100
+            : 0;
         return {
           ...selectedItem,
           size: sizeInfo,
@@ -10008,6 +10619,8 @@ function AppLayout({ isMapsLoaded }) {
                     hhMobilePicking={hhMobilePicking}
                     hhMobileDraft={hhMobileDraft}
                     setHhMobileDraft={setHhMobileDraft}
+                    mealDealDraft={mealDealDraft}
+                    onResumeMealDeal={handleResumeMealDeal}
                   />
                 }
               />
@@ -10038,6 +10651,7 @@ function AppLayout({ isMapsLoaded }) {
             "order-panel-container",
             isHalfHalfPanel ? "order-panel-container--halfhalf" : "",
             isItemDetailPanel ? "order-panel-container--detail" : "",
+            isMealDealPanel ? "order-panel-container--mealdeal" : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -10100,28 +10714,75 @@ function AppLayout({ isMapsLoaded }) {
                       </div>
                     </div>
                   ) : isMealDealPanel ? (
-                    <MealDealBuilderPanel
-                      item={selectedItem}
-                      menuData={menuData}
-                      prepareItemForPanel={prepareItemForPanel}
-                      editingIndex={editingIndex}
-                      onCancel={() => {
-                        setMealDealMenuFilter(null);
-                        setSelectedItem(null);
-                        setEditingIndex(null);
-                        setCustomizingItem(null);
-                      }}
-                      onCommit={(payload) => {
-                        if (editingIndex !== null) removeFromCart(editingIndex);
-                        addToCart([payload]);
-                        setMealDealMenuFilter(null);
-                        setSelectedItem(null);
-                        setEditingIndex(null);
-                        setCustomizingItem(null);
-                      }}
-                      registerExternalMealItemApply={registerExternalMealDealItemApply}
-                      onMenuFilterChange={setMealDealMenuFilter}
-                    />
+                    isMobileScreen ? (
+                      <div className="pp-mealdeal-modal">
+                        <div
+                          className="pp-mealdeal-modal__backdrop"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="pp-mealdeal-modal__panel">
+                          <MealDealBuilderPanel
+                            item={selectedItem}
+                            menuData={menuData}
+                            prepareItemForPanel={prepareItemForPanel}
+                            editingIndex={editingIndex}
+                            isMobile={isMobileScreen}
+                            onCancel={() => {
+                              setMealDealMenuFilter(null);
+                              setSelectedItem(null);
+                              setEditingIndex(null);
+                              setCustomizingItem(null);
+                            }}
+                            onCommit={(payload) => {
+                              if (editingIndex !== null) removeFromCart(editingIndex);
+                              addToCart([payload]);
+                              setMealDealMenuFilter(null);
+                              setMealDealDraft(null);
+                              setSelectedItem(null);
+                              setEditingIndex(null);
+                              setCustomizingItem(null);
+                            }}
+                            onCommitAndReview={(payload) => {
+                              if (editingIndex !== null) removeFromCart(editingIndex);
+                              addToCart([payload]);
+                              setMealDealMenuFilter(null);
+                              setMealDealDraft(null);
+                              setSelectedItem(null);
+                              setEditingIndex(null);
+                              setCustomizingItem(null);
+                              setRightPanelView("review");
+                            }}
+                            registerExternalMealItemApply={() => {}}
+                            onMenuFilterChange={() => {}}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <MealDealBuilderPanel
+                        item={selectedItem}
+                        menuData={menuData}
+                        prepareItemForPanel={prepareItemForPanel}
+                        editingIndex={editingIndex}
+                        isMobile={isMobileScreen}
+                        onCancel={() => {
+                          setMealDealMenuFilter(null);
+                          setSelectedItem(null);
+                          setEditingIndex(null);
+                          setCustomizingItem(null);
+                        }}
+                        onCommit={(payload) => {
+                          if (editingIndex !== null) removeFromCart(editingIndex);
+                          addToCart([payload]);
+                          setMealDealMenuFilter(null);
+                          setMealDealDraft(null);
+                          setSelectedItem(null);
+                          setEditingIndex(null);
+                          setCustomizingItem(null);
+                        }}
+                        registerExternalMealItemApply={registerExternalMealDealItemApply}
+                        onMenuFilterChange={setMealDealMenuFilter}
+                      />
+                    )
                   ) : (
                     <div className="pp-itemdetail-modal">
                       <div
