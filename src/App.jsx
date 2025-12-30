@@ -103,22 +103,46 @@ const HalfAndHalfSelector = ({
   const [halfSelectionSide, setHalfSelectionSide] = React.useState("A");
   const [pendingHalfA, setPendingHalfA] = React.useState(null);
   const [pendingHalfB, setPendingHalfB] = React.useState(null);
+  const [isNarrowScreen, setIsNarrowScreen] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 1023.98px)").matches;
+  });
+  // --- Mobile wizard step (authoritative) ---
+  const [wizardStep, setWizardStep] = React.useState("A"); // "A" | "B" | "CONFIRM"
+  const wizardStepRef = React.useRef("A");
+
+  // keep ref synced (normal render path)
+  React.useEffect(() => {
+    wizardStepRef.current = wizardStep;
+  }, [wizardStep]);
+
+  // whenever halves change, derive the correct step (prevents desync)
+  React.useEffect(() => {
+    if (!isNarrowScreen) return;
+
+    const next =
+      !halfA ? "A" :
+      !halfB ? "B" :
+      "CONFIRM";
+
+    if (wizardStepRef.current !== next) {
+      wizardStepRef.current = next;
+      setWizardStep(next);
+    }
+  }, [isNarrowScreen, halfA, halfB]);
   const [halfEditorSide, setHalfEditorSide] = React.useState(null);
   const [halfEditorItem, setHalfEditorItem] = React.useState(null);
   const [halfEditorInitialModal, setHalfEditorInitialModal] = React.useState(null);
   const [halfEditorSuppressPanel, setHalfEditorSuppressPanel] = React.useState(false);
   const [isHalfGlutenFree, setIsHalfGlutenFree] = React.useState(false);
   const [halfQty, setHalfQty] = React.useState(1);
-  const [isNarrowScreen, setIsNarrowScreen] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 1023.98px)").matches;
-  });
  
   React.useEffect(() => {
     if (initialSizeRef) setSizeRef(initialSizeRef);
     if (initialHalfA) setHalfA(initialHalfA);
     if (initialHalfB) setHalfB(initialHalfB);
   }, [initialHalfA, initialHalfB, initialSizeRef]);
+
 
   // compactUiMode is ONLY for the meal-deal overlay / tight layouts
   const compactUi = !!compactUiMode;
@@ -186,8 +210,13 @@ const HalfAndHalfSelector = ({
         setHalfEditorSuppressPanel(false);
       }
       setHalfSelectionSide(side);
+      if (isNarrowScreen) {
+        const next = !halfA ? "A" : !halfB ? "B" : "CONFIRM";
+        wizardStepRef.current = next;
+        setWizardStep(next);
+      }
     },
-    [halfEditorSide],
+    [halfEditorSide, isNarrowScreen, halfA, halfB],
   );
 
   // --- Size handling for Half & Half builder ---
@@ -433,6 +462,10 @@ const HalfAndHalfSelector = ({
         setHalfB(enriched);
         setPendingHalfB(enriched);
       }
+
+      if (halfEditorSide === "A") {
+        setHalfSelectionSide("B");
+      }
     },
     [
       halfEditorItem,
@@ -494,6 +527,7 @@ const HalfAndHalfSelector = ({
       return true;
     });
   }, [menuItems]);
+  const filteredPizzaOptions = React.useMemo(() => pizzaOptions, [pizzaOptions]);
 
   const HH_GLOW_PAD = 10; // viewBox units of padding for glow (try 12-14 if needed)
   const hhViewBox = `${-HH_GLOW_PAD} ${-HH_GLOW_PAD} ${100 + HH_GLOW_PAD * 2} ${100 + HH_GLOW_PAD * 2}`;
@@ -649,25 +683,81 @@ const HalfAndHalfSelector = ({
       if (e) e.stopPropagation();
       if (!pizza) return;
 
-      if (halfSelectionSide === "A") {
-        setPendingHalfA(pizza);
-      } else {
-        setPendingHalfB(pizza);
-      }
+      const sizeToken =
+        pizza.size || getCurrentSizeToken() || selectedSizeKey || "Default";
+      const sizeRecord = makeSizeRecord(sizeToken, "Large");
 
-      const sizeToken = pizza.size || getCurrentSizeToken();
-      setHalfEditorSide(halfSelectionSide);
-      setHalfEditorItem({
+      const base = {
         ...pizza,
         qty: 1,
+        size: sizeRecord,
         add_ons: [],
         removedIngredients: [],
-        size: sizeToken,
-      });
+      };
+
+      if (isNarrowScreen) {
+        const stepNow = wizardStepRef.current || wizardStep;
+
+        // Always fill the step we are currently on (never rely on halfSelectionSide)
+        if (stepNow === "A") {
+          wizardStepRef.current = "B";
+          setWizardStep("B");
+
+          setPendingHalfA(base);
+          setHalfA(base);
+
+          return;
+        }
+
+        if (stepNow === "B") {
+          wizardStepRef.current = "CONFIRM";
+          setWizardStep("CONFIRM");
+
+          setPendingHalfB(base);
+          setHalfB(base);
+
+          // Jump up so the confirm view is visible
+          try {
+            halfBodyRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+          } catch {}
+          return;
+        }
+
+        // CONFIRM step: treat taps as "replace the active half"
+        if (halfSelectionSide === "B") {
+          setPendingHalfB(base);
+          setHalfB(base);
+        } else {
+          setPendingHalfA(base);
+          setHalfA(base);
+        }
+        return;
+      }
+
+      if (halfSelectionSide === "A") {
+        setPendingHalfA(base);
+        setHalfA(base);
+        setHalfSelectionSide("B");
+      } else {
+        setPendingHalfB(base);
+        setHalfB(base);
+        setHalfSelectionSide("A");
+      }
+
+      // never open ItemDetailPanel on selection
+      setHalfEditorItem(null);
+      setHalfEditorSide(null);
       setHalfEditorInitialModal(null);
       setHalfEditorSuppressPanel(false);
     },
-    [halfSelectionSide, getCurrentSizeToken],
+    [
+      halfSelectionSide,
+      isNarrowScreen,
+      wizardStep,
+      getCurrentSizeToken,
+      selectedSizeKey,
+      scrollToHalfOptions,
+    ],
   );
 
   const openHalfEditorForSide = React.useCallback(
@@ -936,7 +1026,7 @@ const HalfAndHalfSelector = ({
                   <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
-              {halfA && (
+              {(halfA || pendingHalfA) && (
                 <pattern
                   id="halfAImagePattern"
                   patternUnits="objectBoundingBox"
@@ -944,7 +1034,7 @@ const HalfAndHalfSelector = ({
                   height="1"
                 >
                   <image
-                    href={resolveHalfImage(halfA)}
+                    href={resolveHalfImage(halfA || pendingHalfA)}
                     x="0"
                     y="0"
                     width="100"
@@ -953,7 +1043,7 @@ const HalfAndHalfSelector = ({
                   />
                 </pattern>
               )}
-              {halfB && (
+              {(halfB || pendingHalfB) && (
                 <pattern
                   id="halfBImagePattern"
                   patternUnits="objectBoundingBox"
@@ -961,7 +1051,7 @@ const HalfAndHalfSelector = ({
                   height="1"
                 >
                   <image
-                    href={resolveHalfImage(halfB)}
+                    href={resolveHalfImage(halfB || pendingHalfB)}
                     x="0"
                     y="0"
                     width="100"
@@ -986,8 +1076,8 @@ const HalfAndHalfSelector = ({
             >
               <path
                 d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
-                fill={halfA ? "url(#halfAImagePattern)" : "#fff"}
-                fillOpacity={halfA ? "1" : "0.3"}
+                fill={halfA || pendingHalfA ? "url(#halfAImagePattern)" : "#fff"}
+                fillOpacity={halfA || pendingHalfA ? "1" : "0.3"}
               />
               <path
                 d="M50,50 L50,6 A44,44 0 0,0 50,94 Z"
@@ -1007,7 +1097,7 @@ const HalfAndHalfSelector = ({
                 fill="none"
                 pointerEvents="none"
               />
-              {!halfA && (
+              {!halfA && !pendingHalfA && (
                 <text
                   x="25"
                   y="52"
@@ -1034,8 +1124,8 @@ const HalfAndHalfSelector = ({
             >
               <path
                 d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
-                fill={halfB ? "url(#halfBImagePattern)" : "#fff"}
-                fillOpacity={halfB ? "1" : "0.3"}
+                fill={halfB || pendingHalfB ? "url(#halfBImagePattern)" : "#fff"}
+                fillOpacity={halfB || pendingHalfB ? "1" : "0.3"}
               />
               <path
                 d="M50,50 L50,6 A44,44 0 0,1 50,94 Z"
@@ -1055,7 +1145,7 @@ const HalfAndHalfSelector = ({
                 fill="none"
                 pointerEvents="none"
               />
-              {!halfB && (
+              {!halfB && !pendingHalfB && (
                 <text
                   x="75"
                   y="52"
@@ -1198,43 +1288,52 @@ const HalfAndHalfSelector = ({
           </div>
         </div>
         {/* Half selector (slider) */}
-        <div
-          className="pp-halfhalf-sideSwitch"
-          data-active={halfSelectionSide}
-          role="tablist"
-          aria-label="Select half to edit"
-        >
-          <div className="pp-halfhalf-sideThumb" aria-hidden="true" style={sideThumbStyle} />
-
-          <button
-            type="button"
-            className={[
-              "pp-halfhalf-sideBtn",
-              halfSelectionSide === "A" ? "is-active" : "",
-            ].join(" ")}
-            aria-pressed={halfSelectionSide === "A"}
-            onClick={() => setHalfSide("A")}
-            title="Edit Pizza 1 (left)"
+        {!isNarrowScreen || wizardStep === "CONFIRM" ? (
+          <div
+            className="pp-halfhalf-sideSwitch"
+            data-active={halfSelectionSide}
+            role="tablist"
+            aria-label="Select half to edit"
           >
-            Pizza 1 <span className="pp-halfhalf-sideMeta">Left</span>
-            {hasHalfA ? <span className="pp-halfhalf-sideCheck">*</span> : null}
-          </button>
+            <div className="pp-halfhalf-sideThumb" aria-hidden="true" style={sideThumbStyle} />
 
-          <button
-            type="button"
-            className={[
-              "pp-halfhalf-sideBtn",
-              halfSelectionSide === "B" ? "is-active" : "",
-            ].join(" ")}
-            aria-pressed={halfSelectionSide === "B"}
-            onClick={() => setHalfSide("B")}
-            title="Edit Pizza 2 (right)"
-          >
-            Pizza 2 <span className="pp-halfhalf-sideMeta">Right</span>
-            {hasHalfB ? <span className="pp-halfhalf-sideCheck">*</span> : null}
-          </button>
-        </div>
-        <div className="pp-hh-detailsCard">
+            <button
+              type="button"
+              className={[
+                "pp-halfhalf-sideBtn",
+                halfSelectionSide === "A" ? "is-active" : "",
+              ].join(" ")}
+              aria-pressed={halfSelectionSide === "A"}
+              onClick={() => {
+                setHalfSide("A");
+                if (isNarrowScreen) scrollToHalfOptions();
+              }}
+              title="Edit Pizza 1 (left)"
+            >
+              Pizza 1 <span className="pp-halfhalf-sideMeta">Left</span>
+              {hasHalfA ? <span className="pp-halfhalf-sideCheck">*</span> : null}
+            </button>
+
+            <button
+              type="button"
+              className={[
+                "pp-halfhalf-sideBtn",
+                halfSelectionSide === "B" ? "is-active" : "",
+              ].join(" ")}
+              aria-pressed={halfSelectionSide === "B"}
+              onClick={() => {
+                setHalfSide("B");
+                if (isNarrowScreen) scrollToHalfOptions();
+              }}
+              title="Edit Pizza 2 (right)"
+            >
+              Pizza 2 <span className="pp-halfhalf-sideMeta">Right</span>
+              {hasHalfB ? <span className="pp-halfhalf-sideCheck">*</span> : null}
+            </button>
+          </div>
+        ) : null}
+        {!isNarrowScreen || wizardStep === "CONFIRM" ? (
+          <div className="pp-hh-detailsCard">
           <div className="pp-hh-detailsHeader">
             <div className="pp-hh-detailsTitle">Half &amp; Half</div>
             <div className="pp-hh-detailsSub">
@@ -1443,6 +1542,11 @@ const HalfAndHalfSelector = ({
                       return;
                     }
                     resetHalf("A");
+                    if (isNarrowScreen) {
+                      try {
+                        scrollToHalfOptions();
+                      } catch {}
+                    }
                     if (!allowInlinePicker) {
                       try {
                         scrollToHalfOptions();
@@ -1526,6 +1630,11 @@ const HalfAndHalfSelector = ({
                       return;
                     }
                     resetHalf("B");
+                    if (isNarrowScreen) {
+                      try {
+                        scrollToHalfOptions();
+                      } catch {}
+                    }
                     if (!allowInlinePicker) {
                       try {
                         scrollToHalfOptions();
@@ -1549,6 +1658,7 @@ const HalfAndHalfSelector = ({
             </section>
           </div>
         </div>
+        ) : null}
         
           <div
             ref={halfOptionsRef}
@@ -1559,63 +1669,107 @@ const HalfAndHalfSelector = ({
           >
             {allowInlinePicker && (
               <>
-                <div
-                  style={{
-                    fontSize: "0.65rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.18em",
-                    color: "#a5b4fc",
-                    marginBottom: "0.75rem",
-                  }}
-                >
-                  {`Choose pizza for ${
-                    halfSelectionSide === "A" ? "Pizza 1" : "Pizza 2"
-                  }`}
-                </div>
+                {isNarrowScreen && (
+                  <div className="pp-hh-mobileBanner">
+                    {wizardStep !== "CONFIRM" ? (
+                      <>
+                        <div className="pp-hh-mobileBanner__title">
+                          {wizardStep === "A"
+                            ? "1️⃣ Select Pizza 1 (Left) 🍕"
+                            : "2️⃣ Select Pizza 2 (Right) 🍕"}
+                        </div>
+                        <div className="pp-hh-mobileBanner__sub">
+                          {wizardStep === "A"
+                            ? "Tap a pizza below to fill the LEFT half."
+                            : "Tap a pizza below to fill the RIGHT half."}
+                        </div>
 
-                <div className="pp-halfhalf-options">
-                  {pizzaOptions.map((p) => {
-                    const matchesHalfA =
-                      halfA?.id === p.id || pendingHalfA?.id === p.id;
-                    const matchesHalfB =
-                      halfB?.id === p.id || pendingHalfB?.id === p.id;
-                    const isSelected = matchesHalfA || matchesHalfB;
-                    const priceValue =
-                      typeof p.price === "number"
-                        ? p.price
-                        : typeof p.price_cents === "number"
-                        ? p.price_cents
-                        : null;
+                        {wizardStep === "B" && (
+                          <button
+                            type="button"
+                            className="pp-hh-mobileBanner__back"
+                            onClick={() => {
+                              // Go back to step A and clear A (so it truly restarts step A)
+                              wizardStepRef.current = "A";
+                              setWizardStep("A");
+                              resetHalf("A");
+                            }}
+                          >
+                            ⬅️ Back to Pizza 1
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="pp-hh-mobileBanner__title">
+                          ✅ Confirm Half & Half
+                        </div>
+                        <div className="pp-hh-mobileBanner__sub">
+                          Review your halves above. Use "Change" buttons to adjust.
+                        </div>
+                        <button
+                          type="button"
+                          className="pp-hh-mobileBanner__back"
+                          onClick={() => {
+                            // Restart the whole wizard
+                            wizardStepRef.current = "A";
+                            setWizardStep("A");
+                            resetHalf("A");
+                            resetHalf("B");
+                          }}
+                        >
+                          🔁 Start over
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
 
-                    return (
+                {/* Desktop header stays as-is */}
+                {!isNarrowScreen && (
+                  <div
+                    style={{
+                      fontSize: "0.65rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.18em",
+                      color: "#a5b4fc",
+                      marginBottom: "0.75rem",
+                    }}
+                  >
+                    {`Choose pizza for ${halfSelectionSide === "A" ? "Pizza 1" : "Pizza 2"}`}
+                  </div>
+                )}
+
+                {/* Show the list when: desktop OR mobile step is A/B */}
+                {(!isNarrowScreen || wizardStep !== "CONFIRM") && (
+                  <div
+                    className="pp-halfhalf-options"
+                    style={isNarrowScreen ? { gridTemplateColumns: "1fr" } : undefined}
+                  >
+                    {(isNarrowScreen ? filteredPizzaOptions : pizzaOptions).map((p) => (
                       <div
                         key={p.id}
                         onClick={(e) => handlePizzaSelect(e, p)}
                         className={
                           "pp-halfhalf-option " +
-                          (isSelected ? "pp-halfhalf-option--selected" : "")
+                          ((halfA?.id === p.id ||
+                            pendingHalfA?.id === p.id ||
+                            halfB?.id === p.id ||
+                            pendingHalfB?.id === p.id)
+                            ? "pp-halfhalf-option--selected"
+                            : "")
                         }
                       >
                         <div className="pp-halfhalf-option__text">
-                          <div className="pp-halfhalf-option__name">
-                            {p.name}
-                          </div>
-                          <div className="pp-halfhalf-option__desc">
-                            {p.description}
-                          </div>
-                          <div className="pp-halfhalf-option__price">
-                            {typeof priceValue === "number"
-                              ? `${(priceValue / 100).toFixed(2)}`
-                              : ""}
-                          </div>
+                          <div className="pp-halfhalf-option__name">{p.name}</div>
+                          <div className="pp-halfhalf-option__desc">{p.description}</div>
                         </div>
-                        <div className="pp-halfhalf-option__plus">
-                          +
-                        </div>
+                        <div className="pp-halfhalf-option__plus">+</div>
                       </div>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
+
               </>
             )}
           </div>
@@ -1664,6 +1818,10 @@ const HalfAndHalfSelector = ({
               <ItemDetailPanel
                 item={halfEditorItem}
                 menuData={menuData}
+                onClose={() => {
+                  // No base panel shown (suppressBasePanel=true), but TS requires onClose.
+                  // If user taps outside, we already close via the backdrop.
+                }}
                 editingIndex={null}
                 editingItem={halfEditorItem}
                 onSaveIngredients={(newRemoved) => {
@@ -1676,20 +1834,12 @@ const HalfAndHalfSelector = ({
                     prev ? { ...prev, add_ons: newAddOns || [] } : prev,
                   );
                 }}
-                primaryActionLabel="Confirm half"
                 initialModal={halfEditorInitialModal}
-                suppressBasePanel={halfEditorSuppressPanel}
+                suppressBasePanel={true}
                 onModalsSettled={handleQuickModalSettled}
                 forcedPriceSizeRef={getCurrentSizeToken()}
                 compactHalfMode
                 lockQty
-                onClose={(itemsToAdd, isGlutenFree, addOnSelections = []) => {
-                  applyHalfEditorResult(itemsToAdd, isGlutenFree, addOnSelections);
-                  setHalfEditorItem(null);
-                  setHalfEditorSide(null);
-                  setHalfEditorInitialModal(null);
-                  setHalfEditorSuppressPanel(false);
-                }}
               />
             </div>
           </div>
@@ -1697,6 +1847,10 @@ const HalfAndHalfSelector = ({
           <ItemDetailPanel
             item={halfEditorItem}
             menuData={menuData}
+            onClose={() => {
+              // No base panel shown (suppressBasePanel=true), but TS requires onClose.
+              // If user taps outside, we already close via the backdrop.
+            }}
             editingIndex={null}
             editingItem={halfEditorItem}
             onSaveIngredients={(newRemoved) => {
@@ -1709,20 +1863,12 @@ const HalfAndHalfSelector = ({
                 prev ? { ...prev, add_ons: newAddOns || [] } : prev,
               );
             }}
-            primaryActionLabel="Confirm half"
             initialModal={halfEditorInitialModal}
-            suppressBasePanel={halfEditorSuppressPanel}
+            suppressBasePanel={true}
             onModalsSettled={handleQuickModalSettled}
             forcedPriceSizeRef={getCurrentSizeToken()}
             compactHalfMode
             lockQty
-            onClose={(itemsToAdd, isGlutenFree, addOnSelections = []) => {
-              applyHalfEditorResult(itemsToAdd, isGlutenFree, addOnSelections);
-              setHalfEditorItem(null);
-              setHalfEditorSide(null);
-              setHalfEditorInitialModal(null);
-              setHalfEditorSuppressPanel(false);
-            }}
           />
         )
       )}
@@ -1741,6 +1887,18 @@ const MEAL_SLOT_LABELS = {
   side: "Side",
   calzone: "Calzone",
   pasta: "Pasta",
+};
+const MEAL_SLOT_EMOJI = {
+  pizza: "🍕",
+  drink: "🥤",
+  dessert: "🍰",
+  side: "🥖",
+  pasta: "🍝",
+  calzone: "🥟",
+};
+const slotEmojiFor = (step) => {
+  const key = String(step?.slotKey || "").toLowerCase();
+  return MEAL_SLOT_EMOJI[key] || "🧩";
 };
 
 function _prettySizeToken(token) {
@@ -2497,37 +2655,15 @@ const MealDealBuilderPanel = ({
 
       {editorItem && (
         <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 60,
-            background: "rgba(0,0,0,0.55)",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            padding: "1.2rem 1rem",
-          }}
+          className={
+            "pp-md-editorOverlay " + (isMobile ? "" : "pp-md-editorOverlay--inpanel")
+          }
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className="order-panel-container"
-            style={{
-              width: "95%",
-              maxWidth: 560,
-              margin: "0 auto",
-              position: "relative",
-              height: "86vh",
-              maxHeight: "86vh",
-              minHeight: 0,
-              overflow: "hidden",
-              padding: "1.2rem 1.4rem",
-              borderRadius: "22px",
-              background: "var(--pp-surface)",
-              border: "1px solid var(--border-color)",
-              boxShadow: "var(--shadow-modal)",
-              display: "flex",
-              flexDirection: "column",
-            }}
+            className={
+              "pp-md-editorShell " + (isMobile ? "" : "pp-md-editorShell--inpanel")
+            }
             onClick={(e) => e.stopPropagation()}
           >
             <ItemDetailPanel
@@ -2565,10 +2701,12 @@ const MealDealBuilderPanel = ({
       {halfHalfOpen && (
         <div
           style={{
-            position: "absolute",
+            position: "fixed",
             inset: 0,
             zIndex: 70,
-            background: "rgba(0,0,0,0.55)",
+            background: "rgba(2, 6, 23, 0.72)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
@@ -2622,7 +2760,7 @@ const MealDealBuilderPanel = ({
       style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}
     >
       <header className="pp-mdm-head">
-        <div className="pp-mdm-kicker">Meal deal</div>
+        <div className="pp-mdm-kicker">🍱 MEAL DEAL</div>
         <div className="pp-mdm-title">{item?.name || "Build your meal"}</div>
 
         <div className="pp-mdm-metaRow">
@@ -2671,7 +2809,7 @@ const MealDealBuilderPanel = ({
           onClick={() => setPickerOpen(true)}
           style={{ marginTop: "0.85rem" }}
         >
-          Choose {step?.label || "item"}
+          ➕ Choose {step?.label || "item"}
         </button>
       </section>
 
@@ -2729,7 +2867,7 @@ const MealDealBuilderPanel = ({
             }}
             disabled={isComplete}
           >
-            {isComplete ? "All selected" : "Continue selecting"}
+            {isComplete ? "All selected" : "➕ Keep selecting"}
           </button>
 
           <button
@@ -2739,7 +2877,7 @@ const MealDealBuilderPanel = ({
             onClick={commitMeal}
             style={{ opacity: isComplete ? 1 : 0.55 }}
           >
-            Add meal to order - {currency(totalCents)}
+            🛒 Add meal — {currency(totalCents)}
           </button>
         </div>
 
@@ -2771,7 +2909,15 @@ const MealDealBuilderPanel = ({
   );
 
   const desktopBody = (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        position: "relative",
+        minHeight: 0,
+      }}
+    >
       <button
         onClick={onCancel}
         className="quantity-btn"
@@ -2784,8 +2930,8 @@ const MealDealBuilderPanel = ({
       <header className="pp-md-head">
         <div className="pp-md-headRow">
           <div>
-            <div className="pp-md-kicker">Meal deal builder</div>
-            <h2 className="pp-md-title">Build {item?.name}</h2>
+            <div className="pp-md-kicker">🍱 MEAL DEAL BUILDER</div>
+            <h2 className="pp-md-title">Build {item?.name} 🧩</h2>
             <div className="pp-md-sub">
               Pick what's included. You can edit each item before adding.
             </div>
@@ -2831,7 +2977,7 @@ const MealDealBuilderPanel = ({
                 </div>
 
                 <div className="pp-md-stepStatus" aria-hidden="true">
-                  {chosen ? "OK" : "..."}
+                  {chosen ? "✅" : "➕"}
                 </div>
               </div>
 
@@ -2849,7 +2995,9 @@ const MealDealBuilderPanel = ({
             <div className="pp-md-activeKicker">
               Step {activeStep + 1} of {steps.length}
             </div>
-            <div className="pp-md-activeTitle">{step?.label || ""}</div>
+            <div className="pp-md-activeTitle">
+              {slotEmojiFor(step)} {step?.label || ""}
+            </div>
           </div>
 
           <div className={["pp-md-activePill", activeChosen ? "is-filled" : ""].join(" ")}>
@@ -2869,7 +3017,7 @@ const MealDealBuilderPanel = ({
               </>
             ) : (
               <div className="pp-md-activeEmpty">
-                Tap an item from the selection list to fill this step.
+                Pick something below to fill this step 👇
               </div>
             )}
           </div>
@@ -2924,7 +3072,7 @@ const MealDealBuilderPanel = ({
             disabled={activeStep <= 0}
             onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
           >
-            Back
+            ⬅️ Back
           </button>
 
           <button
@@ -2934,7 +3082,7 @@ const MealDealBuilderPanel = ({
             onClick={commitMeal}
             style={{ opacity: isComplete ? 1 : 0.55 }}
           >
-            Add meal to order - {currency(totalCents)}
+            🛒 Add meal — {currency(totalCents)}
           </button>
           {isComplete && typeof onCommitAndReview === "function" && (
             <button
@@ -2954,7 +3102,7 @@ const MealDealBuilderPanel = ({
                 })
               }
             >
-              Add & Review order
+              🧾 Review / change
             </button>
           )}
         </div>
@@ -5658,6 +5806,7 @@ function ItemDetailPanel({
     return 0;
   };
   const heroImage = getImagePath(item);
+  const HERO_RADIUS = "1rem";
   const quantityTotal = quantity || 0;
   const secondaryActionLabel = lockQty ? "Back" : "Cancel";
   const rootClassName = variant
@@ -5695,9 +5844,12 @@ function ItemDetailPanel({
             width: "100%",
             flex: "0 0 auto",
             height: "clamp(170px, 30vh, 280px)",
-            borderRadius: "1rem",
+            borderRadius: HERO_RADIUS,
             overflow: "hidden",
             marginBottom: "0.75rem",
+            background: "var(--idp-hero-bg, transparent)",
+            border: "none",
+            boxShadow: "none",
           }}
         >
           {heroImage && (() => {
@@ -5709,7 +5861,16 @@ function ItemDetailPanel({
                 alt={item.name}
                 className="detail-image"
                 data-pp-img-try="0"
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                  borderRadius: HERO_RADIUS,
+                  background: "transparent",
+                  transform: "translateZ(0)",
+                  backfaceVisibility: "hidden",
+                }}
                 onError={(e) => cycleImgCandidates(e.currentTarget, heroCandidates)}
               />
             );
@@ -5717,42 +5878,61 @@ function ItemDetailPanel({
         </div>
 
         <div className="pp-idp-meta">
-          <h3 className="panel-title pp-idp-title">{item.name}</h3>
-          <p className="pp-idp-desc">{item.description}</p>
+          {isMealDealPick ? (
+            <div className="pp-mdp-headCard">
+              <div className="pp-mdp-headTitle">{item?.name || ""}</div>
+              {item?.description ? (
+                <div className="pp-mdp-headDesc">{item.description}</div>
+              ) : null}
 
-          {!isMealDealPick && ingredientSummary.length > 0 && (
-            <div
-              className="pp-ingredients-summary"
-              style={{
-                marginTop: "0.75rem",
-                padding: "0.75rem 0.75rem 0.25rem",
-                borderRadius: "0.75rem",
-                background: "var(--pp-surface-soft, rgba(0,0,0,0.035))",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: "var(--pp-text-dim)",
-                  marginBottom: "0.35rem",
-                }}
-              >
-                Ingredients
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-                {ingredientSummary.map((name) => (
-                  <span
-                    key={name}
-                    className="pp-chip"
-                    style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
-                  >
-                    {name}
-                  </span>
-                ))}
-              </div>
+              {ingredientSummary.length > 0 ? (
+                <div className="pp-mdp-headChips">
+                  {ingredientSummary.slice(0, 10).map((name) => (
+                    <span key={name} className="pp-mdp-chipMini">{name}</span>
+                  ))}
+                </div>
+              ) : null}
             </div>
+          ) : (
+            <>
+              <h3 className="panel-title pp-idp-title">{item.name}</h3>
+              <p className="pp-idp-desc">{item.description}</p>
+
+              {!compactHalfMode && ingredientSummary.length > 0 && (
+                <div
+                  className="pp-ingredients-summary"
+                  style={{
+                    marginTop: "0.75rem",
+                    padding: "0.75rem 0.75rem 0.25rem",
+                    borderRadius: "0.75rem",
+                    background: "var(--pp-surface-soft, rgba(0,0,0,0.035))",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      color: "var(--pp-text-dim)",
+                      marginBottom: "0.35rem",
+                    }}
+                  >
+                    Ingredients
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                    {ingredientSummary.map((name) => (
+                      <span
+                        key={name}
+                        className="pp-chip"
+                        style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
+                      >
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -5771,7 +5951,7 @@ function ItemDetailPanel({
           <>
             {lockedSizeRef ? (
               <div className="pp-md-sizeLock">
-                🔒 Size: <b>{String(lockedSizeRef).replaceAll("_", " ")}</b>
+                🔒 Size: <b>{String(lockedSizeRef).replace(/_/g, " ")}</b>
                 {isMealDealPick ? (
                   <span style={{ marginLeft: 10, opacity: 0.9 }}>
                     {gfPossible && gfIsLargeNow
@@ -5856,7 +6036,7 @@ function ItemDetailPanel({
           </>
         )}
 
-        {isMealDealLine ? (
+        {isMealDealPick ? null : isMealDealLine ? (
           <div
             className="muted-note"
             style={{ marginTop: "0.5rem", opacity: 0.8 }}
@@ -9825,6 +10005,29 @@ function AppLayout({ isMapsLoaded }) {
     mq.addEventListener?.("change", onChange);
     return () => mq.removeEventListener?.("change", onChange);
   }, []);
+  const [isMobile, setIsMobile] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 1023.98px)").matches;
+  });
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const onChange = (e) => setIsMobile(e.matches);
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange);
+    setIsMobile(mql.matches);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
+    };
+  }, []);
+
+  const [cartModalOpen, setCartModalOpen] = React.useState(false);
+
+  // Safety: if you resize back to desktop, close the modal
+  React.useEffect(() => {
+    if (!isMobile) setCartModalOpen(false);
+  }, [isMobile]);
 
   // Mobile Half & Half flow draft: pick pizzas in menu first, then open editor modal
   const [hhMobileDraft, setHhMobileDraft] = useState(null);
@@ -10575,6 +10778,215 @@ function AppLayout({ isMapsLoaded }) {
     );
   }
 
+  const isHalfHalfPanel = Boolean(selectedItem?.isHalfHalf);
+  const isMealDealSelected = Boolean(
+    selectedItem?.bundle &&
+      Array.isArray(selectedItem.bundle.slots) &&
+      selectedItem.bundle.slots.length,
+  );
+  const isItemDetailPanel = Boolean(
+    selectedItem && !isHalfHalfPanel && !isMealDealSelected,
+  );
+  const rightSidebarClassName = isHalfHalfPanel
+    ? "right-sidebar right-sidebar--halfhalf"
+    : "right-sidebar";
+  const orderPanelClassName = [
+    "order-panel-container",
+    isHalfHalfPanel ? "order-panel-container--halfhalf" : "",
+    isItemDetailPanel ? "order-panel-container--detail" : "",
+    isMealDealSelected ? "order-panel-container--mealdeal" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const mobileOrderPanelClassName = [
+    "order-panel-container",
+    "order-panel-container--mobileCart",
+    isHalfHalfPanel ? "order-panel-container--halfhalf" : "",
+    isItemDetailPanel ? "order-panel-container--detail" : "",
+    isMealDealSelected ? "order-panel-container--mealdeal" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const rightPanelBody = (
+    <>
+      {selectedItem && (
+        isHalfHalfPanel ? (
+          <div className="pp-halfhalf-modal">
+            <div
+              className="pp-halfhalf-modal__backdrop"
+              onClick={() => {
+                setSelectedItem(null);
+                setHhMobileDraft(null);
+              }}
+            />
+            <div className="pp-halfhalf-modal__panel">
+              <HalfAndHalfSelector
+                menuItems={menuItems}
+                menuData={menuData}
+                onAddItemToOrder={(hh) => {
+                  handleAddHalfHalfToOrder(hh);
+                  setHhMobileDraft(null);
+                }} // uses the existing add-to-cart bridge
+                selectedItem={selectedItem}
+                setSelectedItem={(v) => {
+                  setSelectedItem(v);
+                  if (v == null) setHhMobileDraft(null);
+                }}
+                registerExternalPizzaApply={registerExternalPizzaApply}
+                useExternalMenuSelection={!isMobileScreen}
+                hidePizzaPicker={!isMobileScreen}
+                initialHalfA={isMobileScreen ? hhMobileDraft?.halfA : null}
+                initialHalfB={isMobileScreen ? hhMobileDraft?.halfB : null}
+                initialSizeRef={
+                  isMobileScreen ? (hhMobileDraft?.sizeRef || "LARGE") : "LARGE"
+                }
+                onRequestChangeHalf={
+                  isMobileScreen
+                    ? (side) => {
+                        setSelectedItem(null);
+                        setHhMobileDraft((prev) => ({
+                          ...(prev || {}),
+                          step: "pick",
+                          side: side === "B" ? "B" : "A",
+                          halfA: side === "A" ? null : prev?.halfA || null,
+                          halfB: side === "B" ? null : prev?.halfB || null,
+                          sizeRef: prev?.sizeRef || "LARGE",
+                        }));
+                        try {
+                          requestAnimationFrame(() => {
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          });
+                        } catch {}
+                      }
+                    : null
+                }
+              />
+            </div>
+          </div>
+        ) : isMealDealSelected ? (
+          isMobile ? null : (
+            <MealDealBuilderPanel
+              item={selectedItem}
+              menuData={menuData}
+              prepareItemForPanel={prepareItemForPanel}
+              editingIndex={editingIndex}
+              isMobile={isMobileScreen}
+              onCancel={() => {
+                setMealDealMenuFilter(null);
+                setSelectedItem(null);
+                setEditingIndex(null);
+                setCustomizingItem(null);
+              }}
+              onCommit={(payload) => {
+                if (editingIndex !== null) removeFromCart(editingIndex);
+                addToCart([payload]);
+                setMealDealMenuFilter(null);
+                setMealDealDraft(null);
+                setSelectedItem(null);
+                setEditingIndex(null);
+                setCustomizingItem(null);
+              }}
+              registerExternalMealItemApply={registerExternalMealDealItemApply}
+              onMenuFilterChange={setMealDealMenuFilter}
+            />
+          )
+        ) : (
+          <div className="pp-itemdetail-modal">
+            <div
+              className="pp-itemdetail-modal__backdrop"
+              onClick={handleClosePanel}
+            />
+            <div className="pp-itemdetail-modal__panel">
+              <ItemDetailPanel
+                item={selectedItem}
+                menuData={menuData}
+                onClose={handleClosePanel}
+                editingIndex={editingIndex}
+                editingItem={customizingItem}
+                onSaveIngredients={handleSaveIngredients}
+                onApplyAddOns={handleApplyAddOns}
+                primaryActionLabel={undefined}
+                initialModal={undefined}
+                onModalsSettled={() => {}}
+              />
+            </div>
+          </div>
+        )
+      )}
+      {!selectedItem &&
+        (rightPanelView === "about" ? (
+          <AboutPanel isMapsLoaded={isMapsLoaded} />
+        ) : rightPanelView === "review" ? (
+          <ReviewOrderPanel
+            onBack={() => setRightPanelView("order")}
+            onEditItem={handleEditItem}
+            orderType={orderType}
+            orderAddress={orderAddress}
+            orderDeliveryFee={orderDeliveryFee}
+            orderAddressError={orderAddressError}
+            estimatedTime={estimatedTime}
+            storeOpenNow={storeOpenNow}
+            preorderPickupLabel={preorderPickupLabel}
+          />
+        ) : (
+          <OrderInfoPanel
+            onEditItem={handleEditItem}
+            isMapsLoaded={isMapsLoaded}
+            orderType={orderType}
+            setOrderType={setOrderType}
+            orderAddress={orderAddress}
+            setOrderAddress={setOrderAddress}
+            orderDeliveryFee={orderDeliveryFee}
+            setOrderDeliveryFee={setOrderDeliveryFee}
+            orderAddressError={orderAddressError}
+            setOrderAddressError={setOrderAddressError}
+            estimatedTime={estimatedTime}
+            storeOpenNow={storeOpenNow}
+            preorderPickupLabel={preorderPickupLabel}
+            onProceed={() => setRightPanelView("review")}
+          />
+        ))}
+    </>
+  );
+  const mealDealPanel = isMealDealSelected ? (
+    <div className="order-panel-container order-panel-container--mealdeal">
+      <MealDealBuilderPanel
+        item={selectedItem}
+        menuData={menuData}
+        prepareItemForPanel={prepareItemForPanel}
+        editingIndex={editingIndex}
+        isMobile={isMobile}
+        onCancel={() => {
+          setMealDealMenuFilter(null);
+          setSelectedItem(null);
+          setEditingIndex(null);
+          setCustomizingItem(null);
+        }}
+        onCommit={(payload) => {
+          if (editingIndex !== null) removeFromCart(editingIndex);
+          addToCart([payload]);
+          setMealDealMenuFilter(null);
+          setMealDealDraft(null);
+          setSelectedItem(null);
+          setEditingIndex(null);
+          setCustomizingItem(null);
+        }}
+        onCommitAndReview={(payload) => {
+          if (editingIndex !== null) removeFromCart(editingIndex);
+          addToCart([payload]);
+          setMealDealMenuFilter(null);
+          setMealDealDraft(null);
+          setSelectedItem(null);
+          setEditingIndex(null);
+          setCustomizingItem(null);
+          setRightPanelView("review");
+        }}
+        registerExternalMealItemApply={() => {}}
+        onMenuFilterChange={() => {}}
+      />
+    </div>
+  ) : null;
+
   return (
     <>
       <LoginModal
@@ -10634,216 +11046,52 @@ function AppLayout({ isMapsLoaded }) {
             <Footer />
           </main>
         </div>
-        {(() => {
-          const isHalfHalfPanel = Boolean(selectedItem?.isHalfHalf);
-          const isMealDealPanel = Boolean(
-            selectedItem?.bundle &&
-              Array.isArray(selectedItem.bundle.slots) &&
-              selectedItem.bundle.slots.length,
-          );
-          const isItemDetailPanel = Boolean(
-            selectedItem && !isHalfHalfPanel && !isMealDealPanel,
-          );
-          const rightSidebarClassName = isHalfHalfPanel
-            ? "right-sidebar right-sidebar--halfhalf"
-            : "right-sidebar";
-          const orderPanelClassName = [
-            "order-panel-container",
-            isHalfHalfPanel ? "order-panel-container--halfhalf" : "",
-            isItemDetailPanel ? "order-panel-container--detail" : "",
-            isMealDealPanel ? "order-panel-container--mealdeal" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
+        <div className={rightSidebarClassName}>
+          <div className={orderPanelClassName}>{rightPanelBody}</div>
+        </div>
+        {isMobile && (
+          <button
+            type="button"
+            className="pp-cart-fab"
+            onClick={() => setCartModalOpen(true)}
+            aria-label="Open cart"
+          >
+            🛒 Cart
+          </button>
+        )}
+        {isMobile && cartModalOpen && (
+          <div className="pp-cart-modal" role="dialog" aria-modal="true">
+            <div
+              className="pp-cart-modal__backdrop"
+              onClick={() => setCartModalOpen(false)}
+            />
+            <div className="pp-cart-modal__panel">
+              <button
+                type="button"
+                className="quantity-btn"
+                title="Close"
+                onClick={() => setCartModalOpen(false)}
+                style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 5 }}
+              >
+                &times;
+              </button>
 
-          return (
-            <div className={rightSidebarClassName}>
-              <div className={orderPanelClassName}>
-                {selectedItem && (
-                  isHalfHalfPanel ? (
-                    <div className="pp-halfhalf-modal">
-                      <div
-                        className="pp-halfhalf-modal__backdrop"
-                        onClick={() => {
-                          setSelectedItem(null);
-                          setHhMobileDraft(null);
-                        }}
-                      />
-                      <div className="pp-halfhalf-modal__panel">
-                        <HalfAndHalfSelector
-                          menuItems={menuItems}
-                          menuData={menuData}
-                          onAddItemToOrder={(hh) => {
-                            handleAddHalfHalfToOrder(hh);
-                            setHhMobileDraft(null);
-                          }} // uses the existing add-to-cart bridge
-                          selectedItem={selectedItem}
-                          setSelectedItem={(v) => {
-                            setSelectedItem(v);
-                            if (v == null) setHhMobileDraft(null);
-                          }}
-                          registerExternalPizzaApply={registerExternalPizzaApply}
-                          useExternalMenuSelection={!isMobileScreen}
-                          hidePizzaPicker={!isMobileScreen}
-                          initialHalfA={isMobileScreen ? hhMobileDraft?.halfA : null}
-                          initialHalfB={isMobileScreen ? hhMobileDraft?.halfB : null}
-                          initialSizeRef={
-                            isMobileScreen ? (hhMobileDraft?.sizeRef || "LARGE") : "LARGE"
-                          }
-                          onRequestChangeHalf={
-                            isMobileScreen
-                              ? (side) => {
-                                  setSelectedItem(null);
-                                  setHhMobileDraft((prev) => ({
-                                    ...(prev || {}),
-                                    step: "pick",
-                                    side: side === "B" ? "B" : "A",
-                                    halfA: side === "A" ? null : prev?.halfA || null,
-                                    halfB: side === "B" ? null : prev?.halfB || null,
-                                    sizeRef: prev?.sizeRef || "LARGE",
-                                  }));
-                                  try {
-                                    requestAnimationFrame(() => {
-                                      window.scrollTo({ top: 0, behavior: "smooth" });
-                                    });
-                                  } catch {}
-                                }
-                              : null
-                          }
-                        />
-                      </div>
-                    </div>
-                  ) : isMealDealPanel ? (
-                    isMobileScreen ? (
-                      <div className="pp-mealdeal-modal">
-                        <div
-                          className="pp-mealdeal-modal__backdrop"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="pp-mealdeal-modal__panel">
-                          <MealDealBuilderPanel
-                            item={selectedItem}
-                            menuData={menuData}
-                            prepareItemForPanel={prepareItemForPanel}
-                            editingIndex={editingIndex}
-                            isMobile={isMobileScreen}
-                            onCancel={() => {
-                              setMealDealMenuFilter(null);
-                              setSelectedItem(null);
-                              setEditingIndex(null);
-                              setCustomizingItem(null);
-                            }}
-                            onCommit={(payload) => {
-                              if (editingIndex !== null) removeFromCart(editingIndex);
-                              addToCart([payload]);
-                              setMealDealMenuFilter(null);
-                              setMealDealDraft(null);
-                              setSelectedItem(null);
-                              setEditingIndex(null);
-                              setCustomizingItem(null);
-                            }}
-                            onCommitAndReview={(payload) => {
-                              if (editingIndex !== null) removeFromCart(editingIndex);
-                              addToCart([payload]);
-                              setMealDealMenuFilter(null);
-                              setMealDealDraft(null);
-                              setSelectedItem(null);
-                              setEditingIndex(null);
-                              setCustomizingItem(null);
-                              setRightPanelView("review");
-                            }}
-                            registerExternalMealItemApply={() => {}}
-                            onMenuFilterChange={() => {}}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <MealDealBuilderPanel
-                        item={selectedItem}
-                        menuData={menuData}
-                        prepareItemForPanel={prepareItemForPanel}
-                        editingIndex={editingIndex}
-                        isMobile={isMobileScreen}
-                        onCancel={() => {
-                          setMealDealMenuFilter(null);
-                          setSelectedItem(null);
-                          setEditingIndex(null);
-                          setCustomizingItem(null);
-                        }}
-                        onCommit={(payload) => {
-                          if (editingIndex !== null) removeFromCart(editingIndex);
-                          addToCart([payload]);
-                          setMealDealMenuFilter(null);
-                          setMealDealDraft(null);
-                          setSelectedItem(null);
-                          setEditingIndex(null);
-                          setCustomizingItem(null);
-                        }}
-                        registerExternalMealItemApply={registerExternalMealDealItemApply}
-                        onMenuFilterChange={setMealDealMenuFilter}
-                      />
-                    )
-                  ) : (
-                    <div className="pp-itemdetail-modal">
-                      <div
-                        className="pp-itemdetail-modal__backdrop"
-                        onClick={handleClosePanel}
-                      />
-                      <div className="pp-itemdetail-modal__panel">
-                        <ItemDetailPanel
-                          item={selectedItem}
-                          menuData={menuData}
-                          onClose={handleClosePanel}
-                          editingIndex={editingIndex}
-                          editingItem={customizingItem}
-                          onSaveIngredients={handleSaveIngredients}
-                          onApplyAddOns={handleApplyAddOns}
-                          primaryActionLabel={undefined}
-                          initialModal={undefined}
-                          onModalsSettled={() => {}}
-                        />
-                      </div>
-                    </div>
-                  )
-                )}
-            {!selectedItem &&
-              (rightPanelView === "about" ? (
-                <AboutPanel isMapsLoaded={isMapsLoaded} />
-              ) : rightPanelView === "review" ? (
-                <ReviewOrderPanel
-                  onBack={() => setRightPanelView("order")}
-                  onEditItem={handleEditItem}
-                  orderType={orderType}
-                  orderAddress={orderAddress}
-                  orderDeliveryFee={orderDeliveryFee}
-                  orderAddressError={orderAddressError}
-                  estimatedTime={estimatedTime}
-                  storeOpenNow={storeOpenNow}
-                  preorderPickupLabel={preorderPickupLabel}
-                />
-              ) : (
-                <OrderInfoPanel
-                  onEditItem={handleEditItem}
-                  isMapsLoaded={isMapsLoaded}
-                  orderType={orderType}
-                  setOrderType={setOrderType}
-                  orderAddress={orderAddress}
-                  setOrderAddress={setOrderAddress}
-                  orderDeliveryFee={orderDeliveryFee}
-                  setOrderDeliveryFee={setOrderDeliveryFee}
-                  orderAddressError={orderAddressError}
-                  setOrderAddressError={setOrderAddressError}
-                  estimatedTime={estimatedTime}
-                  storeOpenNow={storeOpenNow}
-                  preorderPickupLabel={preorderPickupLabel}
-                  onProceed={() => setRightPanelView("review")}
-                />
-              ))}
-              </div>
+              <div className={mobileOrderPanelClassName}>{rightPanelBody}</div>
             </div>
-          );
-        })()}
+          </div>
+        )}
       </div>
+      {isMobile && isMealDealSelected && (
+        <div className="pp-mealdeal-modal" role="dialog" aria-modal="true">
+          <div
+            className="pp-mealdeal-modal__backdrop"
+            onClick={() => setSelectedItem(null)}
+          />
+          <div className="pp-mealdeal-modal__panel">
+            {mealDealPanel}
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -11190,6 +11438,8 @@ function AboutPanel({ isMapsLoaded }) {
 }
 
 export default App;
+
+
 
 
 
