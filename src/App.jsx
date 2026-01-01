@@ -695,21 +695,28 @@ const HalfAndHalfSelector = ({
 
         // Always fill the step we are currently on (never rely on halfSelectionSide)
         if (stepNow === "A") {
+          setHalfSelectionSide("A");
           wizardStepRef.current = "B";
           setWizardStep("B");
 
           setPendingHalfA(base);
           setHalfA(base);
 
+          // Move focus to Pizza 2.
+          setHalfSelectionSide("B");
           return;
         }
 
         if (stepNow === "B") {
+          setHalfSelectionSide("B");
           wizardStepRef.current = "CONFIRM";
           setWizardStep("CONFIRM");
 
           setPendingHalfB(base);
           setHalfB(base);
+
+          // Default to showing Pizza 1 as active once both are chosen.
+          setHalfSelectionSide("A");
 
           // Jump up so the confirm view is visible
           try {
@@ -863,6 +870,11 @@ const HalfAndHalfSelector = ({
 
   // Only allow adding once both pizzas are picked
   const addDisabled = !halfA || !halfB;
+
+  const mobilePickTarget =
+    isNarrowScreen && wizardStep !== "CONFIRM"
+      ? (wizardStep === "A" ? "LEFT" : "RIGHT")
+      : (halfSelectionSide === "A" ? "LEFT" : "RIGHT");
 
   return (
     <div
@@ -1175,6 +1187,22 @@ const HalfAndHalfSelector = ({
             </text>
           </svg>
         </div>
+        {isNarrowScreen && (
+          <div className="pp-hh-heroHint">
+            <span className="pp-hh-heroHintPill">
+              {halfSelectionSide === "A" ? (
+                <>
+                  Editing LEFT {"\uD83D\uDC48"}
+                </>
+              ) : (
+                <>
+                  Editing RIGHT {"\uD83D\uDC49"}
+                </>
+              )}
+            </span>
+            <span className="pp-hh-heroHintSub">Tap a half to switch</span>
+          </div>
+        )}
       </div>
 
       <div
@@ -1189,6 +1217,103 @@ const HalfAndHalfSelector = ({
           paddingBottom: compactUi ? "0.9rem" : "1.75rem",
         }}
       >
+        {isNarrowScreen && (
+          <div className="pp-hh-wizTop">
+            <div className="pp-hh-wizRow">
+              <div className="pp-hh-wizStep">
+                {wizardStep === "A"
+                  ? "Step 1 of 3"
+                  : wizardStep === "B"
+                  ? "Step 2 of 3"
+                  : "Step 3 of 3"}
+                <span className="pp-hh-wizDot">{"\u2022"}</span>
+                {wizardStep === "A"
+                  ? "Pick LEFT half"
+                  : wizardStep === "B"
+                  ? "Pick RIGHT half"
+                  : "Confirm & add"}
+              </div>
+
+              <div className="pp-hh-wizGoal">
+                {wizardStep === "A" ? (
+                  <>
+                    Pizza 1 (Left) {"\uD83D\uDC48"}
+                  </>
+                ) : wizardStep === "B" ? (
+                  <>
+                    Pizza 2 (Right) {"\uD83D\uDC49"}
+                  </>
+                ) : (
+                  <>
+                    Ready {EM.CHECK}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="pp-hh-wizCards">
+              <button
+                type="button"
+                className={[
+                  "pp-hh-wizCard",
+                  halfA || pendingHalfA ? "is-filled" : "is-empty",
+                  halfSelectionSide === "A" ? "is-active" : "",
+                ].join(" ")}
+                onClick={() => {
+                  setHalfSelectionSide("A");
+                  scrollToHalfOptions();
+                }}
+              >
+                <div className="pp-hh-wizCardTop">
+                  <span className="pp-hh-wizCardTag">LEFT</span>
+                  {halfA || pendingHalfA ? (
+                    <span className="pp-hh-wizCheck">{"\u2713"}</span>
+                  ) : null}
+                </div>
+                <div className="pp-hh-wizCardName">
+                  {halfA?.name || pendingHalfA?.name || "Pizza 1 not selected"}
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={[
+                  "pp-hh-wizCard",
+                  halfB || pendingHalfB ? "is-filled" : "is-empty",
+                  halfSelectionSide === "B" ? "is-active" : "",
+                ].join(" ")}
+                onClick={() => {
+                  setHalfSelectionSide("B");
+                  scrollToHalfOptions();
+                }}
+              >
+                <div className="pp-hh-wizCardTop">
+                  <span className="pp-hh-wizCardTag">RIGHT</span>
+                  {halfB || pendingHalfB ? (
+                    <span className="pp-hh-wizCheck">{"\u2713"}</span>
+                  ) : null}
+                </div>
+                <div className="pp-hh-wizCardName">
+                  {halfB?.name || pendingHalfB?.name || "Pizza 2 not selected"}
+                </div>
+              </button>
+            </div>
+
+            {wizardStep !== "CONFIRM" ? (
+              <div className="pp-hh-wizHint">
+                Tap a pizza below to fill the{" "}
+                <b>{wizardStep === "A" ? "LEFT" : "RIGHT"}</b> half.
+              </div>
+            ) : (
+              <div className="pp-hh-wizHint">
+                Both halves selected {"\u2014"} use the buttons above to edit{" "}
+                {"\uD83E\uDDC5"}
+                {"\uD83E\uDDC0"}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Size selector - pill-style controls for the Half & Half pizza size */}
         <div
           style={{
@@ -1744,30 +1869,71 @@ const HalfAndHalfSelector = ({
                 {/* Show the list when: desktop OR mobile step is A/B */}
                 {(!isNarrowScreen || wizardStep !== "CONFIRM") && (
                   <div
-                    className="pp-halfhalf-options"
-                    style={isNarrowScreen ? { gridTemplateColumns: "1fr" } : undefined}
+                    className={[
+                      "pp-halfhalf-options",
+                      isNarrowScreen ? "pp-hh-pickGrid" : "",
+                    ].join(" ")}
                   >
-                    {(isNarrowScreen ? filteredPizzaOptions : pizzaOptions).map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={(e) => handlePizzaSelect(e, p)}
-                        className={
-                          "pp-halfhalf-option " +
-                          ((halfA?.id === p.id ||
-                            pendingHalfA?.id === p.id ||
-                            halfB?.id === p.id ||
-                            pendingHalfB?.id === p.id)
-                            ? "pp-halfhalf-option--selected"
-                            : "")
-                        }
-                      >
-                        <div className="pp-halfhalf-option__text">
-                          <div className="pp-halfhalf-option__name">{p.name}</div>
-                          <div className="pp-halfhalf-option__desc">{p.description}</div>
-                        </div>
-                        <div className="pp-halfhalf-option__plus">+</div>
-                      </div>
-                    ))}
+                    {(isNarrowScreen ? filteredPizzaOptions : pizzaOptions).map((p) => {
+                      const isSelected =
+                        halfA?.id === p.id ||
+                        pendingHalfA?.id === p.id ||
+                        halfB?.id === p.id ||
+                        pendingHalfB?.id === p.id;
+
+                      const img = getImagePath(p);
+
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={(e) => handlePizzaSelect(e, p)}
+                          className={[
+                            "pp-halfhalf-option",
+                            isNarrowScreen ? "pp-hh-pickCard" : "",
+                            isSelected ? "pp-halfhalf-option--selected is-selected" : "",
+                          ].join(" ")}
+                          aria-label={`Select ${p.name} for the ${mobilePickTarget} half`}
+                        >
+                          {isNarrowScreen ? (
+                            <>
+                              <div className="pp-hh-pickThumbWrap" aria-hidden="true">
+                                <img className="pp-hh-pickThumb" src={img} alt="" />
+                                <div className="pp-hh-pickBadge">
+                                  Fills {mobilePickTarget}{" "}
+                                  {mobilePickTarget === "LEFT"
+                                    ? "\uD83D\uDC48"
+                                    : "\uD83D\uDC49"}
+                                </div>
+                              </div>
+
+                              <div className="pp-hh-pickBody">
+                                <div className="pp-hh-pickName">{p.name}</div>
+                                <div className="pp-hh-pickDesc">{p.description}</div>
+
+                                <div className="pp-hh-pickRow">
+                                  <span className="pp-hh-pickHint">
+                                    {isSelected ? "Already chosen" : "Tap to select"}
+                                  </span>
+
+                                  <span className="pp-hh-pickAction">
+                                    {isSelected ? "Replace \u267B" : "Add \u2795"}
+                                  </span>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="pp-halfhalf-option__text">
+                                <div className="pp-halfhalf-option__name">{p.name}</div>
+                                <div className="pp-halfhalf-option__desc">{p.description}</div>
+                              </div>
+                              <div className="pp-halfhalf-option__plus">+</div>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -10223,32 +10389,92 @@ function Home({
       )}
       <QuickNav menuData={menuData} activeCategory={activeCategory} />
       {hhMobilePicking && (
-        <div
-          style={{
-            marginBottom: "0.85rem",
-            padding: "0.85rem 1rem",
-            borderRadius: "16px",
-            border: "1px solid rgba(148,163,184,0.28)",
-            background: "var(--panel)",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>
-            Half & Half: choose your two halves
-          </div>
-          <div style={{ color: "var(--text-medium)", fontWeight: 700 }}>
-            Next:{" "}
-            <b>{hhMobileDraft?.side === "A" ? "Pizza 1 (Left)" : "Pizza 2 (Right)"}</b>
-          </div>
+        <div className="pp-hh-pickNotice" role="status" aria-live="polite">
+          <div className="pp-hh-pickNotice__top">
+            <div>
+              <div className="pp-hh-pickNotice__kicker">
+                {"\uD83C\uDF55"} Half & Half {"\u2014"} Selection Mode
+              </div>
+              <div className="pp-hh-pickNotice__title">
+                Pick <b>two</b> pizzas to build your Half & Half
+              </div>
+            </div>
 
-          <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
             <button
               type="button"
-              className="simple-button"
+              className="pp-hh-pickNotice__exit"
               onClick={() => setHhMobileDraft(null)}
+              aria-label="Exit Half and Half selection"
+              title="Exit"
             >
-              Cancel
+              {"\u2715"} Exit
             </button>
+          </div>
+
+          <div className="pp-hh-pickNotice__stepRow">
+            <div className="pp-hh-pickNotice__stepPill">
+              Step {hhMobileDraft?.side === "A" ? "1" : "2"} / 2
+            </div>
+
+            <div className="pp-hh-pickNotice__nextPill">
+              Next:{" "}
+              <b>
+                {hhMobileDraft?.side === "A"
+                  ? `Pizza 1 (Left) ${"\uD83D\uDC48"}`
+                  : `Pizza 2 (Right) ${"\uD83D\uDC49"}`}
+              </b>
+            </div>
+          </div>
+
+          <div className="pp-hh-pickNotice__progress" aria-hidden="true">
+            <div
+              className={[
+                "pp-hh-pickNotice__seg",
+                hhMobileDraft?.halfA ? "is-done" : "is-active",
+              ].join(" ")}
+            />
+            <div
+              className={[
+                "pp-hh-pickNotice__seg",
+                hhMobileDraft?.halfB
+                  ? "is-done"
+                  : hhMobileDraft?.side === "B"
+                  ? "is-active"
+                  : "",
+              ].join(" ")}
+            />
+          </div>
+
+          <div className="pp-hh-pickNotice__cards">
+            <div
+              className={[
+                "pp-hh-pickNotice__card",
+                hhMobileDraft?.halfA ? "is-filled" : "",
+              ].join(" ")}
+            >
+              <div className="pp-hh-pickNotice__cardTag">LEFT</div>
+              <div className="pp-hh-pickNotice__cardName">
+                {hhMobileDraft?.halfA?.name || "Pizza 1 not selected"}
+              </div>
+            </div>
+
+            <div
+              className={[
+                "pp-hh-pickNotice__card",
+                hhMobileDraft?.halfB ? "is-filled" : "",
+              ].join(" ")}
+            >
+              <div className="pp-hh-pickNotice__cardTag">RIGHT</div>
+              <div className="pp-hh-pickNotice__cardName">
+                {hhMobileDraft?.halfB?.name || "Pizza 2 not selected"}
+              </div>
+            </div>
+          </div>
+
+          <div className="pp-hh-pickNotice__hint">
+            {EM.CHECK} Tap a pizza card below to fill the{" "}
+            <b>{hhMobileDraft?.side === "A" ? "LEFT" : "RIGHT"}</b> half. You can
+            change it later.
           </div>
         </div>
       )}
