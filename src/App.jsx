@@ -7701,18 +7701,21 @@ function OrderInfoPanel({
 }
 
 // ThemeSwitcher
-function ThemeSwitcher() {
+function ThemeSwitcher({ compact = false }) {
   const { theme, setTheme } = useTheme();
 
+  const btnSize = compact ? "1.75rem" : "2rem";
+  const fontSize = compact ? "0.95rem" : "1.1rem";
+
   const base = {
-    width: "2rem",
-    height: "2rem",
+    width: btnSize,
+    height: btnSize,
     borderRadius: "50%",
     cursor: "pointer",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    fontSize: "1.1rem",
+    fontSize,
     backgroundColor: "var(--background-light)",
     borderWidth: "2px",
     borderStyle: "solid",
@@ -7727,7 +7730,13 @@ function ThemeSwitcher() {
   };
 
   return (
-    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: compact ? "0.35rem" : "0.5rem",
+        alignItems: "center",
+      }}
+    >
       <button
         style={theme === "light" ? active : base}
         onClick={() => setTheme("light")}
@@ -10148,6 +10157,7 @@ function TermsPage() {
 function Navbar({
   onAboutClick,
   onMenuClick,
+  onCartClick,
   onLoginClick,
   onProfileClick,
   searchName,
@@ -10169,16 +10179,46 @@ function Navbar({
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isToppingFocused, setIsToppingFocused] = useState(false);
 
+  // Mobile navbar: keep the top bar tight, open search in a dropdown drawer.
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(max-width: 1023.98px)").matches;
+  });
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileUserOpen, setMobileUserOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const onChange = (e) => setIsMobile(!!e.matches);
+    try {
+      mql.addEventListener("change", onChange);
+    } catch {
+      // Safari fallback
+      mql.addListener(onChange);
+    }
+    setIsMobile(mql.matches);
+    return () => {
+      try {
+        mql.removeEventListener("change", onChange);
+      } catch {
+        mql.removeListener(onChange);
+      }
+    };
+  }, []);
+
+  // If we leave mobile sizing, ensure drawer is closed.
+  useEffect(() => {
+    if (!isMobile) setMobileSearchOpen(false);
+    if (!isMobile) setMobileUserOpen(false);
+  }, [isMobile]);
+
   return (
     <nav className="pp-topnav">
       <div className="pp-topnav__row">
         <div className="pp-topnav__left">
-          <ThemeSwitcher />
-          <Link
-            to="/"
-            onClick={onMenuClick}
-            className="pp-topnav__logo"
-          >
+          <ThemeSwitcher compact={isMobile} />
+          <Link to="/" onClick={onMenuClick} className="pp-topnav__logo">
             <img
               src="/pizza-peppers-logo.jpg"
               alt="Pizza Peppers Logo"
@@ -10186,17 +10226,276 @@ function Navbar({
             />
           </Link>
 
-          <div className="pp-topnav__searchWrap">
-            <div
-              style={{
-                position: "relative",
-                width:
-                  isNameFocused || (searchName && searchName.length > 0)
-                    ? "190px"
-                    : "120px",
-                transition: "width 150ms ease-out",
+          {/* Desktop: keep the inline searches */}
+          {!isMobile ? (
+            <div className="pp-topnav__searchWrap">
+              <div
+                style={{
+                  position: "relative",
+                  width:
+                    isNameFocused || (searchName && searchName.length > 0)
+                      ? "190px"
+                      : "120px",
+                  transition: "width 150ms ease-out",
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Search pizzas"
+                  value={searchName || ""}
+                  onChange={(e) =>
+                    onSearchNameChange && onSearchNameChange(e.target.value)
+                  }
+                  onFocus={() => setIsNameFocused(true)}
+                  onBlur={() => setIsNameFocused(false)}
+                  className="pp-topnav__searchInput"
+                />
+              </div>
+
+              <div
+                style={{
+                  position: "relative",
+                  width:
+                    isToppingFocused ||
+                    (searchTopping && searchTopping.length > 0)
+                      ? "190px"
+                      : "120px",
+                  transition: "width 150ms ease-out",
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Search toppings"
+                  value={searchTopping || ""}
+                  onChange={(e) =>
+                    onSearchToppingChange &&
+                    onSearchToppingChange(e.target.value)
+                  }
+                  onFocus={() => setIsToppingFocused(true)}
+                  onBlur={() => setIsToppingFocused(false)}
+                  className="pp-topnav__searchInput"
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="pp-topnav__right">
+          {/* Mobile: compact icon bar */}
+          {isMobile ? (
+            <>
+              <button
+                type="button"
+                className={
+                  "pp-topnav__iconBtn" + (mobileSearchOpen ? " is-active" : "")
+                }
+                onClick={() => {
+                  setMobileSearchOpen((v) => !v);
+                  setMobileUserOpen(false);
+                }}
+                aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+                aria-expanded={mobileSearchOpen}
+                title="Search"
+              >
+                {"\uD83D\uDD0D"}
+              </button>
+
+              <button
+                type="button"
+                className="pp-topnav__iconBtn"
+                onClick={() => {
+                  setMobileSearchOpen(false);
+                  setMobileUserOpen(false);
+                  onMenuClick?.();
+                }}
+                aria-label="Menu"
+                title="Menu"
+              >
+                {"\uD83C\uDF55"}
+              </button>
+
+              <button
+                type="button"
+                className="pp-topnav__iconBtn"
+                onClick={() => {
+                  setMobileSearchOpen(false);
+                  setMobileUserOpen(false);
+                  onAboutClick?.();
+                }}
+                aria-label="About"
+                title="About"
+              >
+                {"\u2139\uFE0F"}
+              </button>
+
+              <button
+                type="button"
+                className="pp-topnav__iconBtn pp-topnav__cartBtn"
+                onClick={() => {
+                  setMobileSearchOpen(false);
+                  setMobileUserOpen(false);
+                  (onCartClick || onMenuClick)?.();
+                }}
+                aria-label={`Cart (${totalItems})`}
+                title="Cart"
+              >
+                <span aria-hidden="true">{"\uD83D\uDED2"}</span>
+                {totalItems > 0 ? (
+                  <span
+                    className="pp-topnav__badge"
+                    aria-label={`${totalItems} items`}
+                  >
+                    {totalItems}
+                  </span>
+                ) : null}
+              </button>
+
+              {authLoading ? null : currentUser ? (
+                <button
+                  type="button"
+                  className={
+                    "pp-topnav__iconBtn" + (mobileUserOpen ? " is-active" : "")
+                  }
+                  onClick={() => {
+                    setMobileUserOpen((v) => !v);
+                    setMobileSearchOpen(false);
+                  }}
+                  aria-label="Account"
+                  aria-expanded={mobileUserOpen}
+                  title="Account"
+                >
+                  {"\uD83D\uDC64"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="pp-topnav__iconBtn"
+                  onClick={() => {
+                    setMobileSearchOpen(false);
+                    setMobileUserOpen(false);
+                    onLoginClick?.();
+                  }}
+                  aria-label="Login"
+                  title="Login"
+                >
+                  {"\uD83D\uDD10"}
+                </button>
+              )}
+            </>
+          ) : (
+            /* Desktop: keep your existing full text nav exactly as-is */
+            <>
+              <Link to="/" onClick={onMenuClick} className="pp-topnav__link">
+                Menu
+              </Link>
+
+              <button
+                type="button"
+                onClick={onAboutClick}
+                className="pp-topnav__linkBtn"
+              >
+                About Us
+              </button>
+
+              <button
+                type="button"
+                onClick={onCartClick || onMenuClick}
+                className="pp-topnav__linkBtn"
+              >
+                Cart ({totalItems})
+              </button>
+
+              {authLoading ? null : currentUser ? (
+                <div className="pp-topnav__auth">
+                  <span className="pp-topnav__greeting">Hi, {firstName}</span>
+                  <button
+                    type="button"
+                    onClick={onProfileClick}
+                    className="pp-topnav__linkBtn"
+                  >
+                    Profile
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => logout?.()}
+                    className="pp-topnav__linkBtn"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onLoginClick}
+                  className="pp-topnav__linkBtn"
+                >
+                  Login
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {isMobile && mobileUserOpen ? (
+        <div
+          className="pp-topnav__userBackdrop"
+          onClick={() => setMobileUserOpen(false)}
+        />
+      ) : null}
+
+      {isMobile ? (
+        <div
+          className={
+            "pp-topnav__userDrawer" + (mobileUserOpen ? " is-open" : "")
+          }
+        >
+          <div className="pp-topnav__userDrawerInner">
+            <button
+              type="button"
+              className="pp-topnav__drawerBtn"
+              onClick={() => {
+                setMobileUserOpen(false);
+                onProfileClick?.();
               }}
             >
+              {"\uD83D\uDC64"} Profile
+            </button>
+
+            <button
+              type="button"
+              className="pp-topnav__drawerBtn pp-topnav__drawerBtn--danger"
+              onClick={() => {
+                setMobileUserOpen(false);
+                logout?.();
+              }}
+            >
+              {"\uD83D\uDEAA"} Logout
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Backdrop (tap anywhere to close) */}
+      {isMobile && mobileSearchOpen ? (
+        <div
+          className="pp-topnav__searchBackdrop"
+          onClick={() => setMobileSearchOpen(false)}
+        />
+      ) : null}
+
+      {/* Mobile search drawer (dropdown) */}
+      {isMobile ? (
+        <div
+          className={
+            "pp-topnav__searchDrawer" + (mobileSearchOpen ? " is-open" : "")
+          }
+          role="region"
+          aria-label="Search"
+        >
+          <div className="pp-topnav__searchDrawerInner">
+            <div className="pp-topnav__searchField">
+              <div className="pp-topnav__searchLabel">Pizzas</div>
               <input
                 type="text"
                 placeholder="Search pizzas"
@@ -10204,22 +10503,12 @@ function Navbar({
                 onChange={(e) =>
                   onSearchNameChange && onSearchNameChange(e.target.value)
                 }
-                onFocus={() => setIsNameFocused(true)}
-                onBlur={() => setIsNameFocused(false)}
                 className="pp-topnav__searchInput"
               />
             </div>
-            <div
-              style={{
-                position: "relative",
-                width:
-                  isToppingFocused ||
-                  (searchTopping && searchTopping.length > 0)
-                    ? "190px"
-                    : "120px",
-                transition: "width 150ms ease-out",
-              }}
-            >
+
+            <div className="pp-topnav__searchField">
+              <div className="pp-topnav__searchLabel">Toppings</div>
               <input
                 type="text"
                 placeholder="Search toppings"
@@ -10228,81 +10517,12 @@ function Navbar({
                   onSearchToppingChange &&
                   onSearchToppingChange(e.target.value)
                 }
-                onFocus={() => setIsToppingFocused(true)}
-                onBlur={() => setIsToppingFocused(false)}
                 className="pp-topnav__searchInput"
               />
             </div>
           </div>
         </div>
-        <div className="pp-topnav__right">
-          <Link
-            to="/"
-            onClick={onMenuClick}
-            className="pp-topnav__link"
-          >
-            Menu
-          </Link>
-          <button
-            type="button"
-            onClick={onAboutClick}
-            className="pp-topnav__linkBtn"
-          >
-            About Us
-          </button>
-
-          <button
-            type="button"
-            onClick={onMenuClick}
-            className="pp-topnav__linkBtn"
-          >
-            Cart ({totalItems})
-          </button>
-          {authLoading ? null : currentUser ? (
-            <div className="pp-topnav__auth">
-              <span className="pp-topnav__greeting">Hi, {firstName}</span>
-              <button
-                type="button"
-                onClick={onProfileClick}
-                className="pp-topnav__action pp-topnav__action--accent"
-              >
-                Profile
-              </button>
-              <button
-                type="button"
-                onClick={logout}
-                className="pp-topnav__action pp-topnav__action--danger"
-              >
-                Logout
-              </button>
-            </div>
-          ) : (
-            <div className="pp-topnav__auth">
-              <button
-                type="button"
-                onClick={() => onLoginClick && onLoginClick()}
-                className="pp-topnav__action pp-topnav__action--accent"
-              >
-                Login
-              </button>
-              <button
-                type="button"
-                onClick={() => onLoginClick && onLoginClick("phone")}
-                className="pp-topnav__action pp-topnav__action--accent pp-topnav__action--subtle"
-              >
-                Login with phone
-              </button>
-            </div>
-          )}
-          <span className="pp-topnav__status">
-            {authLoading
-              ? "auth-"
-              : currentUser
-                ? "signed in"
-                : "signed out"}
-          </span>
-        </div>
-      </div>
+      ) : null}
     </nav>
   );
 }
@@ -10556,6 +10776,27 @@ function AppLayout({ isMapsLoaded }) {
   React.useEffect(() => {
     if (!isMobile) setCartModalOpen(false);
   }, [isMobile]);
+
+  React.useEffect(() => {
+    if (!isMobile) return;
+    if (!cartModalOpen) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyTouch = body.style.touchAction;
+    const prevHtmlOverscroll = html.style.overscrollBehavior;
+
+    body.style.overflow = "hidden";
+    body.style.touchAction = "none";
+    html.style.overscrollBehavior = "none";
+
+    return () => {
+      body.style.overflow = prevBodyOverflow;
+      body.style.touchAction = prevBodyTouch;
+      html.style.overscrollBehavior = prevHtmlOverscroll;
+    };
+  }, [isMobile, cartModalOpen]);
 
   // Mobile Half & Half flow draft: pick pizzas in menu first, then open editor modal
   const [hhMobileDraft, setHhMobileDraft] = useState(null);
@@ -11233,13 +11474,24 @@ function AppLayout({ isMapsLoaded }) {
   };
 
   const showOrderPanel = () => {
+    // "Menu" button behavior: go back to menu, do NOT force modal open.
     setSelectedItem(null);
     setRightPanelView("order");
+    setCartModalOpen(false);
+  };
+
+  const showCartPanel = () => {
+    // Cart on mobile should open as a full-screen modal.
+    setSelectedItem(null);
+    setRightPanelView("order");
+    if (isMobile) setCartModalOpen(true);
   };
 
   const showAboutPanel = () => {
+    // About on mobile should open as a full-screen modal.
     setSelectedItem(null);
     setRightPanelView("about");
+    if (isMobile) setCartModalOpen(true);
   };
 
   React.useEffect(() => {
@@ -11583,7 +11835,10 @@ function AppLayout({ isMapsLoaded }) {
             estimatedTime={estimatedTime}
             storeOpenNow={storeOpenNow}
             preorderPickupLabel={preorderPickupLabel}
-            onProceed={() => setRightPanelView("review")}
+            onProceed={() => {
+              setRightPanelView("review");
+              if (isMobile) setCartModalOpen(true);
+            }}
           />
         ))}
     </>
@@ -11649,6 +11904,7 @@ function AppLayout({ isMapsLoaded }) {
           <Navbar
             onAboutClick={showAboutPanel}
             onMenuClick={showOrderPanel}
+            onCartClick={showCartPanel}
             onLoginClick={(tab) => authCtx.openLogin(tab)}
             onProfileClick={handleProfileOpen}
             searchName={searchName}

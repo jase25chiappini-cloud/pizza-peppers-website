@@ -3300,45 +3300,143 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     overflow: visible !important;
   }
 
-  /* Navbar: stack into two rows */
+  /* Navbar: compact top bar + dropdown search */
   .pp-topnav {
-    padding: 0.6rem 0.85rem;
+    padding: 0.5rem 0.75rem;
+    overflow: visible;
+    z-index: 30;
   }
 
   .pp-topnav__row {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
     gap: 0.65rem;
   }
 
-  .pp-topnav__left,
-  .pp-topnav__right {
-    width: 100%;
-    justify-content: space-between;
+  .pp-topnav__left {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0.55rem;
+    flex-wrap: nowrap;
   }
 
   .pp-topnav__logoImg {
-    height: 2.6rem;
+    height: 2.25rem;
   }
 
-  /* Search inputs: full width */
+  /* Desktop keeps inline search; mobile uses the dropdown drawer. */
   .pp-topnav__searchWrap {
-    width: 100%;
+    display: none;
+  }
+
+  .pp-topnav__right {
+    width: auto;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+  }
+
+  /* Hide the greeting to keep the header tight */
+  .pp-topnav__greeting {
+    display: none;
+  }
+
+  .pp-topnav__iconBtn {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.14);
+    color: var(--text-light);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 160ms ease, border-color 160ms ease,
+      box-shadow 160ms ease;
+    flex: 0 0 auto;
+  }
+  .pp-topnav__iconBtn.is-active {
+    border-color: rgba(190, 242, 100, 0.75);
+    box-shadow: 0 0 0 3px rgba(190, 242, 100, 0.14);
+    transform: translateY(-1px);
+  }
+
+  /* Backdrop + drawer */
+  .pp-topnav__searchBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 18;
+    background: rgba(2, 6, 23, 0.28);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+  }
+
+  .pp-topnav__searchDrawer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 19;
+    margin-top: 0.35rem;
+    padding: 0.75rem 0.85rem;
+    background: var(--pp-surface, var(--panel));
+    border: 1px solid var(--border-color);
+    border-left: none;
+    border-right: none;
+    box-shadow: var(--shadow-modal);
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 180ms ease;
+  }
+
+  .pp-topnav__searchDrawer.is-open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .pp-topnav__searchDrawerInner {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    gap: 0.6rem;
+    align-items: stretch;
   }
 
-  /* If the screen is really small, stack searches */
+  .pp-topnav__searchField {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .pp-topnav__searchLabel {
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-medium);
+    font-weight: 800;
+  }
+
+  .pp-topnav__searchInput {
+    width: 100%;
+    height: 40px;
+    padding: 0.45rem 0.7rem;
+    border-radius: 0.85rem;
+    box-sizing: border-box;
+  }
+
   @media (max-width: 420px) {
-    .pp-topnav__searchWrap {
+    .pp-topnav__searchDrawerInner {
       grid-template-columns: 1fr;
     }
   }
 
-  /* Quick-nav sticky offset: navbar gets taller on mobile */
+  /* Quick-nav sticky offset: navbar is compact again */
   .quick-nav-container {
-    top: 9.25rem;
+    top: 5.5rem;
   }
 }
 
@@ -6213,5 +6311,167 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text-medium);
+  }
+}
+
+/* =========================================================
+   Mobile Cart/About full-screen modal (uses existing markup)
+   Desktop unaffected
+   ========================================================= */
+@media (max-width: 1023.98px){
+  .pp-cart-fab{
+    position: fixed;
+    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    z-index: 60;
+    padding: 0.75rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.28);
+    background: rgba(15,23,42,0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-float);
+    font-weight: 900;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+  }
+
+  .pp-cart-modal{
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .pp-cart-modal__backdrop{
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.66);
+  }
+
+  .pp-cart-modal__panel{
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    background: var(--pp-surface, var(--panel));
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Let the inside panel scroll naturally */
+  .pp-cart-modal__panel .order-panel-container--mobileCart{
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+    top: auto;
+  }
+}
+
+@media (max-width: 1023.98px){
+  .pp-topnav{
+    padding: 0.45rem 0.7rem;
+  }
+
+  .pp-topnav__logoImg{ height: 2.05rem; }
+
+  .pp-topnav__right{
+    gap: 0.45rem !important;
+  }
+
+  .pp-topnav__iconBtn{
+    width: 2.15rem;
+    height: 2.15rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: rgba(0,0,0,0.12);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+  }
+
+  .pp-topnav__cartBtn{
+    position: relative;
+  }
+
+  .pp-topnav__badge{
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--brand-neon-green);
+    color: #0b1220;
+    font-weight: 950;
+    font-size: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,0,0,0.18);
+  }
+
+  .pp-topnav__userBackdrop{
+    position: fixed;
+    inset: 0;
+    z-index: 18;
+    background: rgba(2, 6, 23, 0.18);
+  }
+
+  .pp-topnav__userDrawer{
+    position: absolute;
+    right: 0.6rem;
+    top: calc(100% + 0.35rem);
+    z-index: 19;
+    width: min(240px, calc(100vw - 1.2rem));
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+  }
+
+  .pp-topnav__userDrawer.is-open{
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .pp-topnav__userDrawerInner{
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--pp-surface, var(--panel));
+    box-shadow: var(--shadow-modal);
+    padding: 0.5rem;
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .pp-topnav__drawerBtn{
+    width: 100%;
+    border-radius: 14px;
+    border: 1px solid rgba(148,163,184,0.22);
+    background: rgba(255,255,255,0.04);
+    padding: 0.65rem 0.75rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    justify-content: flex-start;
+    gap: 0.55rem;
+  }
+
+  .pp-topnav__drawerBtn--danger{
+    border-color: rgba(251,113,133,0.30);
+    background: rgba(251,113,133,0.08);
   }
 }
