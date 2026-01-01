@@ -487,26 +487,21 @@ const HalfAndHalfSelector = ({
   const svgSizeLabel = ((sizeRef || selectedSizeKey) || "").toLowerCase();
   const pizzaStageSize = svgSizeLabel || "regular";
 
-  // Bigger pizza model (~30% bigger overall)
-  let svgSize = 300; // default / regular
-
+  // Half/Half hero pizza model sizing (responds to ALL sizes).
+  // We keep the stage capped for mobile, and use scale for visual size changes.
+  let hhHeroScale = 1;
   if (svgSizeLabel.includes("party")) {
-    svgSize = 520;
+    hhHeroScale = 1.28;
   } else if (svgSizeLabel.includes("family")) {
-    svgSize = 470;
+    hhHeroScale = 1.2;
   } else if (svgSizeLabel.includes("large")) {
-    svgSize = 410;
-  } else if (
-    svgSizeLabel.includes("mini") ||
-    svgSizeLabel.includes("small")
-  ) {
-    svgSize = 250;
+    hhHeroScale = 1.1;
+  } else if (svgSizeLabel.includes("mini") || svgSizeLabel.includes("small")) {
+    hhHeroScale = 0.88;
   }
 
-  // Meal-deal overlay: tiny shrink to avoid needing any scroll
-  if (compactUi) {
-    svgSize = Math.round(svgSize * 0.7); // slightly smaller again (meal-deal overlay only)
-  }
+  // Slightly smaller base stage in meal-deal overlay so it fits; scale still reflects selection.
+  const hhStageCssSize = `min(78vw, ${compactUi ? 280 : 320}px)`;
 
   const pizzaOptions = React.useMemo(() => {
     if (!Array.isArray(menuItems)) return [];
@@ -913,21 +908,27 @@ const HalfAndHalfSelector = ({
           className="relative pp-halfhalf-heroStage"
           data-size={pizzaStageSize}
           data-side={halfSelectionSide}
+          style={
+            /** @type {any} */ ({
+              position: "relative",
+              width: hhStageCssSize,
+              height: hhStageCssSize,
+              flex: "0 0 auto",
+              ["--pp-hh-scale"]: hhHeroScale,
+            })
+          }
         >
           <svg
-            width={svgSize}
-            height={svgSize}
+            width="100%"
+            height="100%"
             viewBox={hhViewBox}
             className="drop-shadow-2xl pp-halfhalf-svg"
             style={{
               position: "absolute",
-              top: "50%",
-              left: "50%",
-              width: `${svgSize}px`,
-              height: `${svgSize}px`,
-              transform: "translate(-50%, -50%)",
-              transformOrigin: "50% 50%",
-              transition: "width 0.25s ease, height 0.25s ease",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              transition: "all 0.25s ease",
               display: "block",
               overflow: "visible",
             }}
@@ -1888,17 +1889,29 @@ const MEAL_SLOT_LABELS = {
   calzone: "Calzone",
   pasta: "Pasta",
 };
+// Emoji rendered via Unicode escapes (prevents "??" if a file is saved with a bad encoding).
+const EM = {
+  MEAL: "\uD83C\uDF71",        // bento
+  PLUS: "\u2795",              // plus
+  CART: "\uD83D\uDED2",        // cart
+  RECEIPT: "\uD83E\uDDFE",     // receipt
+  PARTY: "\uD83C\uDF89",       // party
+  PENCIL: "\u270F\uFE0F",      // pencil
+  CHECK: "\u2705",             // check
+  DOTS: "\u2026",              // ellipsis
+  PUZZLE: "\uD83E\uDDE9",      // puzzle
+};
 const MEAL_SLOT_EMOJI = {
-  pizza: "🍕",
-  drink: "🥤",
-  dessert: "🍰",
-  side: "🥖",
-  pasta: "🍝",
-  calzone: "🥟",
+  pizza: "\uD83C\uDF55",     // pizza
+  drink: "\uD83E\uDD64",     // drink
+  dessert: "\uD83C\uDF70",   // dessert
+  side: "\uD83E\uDD56",      // side
+  pasta: "\uD83C\uDF5D",     // pasta
+  calzone: "\uD83E\uDD5F",   // calzone
 };
 const slotEmojiFor = (step) => {
   const key = String(step?.slotKey || "").toLowerCase();
-  return MEAL_SLOT_EMOJI[key] || "🧩";
+  return MEAL_SLOT_EMOJI[key] || EM.PUZZLE;
 };
 
 function _prettySizeToken(token) {
@@ -2198,6 +2211,27 @@ const MealDealBuilderPanel = ({
 
   const allProducts = React.useMemo(() => _flattenMenuProducts(menuData), [menuData]);
 
+  const resolveMealDealChosenBg = React.useCallback(
+    (chosen) => {
+      if (!chosen) return "";
+
+      // Half & Half: use one of the halves if present, otherwise the Half & Half image
+      if (chosen.isHalfHalf || String(chosen.id || "").includes("half_half")) {
+        const h = chosen.halfA || chosen.halfB || "Half & Half";
+        return getImagePath(h);
+      }
+
+      // Normal item: prefer the real product (has image filename), fallback to name slug
+      const prod =
+        allProducts.find((p) => String(p?.id) === String(chosen.id)) ||
+        allProducts.find((p) => String(p?.name) === String(chosen.name)) ||
+        null;
+
+      return getImagePath(prod || chosen.name || chosen.id);
+    },
+    [allProducts],
+  );
+
   const step = steps[activeStep] || null;
   const inferMealPizzaSizeFromDeal = React.useCallback(() => {
     const text = [
@@ -2286,14 +2320,20 @@ const MealDealBuilderPanel = ({
   }, [activeCategoryRef, activeStep]);
 
   const openEditorForProduct = React.useCallback(
-    (product) => {
-      if (!product || !step) return;
-      const prepared = _restrictItemToSlotSizes(prepareItemForPanel(product), step.slot);
-      const forced = getForcedSizeForStep(step);
+    (product, stepOverride = null, stepIndexOverride = null) => {
+      const s = stepOverride || step;
+      const idx =
+        Number.isFinite(stepIndexOverride) ? stepIndexOverride : activeStep;
+      if (!product || !s) return;
+      const prepared = _restrictItemToSlotSizes(
+        prepareItemForPanel(product),
+        s.slot,
+      );
+      const forced = getForcedSizeForStep(s);
       setEditorForcedSizeRef(forced);
 
-      const existing = bundleItems[activeStep];
-      const forcedSizes = _slotAllowedSizes(step.slot);
+      const existing = bundleItems[idx];
+      const forcedSizes = _slotAllowedSizes(s.slot);
       const forcedSizeToken = forcedSizes.length ? forcedSizes[0] : null;
 
       setEditorItem({
@@ -2331,6 +2371,47 @@ const MealDealBuilderPanel = ({
       openEditorForProduct(product);
     },
     [step, openEditorForProduct],
+  );
+
+  const openEditForChosen = React.useCallback(
+    (idx) => {
+      const s = steps[idx];
+      const chosen = bundleItems[idx];
+      if (!s || !chosen) return;
+
+      // Half & Half special case
+      if (chosen.isHalfHalf || String(chosen.id || "").includes("half_half")) {
+        setActiveStep(idx);
+        setPickerOpen(false);
+        setEditorItem(null);
+        setHalfHalfOpen(true);
+        return;
+      }
+
+      // Find original product to preserve menu rules
+      const prod =
+        allProducts.find((p) => String(p?.id) === String(chosen.id)) ||
+        allProducts.find((p) => String(p?.name) === String(chosen.name));
+
+      setActiveStep(idx);
+
+      if (prod) {
+        openEditorForProduct(prod, s, idx);
+      } else {
+        // Fallback: open picker if product not found
+        setPickerOpen(true);
+      }
+    },
+    [
+      steps,
+      bundleItems,
+      allProducts,
+      openEditorForProduct,
+      setActiveStep,
+      setPickerOpen,
+      setEditorItem,
+      setHalfHalfOpen,
+    ],
   );
 
   const applyEditorResult = React.useCallback(
@@ -2510,6 +2591,29 @@ const MealDealBuilderPanel = ({
     prepareItemForPanel,
   ]);
 
+  // Mobile: when meal-deal overlays are open, prevent scroll/taps leaking to the page behind.
+  React.useEffect(() => {
+    if (!isMobile) return;
+    const open = !!pickerOpen || !!editorItem || !!halfHalfOpen;
+    if (!open) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyTouch = body.style.touchAction;
+    const prevHtmlOverscroll = html.style.overscrollBehavior;
+
+    body.style.overflow = "hidden";
+    body.style.touchAction = "none";
+    html.style.overscrollBehavior = "none";
+
+    return () => {
+      body.style.overflow = prevBodyOverflow;
+      body.style.touchAction = prevBodyTouch;
+      html.style.overscrollBehavior = prevHtmlOverscroll;
+    };
+  }, [isMobile, pickerOpen, editorItem, halfHalfOpen]);
+
   const isComplete = steps.length > 0 && bundleItems.every(Boolean);
 
   const baseMealCents = React.useMemo(() => minPriceCents(item) || 0, [item]);
@@ -2558,96 +2662,147 @@ const MealDealBuilderPanel = ({
     );
   }
 
-
   const overlays = (
     <>
       {isMobile && pickerOpen && (
-        <div className="pp-mealpick" role="dialog" aria-modal="true">
-          <div className="pp-mealpick__head">
-            <div>
-              <div className="pp-mealpick__title">Choose item</div>
-              <div className="pp-mealpick__sub">{step?.label || ""}</div>
-            </div>
-
-            <button
-              type="button"
-              className="simple-button"
-              style={{ width: "auto", paddingInline: "1rem" }}
-              onClick={() => setPickerOpen(false)}
+        <div
+          className="pp-mealpick"
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10050,
+            background: "rgba(2, 6, 23, 0.72)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            display: "flex",
+            flexDirection: "column",
+            padding:
+              "calc(0.85rem + env(safe-area-inset-top)) 0 calc(0.85rem + env(safe-area-inset-bottom))",
+          }}
+          onClick={() => setPickerOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              flex: "1 1 auto",
+              minHeight: 0,
+              paddingInline: "0.9rem",
+              boxSizing: "border-box",
+              width: "100%",
+              maxWidth: 980,
+              margin: "0 auto",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 18,
+                background: "var(--pp-surface, var(--panel))",
+                border: "1px solid var(--border-color)",
+                boxShadow: "var(--shadow-modal)",
+                overflow: "hidden",
+              }}
             >
-              Back
-            </button>
-          </div>
+              <div className="pp-mealpick__head">
+                <div>
+                  <div className="pp-mealpick__title">Choose item</div>
+                  <div className="pp-mealpick__sub">{step?.label || ""}</div>
+                </div>
 
-          <div className="pp-mealpick__body">
-            {stepCategoryOptions.length > 1 && (
+                <button
+                  type="button"
+                  className="simple-button"
+                  style={{ width: "auto", paddingInline: "1rem" }}
+                  onClick={() => setPickerOpen(false)}
+                >
+                  Back
+                </button>
+              </div>
+
               <div
+                className="pp-mealpick__body"
                 style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "0.4rem",
-                  marginBottom: "0.65rem",
+                  flex: "1 1 auto",
+                  minHeight: 0,
+                  overflowY: "auto",
+                  WebkitOverflowScrolling: "touch",
                 }}
               >
-                {stepCategoryOptions.map((cat) => {
-                  const isActive =
-                    String(activeCategoryRef || "").toUpperCase() === cat.ref;
-                  return (
-                    <button
-                      key={cat.ref}
-                      type="button"
-                      className="simple-button"
-                      style={{
-                        width: "auto",
-                        padding: "0.35rem 0.65rem",
-                        borderRadius: "999px",
-                        fontSize: "0.8rem",
-                        fontWeight: 800,
-                        border: isActive
-                          ? "1px solid rgba(190,242,100,0.65)"
-                          : "1px solid var(--border-color)",
-                        background: isActive
-                          ? "rgba(190,242,100,0.10)"
-                          : "var(--panel)",
-                      }}
-                      onClick={() => setActiveCategoryRef(cat.ref)}
-                    >
-                      {cat.name}
-                    </button>
-                  );
-                })}
+                {stepCategoryOptions.length > 1 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.4rem",
+                      marginBottom: "0.65rem",
+                    }}
+                  >
+                    {stepCategoryOptions.map((cat) => {
+                      const isActive =
+                        String(activeCategoryRef || "").toUpperCase() === cat.ref;
+                      return (
+                        <button
+                          key={cat.ref}
+                          type="button"
+                          className="simple-button"
+                          style={{
+                            width: "auto",
+                            padding: "0.35rem 0.65rem",
+                            borderRadius: "999px",
+                            fontSize: "0.8rem",
+                            fontWeight: 800,
+                            border: isActive
+                              ? "1px solid rgba(190,242,100,0.65)"
+                              : "1px solid var(--border-color)",
+                            background: isActive
+                              ? "rgba(190,242,100,0.10)"
+                              : "var(--panel)",
+                          }}
+                          onClick={() => setActiveCategoryRef(cat.ref)}
+                        >
+                          {cat.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search items..."
+                  style={{ width: "100%", marginBottom: "0.85rem" }}
+                />
+
+                <div className="pp-mealpick__grid">
+                  {(stepMenuData?.categories || []).flatMap((cat) =>
+                    (cat.items || []).map((p) => {
+                      const img = getImagePath(p);
+                      return (
+                        <div
+                          key={p.id || `${cat.ref}-${p.name}`}
+                          className="pp-mealpick__card"
+                          onClick={() => pickProductForStep(p)}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          <img className="pp-mealpick__img" src={img} alt={p.name} />
+                          <div className="pp-mealpick__meta">
+                            <div className="pp-mealpick__name">{p.name}</div>
+                            <div className="pp-mealpick__desc">{p.description}</div>
+                          </div>
+                        </div>
+                      );
+                    }),
+                  )}
+                </div>
               </div>
-            )}
-
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search items..."
-              style={{ width: "100%", marginBottom: "0.85rem" }}
-            />
-
-            <div className="pp-mealpick__grid">
-              {(stepMenuData?.categories || []).flatMap((cat) =>
-                (cat.items || []).map((p) => {
-                  const img = getImagePath(p);
-                  return (
-                    <div
-                      key={p.id || `${cat.ref}-${p.name}`}
-                      className="pp-mealpick__card"
-                      onClick={() => pickProductForStep(p)}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <img className="pp-mealpick__img" src={img} alt={p.name} />
-                      <div className="pp-mealpick__meta">
-                        <div className="pp-mealpick__name">{p.name}</div>
-                        <div className="pp-mealpick__desc">{p.description}</div>
-                      </div>
-                    </div>
-                  );
-                }),
-              )}
             </div>
           </div>
         </div>
@@ -2658,42 +2813,140 @@ const MealDealBuilderPanel = ({
           className={
             "pp-md-editorOverlay " + (isMobile ? "" : "pp-md-editorOverlay--inpanel")
           }
-          onClick={(e) => e.stopPropagation()}
+          style={
+            isMobile
+              ? {
+                  position: "fixed",
+                  inset: 0,
+                  zIndex: 10060,
+                  background: "rgba(2, 6, 23, 0.72)",
+                  backdropFilter: "blur(4px)",
+                  WebkitBackdropFilter: "blur(4px)",
+                  display: "flex",
+                  alignItems: "stretch",
+                  justifyContent: "center",
+                  padding:
+                    "calc(0.85rem + env(safe-area-inset-top)) 0 calc(0.85rem + env(safe-area-inset-bottom))",
+                }
+              : undefined
+          }
+          onClick={(e) => {
+            if (isMobile && e.target === e.currentTarget) {
+              setEditorItem(null);
+              setEditorForcedSizeRef(null);
+              return;
+            }
+            e.stopPropagation();
+          }}
         >
           <div
             className={
               "pp-md-editorShell " + (isMobile ? "" : "pp-md-editorShell--inpanel")
             }
+            style={
+              isMobile
+                ? {
+                    width: "100%",
+                    maxWidth: 980,
+                    margin: "0 auto",
+                    paddingInline: "0.9rem",
+                    boxSizing: "border-box",
+                    height: "100%",
+                    minHeight: 0,
+                    display: "flex",
+                  }
+                : undefined
+            }
             onClick={(e) => e.stopPropagation()}
           >
-            <ItemDetailPanel
-              item={editorItem}
-              menuData={menuData}
-              editingIndex={null}
-              editingItem={editorItem}
-              variant="mealdeal_pick"
-              lockQty
-              forcedPriceSizeRef={
-                editorForcedSizeRef
-                  ? normalizeMenuSizeRef(editorForcedSizeRef)
-                  : null
-              }
-              lockSize={Boolean(editorForcedSizeRef)}
-              primaryActionLabel="Confirm selection"
-              onSaveIngredients={(newRemoved) => {
-                setEditorItem((prev) => (prev ? { ...prev, removedIngredients: newRemoved || [] } : prev));
-              }}
-              onApplyAddOns={(newAddOns) => {
-                setEditorItem((prev) => (prev ? { ...prev, add_ons: newAddOns || [] } : prev));
-              }}
-              onClose={(itemsToAdd, isGlutenFree, addOnSelections = []) => {
-                if (itemsToAdd && itemsToAdd.length > 0) {
-                  applyEditorResult(itemsToAdd, isGlutenFree, addOnSelections);
+            {isMobile ? (
+              <div
+                style={{
+                  height: "100%",
+                  width: "100%",
+                  minHeight: 0,
+                  borderRadius: 18,
+                  background: "var(--pp-surface, var(--panel))",
+                  border: "1px solid var(--border-color)",
+                  boxShadow: "var(--shadow-modal)",
+                  overflow: "hidden",
+                }}
+              >
+                <ItemDetailPanel
+                  item={editorItem}
+                  menuData={menuData}
+                  editingIndex={null}
+                  editingItem={editorItem}
+                  variant="mealdeal_pick"
+                  lockQty
+                  forcedPriceSizeRef={
+                    editorForcedSizeRef
+                      ? normalizeMenuSizeRef(editorForcedSizeRef)
+                      : null
+                  }
+                  lockSize={Boolean(editorForcedSizeRef)}
+                  primaryActionLabel={
+                    bundleItems[activeStep]
+                      ? `${EM.CHECK} Update selection`
+                      : `${EM.CHECK} Confirm selection`
+                  }
+                  onSaveIngredients={(newRemoved) => {
+                    setEditorItem((prev) =>
+                      prev ? { ...prev, removedIngredients: newRemoved || [] } : prev,
+                    );
+                  }}
+                  onApplyAddOns={(newAddOns) => {
+                    setEditorItem((prev) =>
+                      prev ? { ...prev, add_ons: newAddOns || [] } : prev,
+                    );
+                  }}
+                  onClose={(itemsToAdd, isGlutenFree, addOnSelections = []) => {
+                    if (itemsToAdd && itemsToAdd.length > 0) {
+                      applyEditorResult(itemsToAdd, isGlutenFree, addOnSelections);
+                    }
+                    setEditorItem(null);
+                    setEditorForcedSizeRef(null);
+                  }}
+                />
+              </div>
+            ) : (
+              <ItemDetailPanel
+                item={editorItem}
+                menuData={menuData}
+                editingIndex={null}
+                editingItem={editorItem}
+                variant="mealdeal_pick"
+                lockQty
+                forcedPriceSizeRef={
+                  editorForcedSizeRef
+                    ? normalizeMenuSizeRef(editorForcedSizeRef)
+                    : null
                 }
-                setEditorItem(null);
-                setEditorForcedSizeRef(null);
-              }}
-            />
+                lockSize={Boolean(editorForcedSizeRef)}
+                primaryActionLabel={
+                  bundleItems[activeStep]
+                    ? `${EM.CHECK} Update selection`
+                    : `${EM.CHECK} Confirm selection`
+                }
+                onSaveIngredients={(newRemoved) => {
+                  setEditorItem((prev) =>
+                    prev ? { ...prev, removedIngredients: newRemoved || [] } : prev,
+                  );
+                }}
+                onApplyAddOns={(newAddOns) => {
+                  setEditorItem((prev) =>
+                    prev ? { ...prev, add_ons: newAddOns || [] } : prev,
+                  );
+                }}
+                onClose={(itemsToAdd, isGlutenFree, addOnSelections = []) => {
+                  if (itemsToAdd && itemsToAdd.length > 0) {
+                    applyEditorResult(itemsToAdd, isGlutenFree, addOnSelections);
+                  }
+                  setEditorItem(null);
+                  setEditorForcedSizeRef(null);
+                }}
+              />
+            )}
           </div>
         </div>
       )}
@@ -2757,10 +3010,22 @@ const MealDealBuilderPanel = ({
   const mobileBody = (
     <div
       className="pp-mdm"
-      style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+        position: "relative",
+        // The whole meal-deal editor scrolls on mobile.
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehavior: "contain",
+        // Keep content clear of the phone bottom safe-area.
+        paddingBottom: "calc(1rem + env(safe-area-inset-bottom))",
+      }}
     >
       <header className="pp-mdm-head">
-        <div className="pp-mdm-kicker">🍱 MEAL DEAL</div>
+        <div className="pp-mdm-kicker">{EM.MEAL} MEAL DEAL</div>
         <div className="pp-mdm-title">{item?.name || "Build your meal"}</div>
 
         <div className="pp-mdm-metaRow">
@@ -2787,48 +3052,76 @@ const MealDealBuilderPanel = ({
       </header>
 
       <section className="pp-mdm-next">
-        <div className="pp-mdm-nextTop">
-          <div>
-            <div className="pp-mdm-nextLabel">Next up</div>
-            <div className="pp-mdm-nextSlot">{step?.label || ""}</div>
-          </div>
-          <div className={["pp-mdm-status", activeChosen ? "is-filled" : ""].join(" ")}>
-            {activeChosen ? "OK" : "..."}
-          </div>
-        </div>
+        {!isComplete ? (
+          <>
+            <div className="pp-mdm-nextTop">
+              <div>
+                <div className="pp-mdm-nextLabel">Next up</div>
+                <div className="pp-mdm-nextSlot">{step?.label || ""}</div>
+              </div>
+              <div className={["pp-mdm-status", activeChosen ? "is-filled" : ""].join(" ")}>
+                {activeChosen ? EM.CHECK : EM.DOTS}
+              </div>
+            </div>
 
-        <div className="pp-mdm-nextValue">
-          {activeChosen
-            ? `${activeChosen.name} ${formatSizeSuffix(activeChosen.size)}`
-            : "Not selected yet"}
-        </div>
+            <div className="pp-mdm-nextValue">
+              {activeChosen
+                ? `${activeChosen.name} ${formatSizeSuffix(activeChosen.size)}`
+                : "Not selected yet"}
+            </div>
 
-        <button
-          type="button"
-          className="place-order-button"
-          onClick={() => setPickerOpen(true)}
-          style={{ marginTop: "0.85rem" }}
-        >
-          ➕ Choose {step?.label || "item"}
-        </button>
+            <button
+              type="button"
+              className="place-order-button"
+              onClick={() => setPickerOpen(true)}
+              style={{ marginTop: "0.85rem" }}
+            >
+              {EM.PLUS} Choose {step?.label || "item"}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="pp-mdm-nextTop">
+              <div>
+                <div className="pp-mdm-nextLabel">All done {EM.PARTY}</div>
+                <div className="pp-mdm-nextSlot">Everything selected</div>
+              </div>
+              <div className={["pp-mdm-status", "is-filled"].join(" ")}>
+                {EM.CHECK}
+              </div>
+            </div>
+
+            <div className="pp-mdm-nextValue">
+              Tap any item below to edit {EM.PENCIL}
+            </div>
+          </>
+        )}
       </section>
 
-      <section className="pp-mdm-list">
+      <section
+        className="pp-mdm-list"
+        style={{
+          flex: "0 0 auto",
+        }}
+      >
         <div className="pp-mdm-listTitle">Selected so far</div>
 
         {steps.map((s, idx) => {
           const chosen = bundleItems[idx];
           if (!chosen) return null;
+          const bg = resolveMealDealChosenBg(chosen);
 
           return (
             <button
               key={s.key}
               type="button"
-              className="pp-mdm-row"
-              onClick={() => {
-                setActiveStep(idx);
-                setPickerOpen(true);
-              }}
+              className={["pp-mdm-row", bg ? "pp-mdm-row--bg" : ""].join(" ")}
+              style={
+                bg
+                  ? (/** @type {any} */ ({ ["--pp-md-row-bg"]: `url("${bg}")` }))
+                  : undefined
+              }
+              onClick={() => openEditForChosen(idx)}
             >
               <div className="pp-mdm-rowLeft">
                 <div className="pp-mdm-rowSlot">{s.label}</div>
@@ -2848,59 +3141,63 @@ const MealDealBuilderPanel = ({
         )}
       </section>
 
-      <div className="cart-total-section" style={{ marginTop: "auto" }}>
+      <div
+        className="cart-total-section"
+        style={{
+          flex: "0 0 auto",
+          paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))",
+        }}
+      >
         <div style={{ color: "var(--text-medium)", fontSize: "0.9rem" }}>
           Base: {currency(baseMealCents)}
           {extrasCents > 0 ? `  + extras: ${currency(extrasCents)}` : ""}
         </div>
 
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-          <button
-            type="button"
-            className="simple-button"
-            onClick={() => {
-              const nextEmpty = bundleItems.findIndex((x) => !x);
-              if (nextEmpty !== -1) {
-                setActiveStep(nextEmpty);
-                setPickerOpen(true);
-              }
-            }}
-            disabled={isComplete}
-          >
-            {isComplete ? "All selected" : "➕ Keep selecting"}
-          </button>
+        {!isComplete ? (
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+            <button
+              type="button"
+              className="simple-button"
+              onClick={() => {
+                const nextEmpty = bundleItems.findIndex((x) => !x);
+                if (nextEmpty !== -1) {
+                  setActiveStep(nextEmpty);
+                  setPickerOpen(true);
+                }
+              }}
+            >
+              {EM.PLUS} Keep selecting
+            </button>
 
-          <button
-            type="button"
-            className="place-order-button"
-            disabled={!isComplete}
-            onClick={commitMeal}
-            style={{ opacity: isComplete ? 1 : 0.55 }}
-          >
-            🛒 Add meal — {currency(totalCents)}
-          </button>
-        </div>
+            <button
+              type="button"
+              className="place-order-button"
+              disabled
+              style={{ opacity: 0.55 }}
+            >
+              {EM.CART} Add meal {"\u2014"} {currency(totalCents)}
+            </button>
+          </div>
+        ) : (
+          <div style={{ marginTop: "0.75rem" }}>
+            <div className="pp-mdm-footerActions pp-mdm-footerActions--complete">
+              <button
+                type="button"
+                className="place-order-button"
+                onClick={commitMeal}
+              >
+                {EM.CART} Add meal {"\u2014"} {currency(totalCents)}
+              </button>
 
-        {isComplete && typeof onCommitAndReview === "function" && (
-          <button
-            type="button"
-            className="simple-button"
-            onClick={() =>
-              onCommitAndReview?.({
-                ...item,
-                qty: 1,
-                size: { id: "Default", name: "Default", ref: normalizeMenuSizeRef("Default") },
-                price: totalCents / 100,
-                price_cents: totalCents,
-                add_ons: [],
-                removedIngredients: [],
-                bundle_items: bundleItems.map((x) => ({ ...x })),
-                __bundle_editing_index: editingIndex ?? null,
-              })
-            }
-          >
-            Review / change order
-          </button>
+              <button
+                type="button"
+                className="simple-button"
+                onClick={onCancel}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
@@ -2930,8 +3227,8 @@ const MealDealBuilderPanel = ({
       <header className="pp-md-head">
         <div className="pp-md-headRow">
           <div>
-            <div className="pp-md-kicker">🍱 MEAL DEAL BUILDER</div>
-            <h2 className="pp-md-title">Build {item?.name} 🧩</h2>
+            <div className="pp-md-kicker">{EM.MEAL} MEAL DEAL BUILDER</div>
+            <h2 className="pp-md-title">Build {item?.name} {EM.PUZZLE}</h2>
             <div className="pp-md-sub">
               Pick what's included. You can edit each item before adding.
             </div>
@@ -2956,6 +3253,7 @@ const MealDealBuilderPanel = ({
         {steps.map((s, idx) => {
           const chosen = bundleItems[idx];
           const active = idx === activeStep;
+          const bg = chosen ? resolveMealDealChosenBg(chosen) : "";
           return (
             <button
               key={s.key}
@@ -2966,9 +3264,15 @@ const MealDealBuilderPanel = ({
               }}
               className={[
                 "pp-md-stepCard",
+                bg ? "pp-md-stepCard--bg" : "",
                 active ? "is-active" : "",
                 chosen ? "is-filled" : "",
               ].join(" ")}
+              style={
+                bg
+                  ? (/** @type {any} */ ({ ["--pp-md-row-bg"]: `url("${bg}")` }))
+                  : undefined
+              }
             >
               <div className="pp-md-stepTop">
                 <div className="pp-md-stepLabel">
@@ -2976,9 +3280,7 @@ const MealDealBuilderPanel = ({
                   <span className="pp-md-stepText">{s.label}</span>
                 </div>
 
-                <div className="pp-md-stepStatus" aria-hidden="true">
-                  {chosen ? "✅" : "➕"}
-                </div>
+                <div className="pp-md-stepStatus" aria-hidden="true">{chosen ? EM.CHECK : EM.PLUS}</div>
               </div>
 
               <div className="pp-md-stepValue">
@@ -3072,7 +3374,7 @@ const MealDealBuilderPanel = ({
             disabled={activeStep <= 0}
             onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
           >
-            ⬅️ Back
+            Back
           </button>
 
           <button
@@ -3082,27 +3384,15 @@ const MealDealBuilderPanel = ({
             onClick={commitMeal}
             style={{ opacity: isComplete ? 1 : 0.55 }}
           >
-            🛒 Add meal — {currency(totalCents)}
+            {EM.CART} Add meal {"\u2014"} {currency(totalCents)}
           </button>
-          {isComplete && typeof onCommitAndReview === "function" && (
+          {isComplete && (
             <button
               type="button"
               className="simple-button"
-              onClick={() =>
-                onCommitAndReview?.({
-                  ...item,
-                  qty: 1,
-                  size: { id: "Default", name: "Default", ref: normalizeMenuSizeRef("Default") },
-                  price: totalCents / 100,
-                  price_cents: totalCents,
-                  add_ons: [],
-                  removedIngredients: [],
-                  bundle_items: bundleItems.map((x) => ({ ...x })),
-                  __bundle_editing_index: editingIndex ?? null,
-                })
-              }
+              onClick={onCancel}
             >
-              🧾 Review / change
+              Cancel
             </button>
           )}
         </div>
@@ -4552,7 +4842,8 @@ function AuthProvider({ children }) {
         fontSize: 11,
         background: "rgba(0,0,0,0.65)",
         color: "#fff",
-        zIndex: 9999,
+        zIndex: 15,
+        pointerEvents: "none",
         borderTopLeftRadius: 6,
         fontFamily: "var(--font-body, sans-serif)",
       }}
@@ -4817,7 +5108,8 @@ function FirebaseBanner() {
         left: 8,
         bottom: 8,
         borderRadius: 8,
-        zIndex: 9999,
+        zIndex: 15,
+        pointerEvents: "none",
         display: "flex",
         gap: 10,
         alignItems: "center",
@@ -5287,6 +5579,10 @@ function ItemDetailPanel({
   lockQty = false,
 }) {
   const isMealDealPick = variant === "mealdeal_pick";
+  // Meal deal quick-pick: footer must always be visible on mobile sheets.
+  const mdPickFooterPad = isMealDealPick
+    ? "calc(150px + env(safe-area-inset-bottom))"
+    : "calc(0.5rem + env(safe-area-inset-bottom))";
   const sizeOptions = useMemo(() => {
     if (Array.isArray(item?.rawSizes) && item.rawSizes.length) {
       return item.rawSizes;
@@ -5945,6 +6241,7 @@ function ItemDetailPanel({
           overflowY: "auto",
           paddingRight: "0.25rem",
           overscrollBehavior: "contain",
+          paddingBottom: mdPickFooterPad,
         }}
       >
         {!compactHalfMode && (
@@ -6069,12 +6366,15 @@ function ItemDetailPanel({
         style={{
           flex: "0 0 auto",
           marginTop: "auto",
-          position: "sticky",
+          position: isMealDealPick ? "absolute" : "sticky",
+          left: isMealDealPick ? 0 : undefined,
+          right: isMealDealPick ? 0 : undefined,
           bottom: 0,
+          zIndex: 20,
           background: "var(--pp-surface, var(--panel))",
           borderTop: "1px solid var(--line, var(--border-color))",
           paddingTop: "0.75rem",
-          paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))",
+          paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
         }}
       >
         {(hasAddOns || canEditIngredients || gfPossible) && (
@@ -10949,7 +11249,10 @@ function AppLayout({ isMapsLoaded }) {
     </>
   );
   const mealDealPanel = isMealDealSelected ? (
-    <div className="order-panel-container order-panel-container--mealdeal">
+    <div
+      className="order-panel-container order-panel-container--mealdeal"
+      style={{ flex: "1 1 auto", minHeight: 0, height: "100%" }}
+    >
       <MealDealBuilderPanel
         item={selectedItem}
         menuData={menuData}
