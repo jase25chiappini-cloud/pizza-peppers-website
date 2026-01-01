@@ -5149,6 +5149,72 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 }
 
+/* Meal Deal desktop: keep price + close tidy (prevents overlap) */
+.pp-md-headActions{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex: 0 0 auto;
+}
+
+.pp-md-closeBtn{
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+}
+
+/* =========================================================
+   Meal Deal (DESKTOP) -- make editorItem a true overlay modal
+   Mobile already uses inline fixed styles -- leave it alone.
+   ========================================================= */
+@media (min-width: 1024px){
+  .pp-md-editorOverlay--inpanel{
+    position: absolute;
+    inset: 0;
+    z-index: 80;
+
+    /* modal backdrop */
+    background: rgba(2, 6, 23, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+
+    padding: 1.25rem;
+    overflow: hidden;
+  }
+
+  .pp-md-editorShell--inpanel{
+    width: 100%;
+    max-width: 760px;
+    height: 100%;
+    min-height: 0;
+
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* Ensure ItemDetailPanel fills the shell nicely */
+  .pp-md-editorShell--inpanel .detail-panel{
+    height: 100%;
+    min-height: 0;
+  }
+
+  .pp-md-editorShell--inpanel .detail-panel-body{
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pp-md-editorShell--inpanel .cart-total-section{
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+  }
+}
+
 /* =========================================================
    Meal Deal (mobile) -- premium footer buttons
    Scoped to meal-deal mobile modal only

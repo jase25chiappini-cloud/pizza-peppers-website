@@ -3215,15 +3215,6 @@ const MealDealBuilderPanel = ({
         minHeight: 0,
       }}
     >
-      <button
-        onClick={onCancel}
-        className="quantity-btn"
-        style={{ position: "absolute", top: "1.5rem", right: "1.5rem", zIndex: 10 }}
-        title="Close"
-      >
-        &times;
-      </button>
-
       <header className="pp-md-head">
         <div className="pp-md-headRow">
           <div>
@@ -3234,8 +3225,19 @@ const MealDealBuilderPanel = ({
             </div>
           </div>
 
-          <div className="pp-md-pricePill" title="Meal deal total (base + extras)">
-            {currency(totalCents)}
+          <div className="pp-md-headActions">
+            <div className="pp-md-pricePill" title="Meal deal total (base + extras)">
+              {currency(totalCents)}
+            </div>
+            <button
+              type="button"
+              className="quantity-btn pp-md-closeBtn"
+              onClick={onCancel}
+              title="Close"
+              aria-label="Close"
+            >
+              &times;
+            </button>
           </div>
         </div>
 
@@ -10400,7 +10402,7 @@ function AppLayout({ isMapsLoaded }) {
     halfAndHalfApplyPizzaRef.current = fnOrNull || null;
   }, []);
 
-  const registerExternalMealDealItemApply = useCallback((fnOrNull) => {
+  const registerExternalMealItemApply = useCallback((fnOrNull) => {
     mealDealApplyItemRef.current = fnOrNull || null;
   }, []);
 
@@ -10621,11 +10623,9 @@ function AppLayout({ isMapsLoaded }) {
     };
   }, []);
 
-  const handleItemClick = useCallback(
-    (menuItem) => {
-      const prepared = prepareItemForPanel(menuItem);
-      if (!prepared) return;
-
+  // Shared click metadata so mobile + desktop routing stays in sync.
+  const _getMenuClickMeta = useCallback(
+    (menuItem, prepared) => {
       // Look up the flat menu row so we can inspect category info
       const flat = Array.isArray(menuItems)
         ? menuItems.find((row) => row.id === menuItem.id) ||
@@ -10636,7 +10636,6 @@ function AppLayout({ isMapsLoaded }) {
       const categoryRefRaw = flat?.__categoryRef || flat?.category_ref;
       const categoryRef =
         typeof categoryRefRaw === "string" ? categoryRefRaw.toUpperCase() : "";
-
       const allowedHalfSizes = _halfHalfAllowedSizeSet(menuData);
 
       const isPizzaForHalfHalf =
@@ -10645,6 +10644,26 @@ function AppLayout({ isMapsLoaded }) {
         categoryRef !== "MINI_PIZZAS" &&
         flat.allowHalf !== false &&
         _productHasAnyAllowedHalfHalfSize(flat, allowedHalfSizes);
+
+      const clickedIsMealBundle =
+        prepared?.bundle &&
+        Array.isArray(prepared.bundle.slots) &&
+        prepared.bundle.slots.length;
+
+      return { isPizzaForHalfHalf, clickedIsMealBundle };
+    },
+    [menuItems, menuData],
+  );
+
+  const handleItemClickMobile = useCallback(
+    (menuItem) => {
+      const prepared = prepareItemForPanel(menuItem);
+      if (!prepared) return;
+
+      const { isPizzaForHalfHalf, clickedIsMealBundle } = _getMenuClickMeta(
+        menuItem,
+        prepared,
+      );
 
       // MOBILE Half & Half picking: menu click selects Pizza 1 then Pizza 2
       if (hhMobilePicking && prepared.id !== "half_half") {
@@ -10700,8 +10719,122 @@ function AppLayout({ isMapsLoaded }) {
         return;
       }
 
-      const clickedIsMealBundle =
-        prepared?.bundle && Array.isArray(prepared.bundle.slots) && prepared.bundle.slots.length;
+      const builderOpen =
+        selectedItem?.bundle &&
+        Array.isArray(selectedItem.bundle.slots) &&
+        selectedItem.bundle.slots.length;
+
+      if (builderOpen && mealDealApplyItemRef?.current && !clickedIsMealBundle) {
+        mealDealApplyItemRef.current(menuItem);
+        return;
+      }
+
+      if (clickedIsMealBundle) {
+        setMealDealDraft(prepared);
+        setSelectedItem(prepared);
+        setCustomizingItem(null);
+        setEditingIndex(null);
+        setRightPanelView("order");
+        return;
+      }
+
+      // Half & Half entry (mobile flow = go to pick mode)
+      if (
+        prepared?.id === "half_half" ||
+        menuItem?.id === "half_half" ||
+        menuItem?.isHalfHalf
+      ) {
+        setSelectedItem(null);
+        setCustomizingItem(null);
+        setEditingIndex(null);
+        setRightPanelView("order");
+        setHhMobileDraft({
+          step: "pick",
+          side: "A",
+          halfA: null,
+          halfB: null,
+          sizeRef: "LARGE",
+        });
+
+        try {
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        } catch {}
+        return;
+      }
+
+      // Normal behaviour: open this item in the detail/customiser panel
+      setSelectedItem(prepared);
+      setCustomizingItem({
+        ...prepared,
+        add_ons: [],
+        removedIngredients: [],
+      });
+      setEditingIndex(null);
+      setRightPanelView("order");
+    },
+    [
+      prepareItemForPanel,
+      _getMenuClickMeta,
+      selectedItem,
+      hhMobilePicking,
+      hhMobileDraft,
+      setHhMobileDraft,
+      setMealDealDraft,
+      setSelectedItem,
+      setCustomizingItem,
+      setEditingIndex,
+      setRightPanelView,
+      mealDealApplyItemRef,
+    ],
+  );
+
+  const handleItemClickDesktop = useCallback(
+    (menuItem) => {
+      const prepared = prepareItemForPanel(menuItem);
+      if (!prepared) return;
+
+      const { isPizzaForHalfHalf, clickedIsMealBundle } = _getMenuClickMeta(
+        menuItem,
+        prepared,
+      );
+
+      // If the Half & Half editor is open and this item is eligible,
+      // route the click into the selector instead of opening the panel
+      if (
+        selectedItem?.isHalfHalf &&
+        halfAndHalfApplyPizzaRef?.current &&
+        prepared.id !== "half_half" &&
+        isPizzaForHalfHalf
+      ) {
+        halfAndHalfApplyPizzaRef.current(prepared);
+        return;
+      }
+
+      // DESKTOP meal-deal selection mode: ALWAYS route clicks back into the meal-deal builder.
+      // This prevents the normal item detail panel from opening over the meal-deal navigator.
+      const mealDealSelectingDesktop =
+        !!mealDealMenuFilter?.step && typeof mealDealApplyItemRef?.current === "function";
+
+      if (mealDealSelectingDesktop && !clickedIsMealBundle) {
+        // If something accidentally stole selectedItem away from the bundle on desktop,
+        // snap back to the meal deal so the right panel stays clean.
+        const selectedIsMealBundle =
+          selectedItem?.bundle &&
+          Array.isArray(selectedItem.bundle.slots) &&
+          selectedItem.bundle.slots.length;
+
+        if (!selectedIsMealBundle && mealDealDraft?.bundle?.slots?.length) {
+          setSelectedItem(mealDealDraft);
+          setCustomizingItem(null);
+          setEditingIndex(null);
+          setRightPanelView("order");
+        }
+
+        mealDealApplyItemRef.current(menuItem);
+        return;
+      }
 
       const builderOpen =
         selectedItem?.bundle &&
@@ -10713,8 +10846,7 @@ function AppLayout({ isMapsLoaded }) {
         return;
       }
 
-      const isMealBundle = clickedIsMealBundle;
-      if (isMealBundle) {
+      if (clickedIsMealBundle) {
         setMealDealDraft(prepared);
         setSelectedItem(prepared);
         setCustomizingItem(null);
@@ -10723,36 +10855,12 @@ function AppLayout({ isMapsLoaded }) {
         return;
       }
 
-      // Half & Half entry
+      // Half & Half entry (desktop = open editor)
       if (
         prepared?.id === "half_half" ||
         menuItem?.id === "half_half" ||
         menuItem?.isHalfHalf
       ) {
-        // MOBILE: go to pick mode (menu-only)
-        if (isMobileScreen) {
-          setSelectedItem(null);
-          setCustomizingItem(null);
-          setEditingIndex(null);
-          setRightPanelView("order");
-          setHhMobileDraft({
-            step: "pick",
-            side: "A",
-            halfA: null,
-            halfB: null,
-            sizeRef: "LARGE",
-          });
-
-          // Optional: scroll to top so the user immediately sees the menu
-          try {
-            requestAnimationFrame(() => {
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            });
-          } catch {}
-          return;
-        }
-
-        // DESKTOP: keep existing behavior (open editor)
         setSelectedItem(HALF_HALF_FORCED_ITEM);
         setCustomizingItem(null);
         setEditingIndex(null);
@@ -10772,12 +10880,10 @@ function AppLayout({ isMapsLoaded }) {
     },
     [
       prepareItemForPanel,
-      menuItems,
+      _getMenuClickMeta,
       selectedItem,
-      isMobileScreen,
-      hhMobilePicking,
-      hhMobileDraft,
-      setHhMobileDraft,
+      mealDealMenuFilter,
+      mealDealDraft,
       setMealDealDraft,
       setSelectedItem,
       setCustomizingItem,
@@ -10785,6 +10891,14 @@ function AppLayout({ isMapsLoaded }) {
       setRightPanelView,
       mealDealApplyItemRef,
     ],
+  );
+
+  const handleItemClick = useCallback(
+    (menuItem) =>
+      isMobileScreen
+        ? handleItemClickMobile(menuItem)
+        : handleItemClickDesktop(menuItem),
+    [isMobileScreen, handleItemClickMobile, handleItemClickDesktop],
   );
 
   const handleResumeMealDeal = useCallback(() => {
@@ -11186,7 +11300,7 @@ function AppLayout({ isMapsLoaded }) {
                 setEditingIndex(null);
                 setCustomizingItem(null);
               }}
-              registerExternalMealItemApply={registerExternalMealDealItemApply}
+              registerExternalMealItemApply={registerExternalMealItemApply}
               onMenuFilterChange={setMealDealMenuFilter}
             />
           )
