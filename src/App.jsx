@@ -3039,16 +3039,16 @@ const MealDealBuilderPanel = ({
           <div className="pp-mdm-progressFill" style={{ width: `${progressPct}%` }} />
         </div>
 
-        <div style={{ marginTop: "0.65rem", display: "flex", justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            className="simple-button"
-            style={{ width: "auto", paddingInline: "1rem" }}
-            onClick={onCancel}
-          >
-            Close
-          </button>
-        </div>
+        <button
+          type="button"
+          className="quantity-btn pp-mdm-closeBtn"
+          onClick={onCancel}
+          title="Exit meal deal"
+          aria-label="Exit meal deal"
+        >
+          <span aria-hidden="true" className="pp-mdm-closeIcon">&times;</span>
+          <span className="pp-mdm-closeText">Exit</span>
+        </button>
       </header>
 
       <section className="pp-mdm-next">
