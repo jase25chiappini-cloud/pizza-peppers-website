@@ -87,13 +87,16 @@ const HalfAndHalfSelector = ({
   onAddItemToOrder,
   selectedItem,
   setSelectedItem,
-  registerExternalPizzaApply,
+  registerExternalPizzaApply = null,
   useExternalMenuSelection = false,
   hidePizzaPicker = false,
   compactUiMode = false,
   initialHalfA = null,
   initialHalfB = null,
   initialSizeRef = "LARGE",
+  initialIsGlutenFree = false,
+  initialQty = 1,
+  lockedSizeRef = null,
   onRequestChangeHalf = null,
 }) => {
   const [activeHalf, setActiveHalf] = React.useState("A");
@@ -134,22 +137,34 @@ const HalfAndHalfSelector = ({
   const [halfEditorItem, setHalfEditorItem] = React.useState(null);
   const [halfEditorInitialModal, setHalfEditorInitialModal] = React.useState(null);
   const [halfEditorSuppressPanel, setHalfEditorSuppressPanel] = React.useState(false);
-  const [isHalfGlutenFree, setIsHalfGlutenFree] = React.useState(false);
-  const [halfQty, setHalfQty] = React.useState(1);
+  const [isHalfGlutenFree, setIsHalfGlutenFree] = React.useState(
+    !!initialIsGlutenFree,
+  );
+  const [halfQty, setHalfQty] = React.useState(() => {
+    const q = Number(initialQty || 1);
+    return Number.isFinite(q) && q > 0 ? q : 1;
+  });
  
   React.useEffect(() => {
     if (initialSizeRef) setSizeRef(initialSizeRef);
     if (initialHalfA) setHalfA(initialHalfA);
     if (initialHalfB) setHalfB(initialHalfB);
-  }, [initialHalfA, initialHalfB, initialSizeRef]);
+    setIsHalfGlutenFree(!!initialIsGlutenFree);
+    {
+      const q = Number(initialQty || 1);
+      setHalfQty(Number.isFinite(q) && q > 0 ? q : 1);
+    }
+  }, [initialHalfA, initialHalfB, initialSizeRef, initialIsGlutenFree, initialQty]);
 
 
   // compactUiMode is ONLY for the meal-deal overlay / tight layouts
   const compactUi = !!compactUiMode;
+  // Mobile compact (meal deal overlay): prefer ONE scroll container (not body + footer split)
+  const singleScrollMode = isNarrowScreen;
 
   // For this new pattern: we pick from the MENU (external), not inside the builder.
   const allowInlinePicker =
-    !useExternalMenuSelection && (!hidePizzaPicker || isNarrowScreen);
+    !useExternalMenuSelection && !hidePizzaPicker;
 
   const halfBodyRef = React.useRef(null);
   const halfOptionsRef = React.useRef(null);
@@ -276,15 +291,21 @@ const HalfAndHalfSelector = ({
 
   const [selectedSizeKey, setSelectedSizeKey] = React.useState("LARGE");
 
-  const defaultSizeRefs = React.useMemo(
-    () => ["REGULAR", "LARGE", "FAMILY", "PARTY"],
-    [],
-  );
+  const defaultSizeRefs = React.useMemo(() => {
+    const allowed = _halfHalfAllowedSizeSet(menuData);
+    const inOrder = ["REGULAR", "LARGE", "FAMILY", "PARTY"];
+    const filtered = inOrder.filter((k) =>
+      allowed.has(normalizeAddonSizeRef(k)),
+    );
+    return filtered.length ? filtered : ["LARGE", "FAMILY", "PARTY"];
+  }, [menuData]);
+
+  const lockedNorm = lockedSizeRef ? normalizeAddonSizeRef(lockedSizeRef) : null;
 
   const sizeSelectorOptions = React.useMemo(() => {
     const source = halfSizeOptions.length ? halfSizeOptions : defaultSizeRefs;
 
-    return source.map((sizeOrLabel, idx) => {
+    const opts = source.map((sizeOrLabel, idx) => {
       const label =
         typeof sizeOrLabel === "string"
           ? sizeOrLabel
@@ -318,11 +339,18 @@ const HalfAndHalfSelector = ({
             : "DEFAULT",
       };
     });
-  }, [halfSizeOptions, defaultSizeRefs]);
+    return lockedNorm
+      ? opts.filter(
+          (o) =>
+            normalizeAddonSizeRef(o.refValue || o.key || o.label) === lockedNorm,
+        )
+      : opts;
+  }, [halfSizeOptions, defaultSizeRefs, lockedNorm]);
 
   const hasDynamicSizeOptions = halfSizeOptions.length > 0;
 
   const getCurrentSizeToken = React.useCallback(() => {
+    if (lockedNorm) return lockedNorm;
     if (sizeSelectorOptions.length) {
       return (
         selectedSizeKey ||
@@ -332,7 +360,7 @@ const HalfAndHalfSelector = ({
       );
     }
     return sizeRef || "Default";
-  }, [sizeSelectorOptions, selectedSizeKey, sizeRef]);
+  }, [sizeSelectorOptions, selectedSizeKey, sizeRef, lockedNorm]);
 
   const activeSizeLabel = React.useMemo(() => {
     if (halfSizeOptions.length) {
@@ -377,6 +405,27 @@ const HalfAndHalfSelector = ({
       getSizeSourceId(entry) ||
       "Default";
 
+    if (lockedNorm) {
+      if (halfSizeOptions.length) {
+        const lockedMatch = halfSizeOptions.find((size) => {
+          const label = labelFor(size);
+          const refCandidate =
+            size.ref ||
+            normalizeMenuSizeRef(label) ||
+            normalizeMenuSizeRef(getSizeSourceId(size) || label) ||
+            label ||
+            "Default";
+          return normalizeAddonSizeRef(refCandidate) === lockedNorm;
+        });
+        const key = lockedMatch ? labelFor(lockedMatch) : lockedNorm;
+        setSelectedSizeKey(key);
+      } else {
+        setSelectedSizeKey(lockedNorm);
+      }
+      setSizeRef(lockedNorm);
+      return;
+    }
+
     if (!halfSizeOptions.length) {
       setSelectedSizeKey("LARGE");
       setSizeRef("LARGE");
@@ -408,7 +457,7 @@ const HalfAndHalfSelector = ({
     if (typeof derivedRef === "string") {
       setSizeRef(derivedRef.toUpperCase());
     }
-  }, [halfSizeOptions, setSizeRef]);
+  }, [halfSizeOptions, lockedNorm, setSizeRef]);
 
   const applyHalfEditorResult = React.useCallback(
     (itemsToAdd, isGlutenFree, addOnSelections = []) => {
@@ -886,7 +935,8 @@ const HalfAndHalfSelector = ({
         height: "100%",
         position: "relative",
         minHeight: 0,
-        overflow: "visible",
+        overflowY: singleScrollMode ? "auto" : "visible",
+        WebkitOverflowScrolling: "touch",
       }}
     >
       <button
@@ -1209,9 +1259,9 @@ const HalfAndHalfSelector = ({
         className="detail-panel-body pp-halfhalf-body"
         ref={halfBodyRef}
         style={{
-          flex: "1 1 auto",
+          flex: singleScrollMode ? "0 0 auto" : "1 1 auto",
           minHeight: 0,
-          overflowY: isNarrowScreen ? "auto" : "visible",
+          overflowY: singleScrollMode ? "visible" : (isNarrowScreen ? "auto" : "visible"),
           WebkitOverflowScrolling: "touch",
           paddingRight: "0.25rem",
           paddingBottom: compactUi ? "0.9rem" : "1.75rem",
@@ -1261,7 +1311,6 @@ const HalfAndHalfSelector = ({
                 ].join(" ")}
                 onClick={() => {
                   setHalfSelectionSide("A");
-                  scrollToHalfOptions();
                 }}
               >
                 <div className="pp-hh-wizCardTop">
@@ -1284,7 +1333,6 @@ const HalfAndHalfSelector = ({
                 ].join(" ")}
                 onClick={() => {
                   setHalfSelectionSide("B");
-                  scrollToHalfOptions();
                 }}
               >
                 <div className="pp-hh-wizCardTop">
@@ -1352,21 +1400,25 @@ const HalfAndHalfSelector = ({
                 const isActive = hasDynamicSizeOptions
                   ? selectedSizeKey === option.key
                   : sizeRef === option.refValue;
-              const optionRefValue =
+                const optionRefValue =
                   (option.refValue || option.key || option.label || "Default")
                     ?.toString()
                     .toUpperCase();
-              const lockedByGlutenFree =
-                isHalfGlutenFree && optionRefValue !== "LARGE";
+                const lockedByGlutenFree =
+                  isHalfGlutenFree && optionRefValue !== "LARGE";
+                const lockedByMealDeal =
+                  lockedNorm &&
+                  normalizeAddonSizeRef(optionRefValue) !== lockedNorm;
+                const isDisabled = lockedByGlutenFree || lockedByMealDeal;
 
                 return (
                   <button
                     key={option.id}
-                    disabled={lockedByGlutenFree}
-                    aria-disabled={lockedByGlutenFree}
+                    disabled={isDisabled}
+                    aria-disabled={isDisabled}
                     type="button"
                     onClick={() => {
-                      if (lockedByGlutenFree) return;
+                      if (isDisabled) return;
                       const fallbackKey = option.key || "Default";
                       const fallbackRef = option.refValue || fallbackKey;
                       setSelectedSizeKey(fallbackKey);
@@ -1379,7 +1431,7 @@ const HalfAndHalfSelector = ({
                     style={{
                       border: "none",
                       outline: "none",
-                      cursor: lockedByGlutenFree ? "not-allowed" : "pointer",
+                      cursor: isDisabled ? "not-allowed" : "pointer",
                       borderRadius: "999px",
                       padding: "0.4rem 0.95rem",
                       fontSize: "0.78rem",
@@ -1387,17 +1439,17 @@ const HalfAndHalfSelector = ({
                       letterSpacing: "0.095em",
                       textTransform: "uppercase",
                       transition: "all 0.2s ease",
-                      color: lockedByGlutenFree
+                      color: isDisabled
                         ? "var(--text-medium)"
                         : isActive
                         ? "#0f172a"
                         : "var(--text-light)",
-                      background: lockedByGlutenFree
+                      background: isDisabled
                         ? "var(--panel)"
                         : isActive
                         ? "var(--brand-neon-green)"
                         : "var(--background-light)",
-                      boxShadow: lockedByGlutenFree
+                      boxShadow: isDisabled
                         ? "inset 0 0 0 1px var(--border-color)"
                         : isActive
                         ? "0 0 20px rgba(190,242,100,0.82)"
@@ -1414,7 +1466,7 @@ const HalfAndHalfSelector = ({
           </div>
         </div>
         {/* Half selector (slider) */}
-        {!isNarrowScreen || wizardStep === "CONFIRM" ? (
+        {!isNarrowScreen ? (
           <div
             className="pp-halfhalf-sideSwitch"
             data-active={halfSelectionSide}
@@ -2342,6 +2394,9 @@ const MealDealBuilderPanel = ({
   const [editorItem, setEditorItem] = React.useState(null);
   const [editorForcedSizeRef, setEditorForcedSizeRef] = React.useState(null);
   const [halfHalfOpen, setHalfHalfOpen] = React.useState(false);
+  const [halfHalfSeed, setHalfHalfSeed] = React.useState(null);
+  const [hhMealStage, setHhMealStage] = React.useState("review"); // "pick" | "review"
+  const [hhMealPickSide, setHhMealPickSide] = React.useState("A"); // "A" | "B"
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const halfHalfApplyPizzaRef = React.useRef(null);
   const [activeCategoryRef, setActiveCategoryRef] = React.useState(null);
@@ -2371,6 +2426,9 @@ const MealDealBuilderPanel = ({
     setSearch("");
     setEditorItem(null);
     setEditorForcedSizeRef(null);
+    setHalfHalfSeed(null);
+    setHhMealStage("review");
+    setHhMealPickSide("A");
     setActiveCategoryRef(null);
     setPickerOpen(false);
   }, [item?.id, steps.length]);
@@ -2426,6 +2484,13 @@ const MealDealBuilderPanel = ({
     return null;
   }, [inferMealPizzaSizeFromDeal]);
 
+  const forcedHalfHalfSizeRef = React.useMemo(() => {
+    if (!step) return null;
+    const allowed = _slotAllowedSizes(step.slot);
+    if (allowed.length) return normalizeMenuSizeRef(allowed[0]);
+    return null;
+  }, [step]);
+
   const stepMenuData = React.useMemo(
     () => _filterMenuDataForMealStep(menuData, step, { search, activeCategoryRef }),
     [menuData, step, search, activeCategoryRef],
@@ -2450,6 +2515,18 @@ const MealDealBuilderPanel = ({
     });
     return rows;
   }, [stepMenuData]);
+
+  // Half/Half pick stage should show ALL eligible pizzas (not just the active meal-deal category chip)
+  const hhPickBaseMenuData = React.useMemo(() => {
+    return _filterMenuDataForMealStep(menuData, step, {
+      search: "",
+      activeCategoryRef: null,
+    });
+  }, [menuData, step]);
+
+  const hhPickMenuData = React.useMemo(() => {
+    return _filterMenuDataForHalfHalf(hhPickBaseMenuData);
+  }, [hhPickBaseMenuData]);
 
   const stepCategoryOptions = React.useMemo(() => {
     const cats = Array.isArray(stepMenuData?.categories) ? stepMenuData.categories : [];
@@ -2529,6 +2606,23 @@ const MealDealBuilderPanel = ({
       ) {
         setPickerOpen(false);
         setEditorItem(null);
+        if (isMobile) {
+          const forced = forcedHalfHalfSizeRef || getForcedSizeForStep(step) || "LARGE";
+          setHalfHalfSeed({
+            halfA: null,
+            halfB: null,
+            sizeRef: String(forced).toUpperCase(),
+            isGlutenFree: false,
+            qty: 1,
+          });
+          setHhMealPickSide("A");
+          setHhMealStage("pick");
+          setHalfHalfOpen(true);
+          return;
+        }
+
+        setHalfHalfSeed(null);
+        setHhMealStage("review");
         setHalfHalfOpen(true);
         return;
       }
@@ -2536,7 +2630,15 @@ const MealDealBuilderPanel = ({
       setPickerOpen(false);
       openEditorForProduct(product);
     },
-    [step, openEditorForProduct],
+    [
+      step,
+      openEditorForProduct,
+      isMobile,
+      forcedHalfHalfSizeRef,
+      getForcedSizeForStep,
+      setHhMealPickSide,
+      setHhMealStage,
+    ],
   );
 
   const openEditForChosen = React.useCallback(
@@ -2550,6 +2652,17 @@ const MealDealBuilderPanel = ({
         setActiveStep(idx);
         setPickerOpen(false);
         setEditorItem(null);
+        setHalfHalfSeed({
+          halfA: chosen.halfA || null,
+          halfB: chosen.halfB || null,
+          sizeRef: (chosen.size?.ref || chosen.size?.id || chosen.size?.name || "LARGE")
+            .toString()
+            .toUpperCase(),
+          isGlutenFree: !!chosen.isGlutenFree,
+          qty: Number(chosen.qty || 1),
+        });
+        setHhMealStage("review");
+        setHhMealPickSide("A");
         setHalfHalfOpen(true);
         return;
       }
@@ -2576,7 +2689,71 @@ const MealDealBuilderPanel = ({
       setActiveStep,
       setPickerOpen,
       setEditorItem,
+      setHalfHalfSeed,
+      setHhMealStage,
+      setHhMealPickSide,
       setHalfHalfOpen,
+    ],
+  );
+
+  const pickHalfForMealDeal = React.useCallback(
+    (menuItem) => {
+      if (!menuItem || !step) return;
+
+      const prepared = prepareItemForPanel(menuItem);
+      if (!prepared) return;
+
+      const forced = (
+        forcedHalfHalfSizeRef ||
+        halfHalfSeed?.sizeRef ||
+        getForcedSizeForStep(step) ||
+        "LARGE"
+      )
+        .toString()
+        .toUpperCase();
+
+      const sizeRec = makeSizeRecord(forced);
+
+      const base = {
+        ...prepared,
+        qty: 1,
+        size: sizeRec,
+        add_ons: [],
+        removedIngredients: [],
+      };
+
+      // Build the next seed synchronously so we can decide whether we still need the other half.
+      const prevSeed = halfHalfSeed || { halfA: null, halfB: null, sizeRef: forced };
+      const nextSeed = {
+        ...prevSeed,
+        sizeRef: forced,
+        ...(hhMealPickSide === "A" ? { halfA: base } : { halfB: base }),
+      };
+
+      setHalfHalfSeed(nextSeed);
+
+      // If BOTH halves exist after this pick, go straight to review/editor.
+      if (nextSeed.halfA && nextSeed.halfB) {
+        setHhMealPickSide("A");
+        setHhMealStage("review");
+        return;
+      }
+
+      // Otherwise continue picking the missing half.
+      if (!nextSeed.halfA) {
+        setHhMealPickSide("A");
+      } else {
+        setHhMealPickSide("B");
+      }
+      setHhMealStage("pick");
+    },
+    [
+      prepareItemForPanel,
+      step,
+      hhMealPickSide,
+      forcedHalfHalfSizeRef,
+      halfHalfSeed,
+      getForcedSizeForStep,
     ],
   );
 
@@ -2708,6 +2885,7 @@ const MealDealBuilderPanel = ({
         // Only valid when the current slot is a pizza slot
         if (String(step.slotKey || "").toLowerCase() !== "pizza") return;
         setEditorItem(null);
+        setHalfHalfSeed(null);
         setHalfHalfOpen(true);
         return;
       }
@@ -3119,54 +3297,194 @@ const MealDealBuilderPanel = ({
 
       {halfHalfOpen && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 70,
-            background: "rgba(2, 6, 23, 0.72)",
-            backdropFilter: "blur(4px)",
-            WebkitBackdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            padding: "1.2rem 1rem",
-          }}
+          style={
+            isMobile
+              ? {
+                  position: "fixed",
+                  inset: 0,
+                  zIndex: 10120,
+                  background: "var(--pp-surface, var(--panel))",
+                  display: "flex",
+                  flexDirection: "column",
+                }
+              : {
+                  position: "fixed",
+                  inset: 0,
+                  zIndex: 10120,
+                  background: "rgba(2, 6, 23, 0.72)",
+                  backdropFilter: "blur(4px)",
+                  WebkitBackdropFilter: "blur(4px)",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "center",
+                  padding: "1.2rem 1rem",
+                }
+          }
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className="order-panel-container pp-mealdeal-halfhalf"
-            style={{
-              width: "95%",
-              maxWidth: 760,
-              margin: "0 auto",
-              position: "relative",
-              height: "88vh",
-              maxHeight: "88vh",
-              minHeight: 0,
-              overflow: "auto",
-              padding: "1.05rem 1.2rem",
-              borderRadius: "22px",
-              background: "var(--pp-surface)",
-              border: "1px solid var(--border-color)",
-              boxShadow: "var(--shadow-modal)",
-              display: "flex",
-              flexDirection: "column",
-            }}
+            className={
+              "order-panel-container pp-mealdeal-halfhalf " +
+              (isMobile ? "pp-mealdeal-halfhalf--full" : "")
+            }
+            style={
+              isMobile
+                ? {
+                    width: "100%",
+                    height: "100dvh",
+                    minHeight: "100vh",
+                    maxWidth: "100%",
+                    margin: 0,
+                    borderRadius: 0,
+                    padding: "1rem",
+                    background: "var(--pp-surface, var(--panel))",
+                    border: "none",
+                    boxShadow: "none",
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                  }
+                : {
+                    width: "95%",
+                    maxWidth: 760,
+                    margin: "0 auto",
+                    position: "relative",
+                    height: "88vh",
+                    maxHeight: "88vh",
+                    minHeight: 0,
+                    overflow: "auto",
+                    padding: "1.05rem 1.2rem",
+                    borderRadius: "22px",
+                    background: "var(--pp-surface)",
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "var(--shadow-modal)",
+                    display: "flex",
+                    flexDirection: "column",
+                  }
+            }
             onClick={(e) => e.stopPropagation()}
           >
-            <HalfAndHalfSelector
-              menuItems={halfHalfMenuRows}
-              menuData={menuData}
-              selectedItem={HALF_HALF_FORCED_ITEM}
-              setSelectedItem={(v) => {
-                if (v == null) setHalfHalfOpen(false);
-              }}
-              registerExternalPizzaApply={registerExternalMealHalfHalfPizzaApply}
-              hidePizzaPicker
-              useExternalMenuSelection
-              compactUiMode
-              onAddItemToOrder={(hh) => commitHalfHalfToBundleStep(hh)}
-            />
+            {isMobile && hhMealStage === "pick" ? (
+              <div className="pp-hh-mealPick">
+                <div className="pp-hh-pickNotice" style={{ margin: 0 }}>
+                  <div className="pp-hh-pickNotice__top">
+                    <div>
+                      <div className="pp-hh-pickNotice__kicker">
+                        {"\uD83C\uDF55"} Half & Half {"\u2014"} Selection Mode
+                      </div>
+                      <div className="pp-hh-pickNotice__title">
+                        Pick <b>two</b> pizzas for your meal deal
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="pp-hh-pickNotice__exit"
+                      onClick={() => {
+                        setHalfHalfOpen(false);
+                        setHalfHalfSeed(null);
+                        setHhMealPickSide("A");
+                        setHhMealStage("review");
+                      }}
+                    >
+                      {"\u2715"} Exit
+                    </button>
+                  </div>
+
+                  <div className="pp-hh-pickNotice__stepRow">
+                    <div className="pp-hh-pickNotice__stepPill">
+                      Step {hhMealPickSide === "A" ? "1" : "2"} / 2
+                    </div>
+                    <div className="pp-hh-pickNotice__nextPill">
+                      Next:{" "}
+                      <b>
+                        {hhMealPickSide === "A"
+                          ? `Pizza 1 (Left) ${"\uD83D\uDC48"}`
+                          : `Pizza 2 (Right) ${"\uD83D\uDC49"}`}
+                      </b>
+                    </div>
+                  </div>
+
+                  <div className="pp-hh-pickNotice__progress" aria-hidden="true">
+                    <div
+                      className={[
+                        "pp-hh-pickNotice__seg",
+                        halfHalfSeed?.halfA ? "is-done" : "is-active",
+                      ].join(" ")}
+                    />
+                    <div
+                      className={[
+                        "pp-hh-pickNotice__seg",
+                        halfHalfSeed?.halfB
+                          ? "is-done"
+                          : hhMealPickSide === "B"
+                          ? "is-active"
+                          : "",
+                      ].join(" ")}
+                    />
+                  </div>
+
+                  <div className="pp-hh-pickNotice__hint">
+                    Tap a pizza below to fill the{" "}
+                    <b>{hhMealPickSide === "A" ? "LEFT" : "RIGHT"}</b> half.
+                  </div>
+                </div>
+
+                <div className="pp-hh-mealPickBody">
+                  <Menu
+                    menuData={hhPickMenuData}
+                    onItemClick={(p) => pickHalfForMealDeal(p)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <HalfAndHalfSelector
+                menuItems={halfHalfMenuRows}
+                menuData={menuData}
+                selectedItem={HALF_HALF_FORCED_ITEM}
+                setSelectedItem={(v) => {
+                  if (v == null) {
+                    setHalfHalfOpen(false);
+                    setHalfHalfSeed(null);
+                    setHhMealPickSide("A");
+                    setHhMealStage("review");
+                  }
+                }}
+                compactUiMode
+                initialHalfA={halfHalfSeed?.halfA || null}
+                initialHalfB={halfHalfSeed?.halfB || null}
+                initialSizeRef={
+                  (forcedHalfHalfSizeRef || halfHalfSeed?.sizeRef || "LARGE")
+                    .toString()
+                    .toUpperCase()
+                }
+                initialIsGlutenFree={!!halfHalfSeed?.isGlutenFree}
+                initialQty={Number(halfHalfSeed?.qty || 1)}
+                lockedSizeRef={forcedHalfHalfSizeRef}
+                hidePizzaPicker={isMobile}
+                useExternalMenuSelection={false}
+                onRequestChangeHalf={
+                  isMobile
+                    ? (side) => {
+                        setHhMealStage("pick");
+                        setHhMealPickSide(side === "B" ? "B" : "A");
+                        setHalfHalfSeed((prev) => {
+                          const next = { ...(prev || {}) };
+                          if (side === "A") next.halfA = null;
+                          else next.halfB = null;
+                          return next;
+                        });
+                      }
+                    : null
+                }
+                onAddItemToOrder={(hh) => {
+                  commitHalfHalfToBundleStep(hh);
+                  setHalfHalfSeed(null);
+                  setHhMealPickSide("A");
+                  setHhMealStage("review");
+                }}
+              />
+            )}
           </div>
         </div>
       )}

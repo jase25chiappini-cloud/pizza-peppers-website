@@ -6475,3 +6475,103 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     background: rgba(251,113,133,0.08);
   }
 }
+
+/* Meal Deal Half & Half: pick-halves stage uses the regular Menu grid inside the modal */
+.pp-hh-mealPick{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  gap: 0.85rem;
+}
+
+.pp-hh-mealPickBody{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.25rem;
+}
+
+/* Tighten menu sections a touch inside the modal so it feels like a picker */
+.pp-hh-mealPickBody .menu-category{
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 0.9rem 1rem;
+}
+.pp-hh-mealPickBody .category-title{
+  scroll-margin-top: 1rem;
+}
+
+/* Meal Deal Half & Half: full-screen mobile sheet (no scaling / no shrink) */
+@media (max-width: 1023.98px){
+  .pp-mealdeal-halfhalf--full{
+    --pp-mealhh-scale: 1 !important;
+    overflow: hidden !important;
+  }
+
+  .pp-mealdeal-halfhalf--full .pp-halfhalf-panel{
+    transform: none !important;
+    transform-origin: initial !important;
+  }
+
+  /* Picker stage uses Menu: make it scroll inside the sheet */
+  .pp-mealdeal-halfhalf--full .pp-hh-mealPickBody{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* =========================================================
+   Half & Half (MOBILE) -- single smooth scroll (final override)
+   One scroll container: .pp-halfhalf-panel
+   ========================================================= */
+@media (max-width: 1023.98px){
+  /* Don’t let the modal itself become the scroll container */
+  .pp-halfhalf-modal__panel{
+    overflow: hidden !important;
+  }
+
+  /* The panel is the ONLY scroll area */
+  .pp-halfhalf-modal__panel .pp-halfhalf-panel{
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Body is content only (no inner scroll zone) */
+  .pp-halfhalf-modal__panel .pp-halfhalf-body{
+    overflow: visible !important;
+  }
+
+  /* Meal deal full-screen half/half uses the same rule */
+  .pp-mealdeal-halfhalf--full{
+    overflow: hidden !important;
+  }
+  .pp-mealdeal-halfhalf--full .pp-halfhalf-panel{
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pp-mealdeal-halfhalf--full .pp-halfhalf-body{
+    overflow: visible !important;
+  }
+}
+
+/* Meal Deal Half & Half (full-screen mobile): single-scroll mode */
+@media (max-width: 1023.98px){
+  .pp-mealdeal-halfhalf--full .pp-halfhalf-body{
+    overflow: visible !important; /* prevent second scroll area */
+  }
+
+  .pp-mealdeal-halfhalf--full .pp-halfhalf-panel{
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pp-mealdeal-halfhalf--full .pp-halfhalf-cta{
+    position: sticky;
+    bottom: 0;
+  }
+}
