@@ -80,6 +80,36 @@ const HALF_HALF_FORCED_ITEM = {
   available: true,
 };
 
+const _toCentsFromMenuSurcharge = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+
+  // menu.json typically stores surcharge in dollars (e.g. 2), not cents.
+  // If it's big, assume it's already cents.
+  if (n >= 50) return Math.round(n);
+  return Math.round(n * 100);
+};
+
+const _lookupHalfHalfSurchargeCents = (menuRows, half) => {
+  if (!half) return 0;
+
+  // Prefer the actual menu row so we read menu.json's field reliably.
+  const row =
+    (Array.isArray(menuRows) &&
+      (menuRows.find((r) => String(r?.id) === String(half?.id)) ||
+        menuRows.find((r) => String(r?.name) === String(half?.name)))) ||
+    null;
+
+  const v =
+    row?.half_and_half_surcharge ??
+    row?.half_and_half_surcharge_cents ??
+    half?.half_and_half_surcharge ??
+    half?.half_and_half_surcharge_cents ??
+    0;
+
+  return _toCentsFromMenuSurcharge(v);
+};
+
 // --- RESTORED HALF & HALF COMPONENT ---
 const HalfAndHalfSelector = ({
   menuItems,
@@ -629,8 +659,23 @@ const HalfAndHalfSelector = ({
     const bGf = halfB ? getGfSurchargeCentsForProduct(halfB, menuData) : 0;
     const gfUpchargeCents = isHalfGlutenFree && isLarge ? Math.max(aGf, bGf) : 0;
 
-    return basePrice + gfUpchargeCents;
-  }, [halfA, halfB, selectedSizeKey, menuData, getCurrentSizeToken, isHalfGlutenFree]);
+    const hhSurchargeCents = Math.max(
+      _lookupHalfHalfSurchargeCents(menuItems, halfA || pendingHalfA),
+      _lookupHalfHalfSurchargeCents(menuItems, halfB || pendingHalfB),
+    );
+
+    return basePrice + gfUpchargeCents + hhSurchargeCents;
+  }, [
+    halfA,
+    halfB,
+    pendingHalfA,
+    pendingHalfB,
+    selectedSizeKey,
+    menuData,
+    menuItems,
+    getCurrentSizeToken,
+    isHalfGlutenFree,
+  ]);
 
   const summarizeHalf = React.useCallback(
     (half) => {
@@ -681,6 +726,10 @@ const HalfAndHalfSelector = ({
     const currentSizeToken = getCurrentSizeToken() || selectedSizeKey || "Default";
     const normalizedSizeRef = normalizeAddonSizeRef(currentSizeToken);
     const isLarge = (normalizedSizeRef || "").toString().toUpperCase() === "LARGE";
+    const hhSurchargeCents = Math.max(
+      _lookupHalfHalfSurchargeCents(menuItems, halfA),
+      _lookupHalfHalfSurchargeCents(menuItems, halfB),
+    );
 
     // Construct a synthetic "Half & Half" item and send it through the same pipeline
     const halfHalfItem = {
@@ -696,6 +745,7 @@ const HalfAndHalfSelector = ({
       // price is in cents, based on the more expensive half plus GF upcharge
       price_cents: price,
       price: price,
+      halfHalfSurchargeCents: hhSurchargeCents,
       size: (() => {
         const match =
           Array.isArray(halfSizeOptions) && halfSizeOptions.length
@@ -1553,26 +1603,11 @@ const HalfAndHalfSelector = ({
                     return next;
                   });
                 }}
-                className="quantity-btn"
-                style={{
-                  flex: "1 1 220px",
-                  borderRadius: "999px",
-                  padding: "0.45rem 0.85rem",
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  letterSpacing: "0.09em",
-                  textTransform: "uppercase",
-                  border: "1px solid var(--border-color)",
-                  background: isHalfGlutenFree
-                    ? "rgba(74,222,128,0.2)"
-                    : "var(--panel)",
-                  color: isHalfGlutenFree ? "#bbf7d0" : "#e2e8f0",
-                  boxShadow: isHalfGlutenFree
-                    ? "0 0 16px rgba(74,222,128,0.45)"
-                    : "none",
-                  cursor: "pointer",
-                  opacity: 1,
-                }}
+                className={[
+                  "pp-hh-gfToggle",
+                  isHalfGlutenFree ? "is-on" : "",
+                ].join(" ")}
+                style={{ flex: "1 1 220px" }}
                 title="Applies gluten free base to the full pizza"
               >
                 {isHalfGlutenFree
@@ -1580,84 +1615,23 @@ const HalfAndHalfSelector = ({
                   : "Gluten free base (Large only)"}
               </button>
 
-              <div
-                style={{
-                  flex: "1 1 200px",
-                  borderRadius: "16px",
-                  border: "1px solid var(--border-color)",
-                  padding: "0.3rem 0.7rem",
-                  background: "var(--panel)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "0.65rem",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: compactUi ? "0.68rem" : "0.72rem",
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: "#cbd5f5",
-                  }}
+              <div className="pp-hh-qtyRow" style={{ flex: "1 1 200px" }}>
+                <div className="pp-hh-qtyLabel">Quantity</div>
+                <button
+                  type="button"
+                  onClick={() => setHalfQty((q) => (q > 1 ? q - 1 : 1))}
+                  className="pp-hh-qtyBtn"
                 >
-                  Quantity
-                </div>
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                  }}
+                  -
+                </button>
+                <div className="pp-hh-qtyValue">{halfQty}</div>
+                <button
+                  type="button"
+                  onClick={() => setHalfQty((q) => (q < 99 ? q + 1 : q))}
+                  className="pp-hh-qtyBtn"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setHalfQty((q) => (q > 1 ? q - 1 : 1))}
-                    className="quantity-btn"
-                    style={{
-                      width: "1.55rem",
-                      height: "1.55rem",
-                      borderRadius: "999px",
-                      border: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.95rem",
-                      fontWeight: 700,
-                    }}
-                  >
-                    -
-                  </button>
-                  <span
-                    style={{
-                      minWidth: "1.1rem",
-                      textAlign: "center",
-                      fontWeight: 700,
-                      fontSize: "0.82rem",
-                      color: "#e2e8f0",
-                    }}
-                  >
-                    {halfQty}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setHalfQty((q) => (q < 99 ? q + 1 : q))}
-                    className="quantity-btn"
-                    style={{
-                      width: "1.55rem",
-                      height: "1.55rem",
-                      borderRadius: "999px",
-                      border: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.95rem",
-                      fontWeight: 700,
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
+                  +
+                </button>
               </div>
             </div>
           </div>
@@ -2251,6 +2225,11 @@ function _computeBundleExtrasCents(bundleItems, menuData) {
       }
       cents += gfCents;
     }
+
+    if (bi.isHalfHalf) {
+      const s = Number(bi.halfHalfSurchargeCents);
+      if (Number.isFinite(s) && s > 0) cents += s;
+    }
   });
   return cents;
 }
@@ -2830,6 +2809,7 @@ const MealDealBuilderPanel = ({
         add_ons: [], // root add-ons not used; halves carry their own
         removedIngredients: [],
         isHalfHalf: true,
+        halfHalfSurchargeCents: Number(halfHalfItem?.halfHalfSurchargeCents) || 0,
         halfA: normalizeHalf(halfHalfItem.halfA),
         halfB: normalizeHalf(halfHalfItem.halfB),
       };
