@@ -319,16 +319,20 @@ const HalfAndHalfSelector = ({
     return deduped;
   }, [halfA, halfB, collectSizesFor]);
 
+  const allowedHHSizeSet = React.useMemo(
+    () => _halfHalfAllowedSizeSet(menuData),
+    [menuData],
+  );
+
   const [selectedSizeKey, setSelectedSizeKey] = React.useState("LARGE");
 
   const defaultSizeRefs = React.useMemo(() => {
-    const allowed = _halfHalfAllowedSizeSet(menuData);
     const inOrder = ["REGULAR", "LARGE", "FAMILY", "PARTY"];
     const filtered = inOrder.filter((k) =>
-      allowed.has(normalizeAddonSizeRef(k)),
+      allowedHHSizeSet.has(normalizeAddonSizeRef(k)),
     );
     return filtered.length ? filtered : ["LARGE", "FAMILY", "PARTY"];
-  }, [menuData]);
+  }, [allowedHHSizeSet]);
 
   const lockedNorm = lockedSizeRef ? normalizeAddonSizeRef(lockedSizeRef) : null;
 
@@ -369,13 +373,21 @@ const HalfAndHalfSelector = ({
             : "DEFAULT",
       };
     });
-    return lockedNorm
-      ? opts.filter(
+
+    const allowedFiltered = opts.filter((o) => {
+      const token = o.refValue || o.key || o.label || "Default";
+      return allowedHHSizeSet.has(normalizeAddonSizeRef(token));
+    });
+
+    const lockedFiltered = lockedNorm
+      ? allowedFiltered.filter(
           (o) =>
             normalizeAddonSizeRef(o.refValue || o.key || o.label) === lockedNorm,
         )
-      : opts;
-  }, [halfSizeOptions, defaultSizeRefs, lockedNorm]);
+      : allowedFiltered;
+
+    return lockedFiltered;
+  }, [halfSizeOptions, defaultSizeRefs, lockedNorm, allowedHHSizeSet]);
 
   const hasDynamicSizeOptions = halfSizeOptions.length > 0;
 
@@ -462,7 +474,23 @@ const HalfAndHalfSelector = ({
       return;
     }
 
-    const preferredLarge = halfSizeOptions.find((size) => {
+    const allowedHalfSizeOptions = halfSizeOptions.filter((size) => {
+      const label =
+        size?.name || size?.label || size?.id || getSizeSourceId(size) || "Default";
+      const refCandidate =
+        size?.ref ||
+        normalizeMenuSizeRef(label) ||
+        normalizeMenuSizeRef(getSizeSourceId(size) || label) ||
+        label ||
+        "Default";
+      return allowedHHSizeSet.has(normalizeAddonSizeRef(refCandidate));
+    });
+
+    const pool = allowedHalfSizeOptions.length
+      ? allowedHalfSizeOptions
+      : halfSizeOptions;
+
+    const preferredLarge = pool.find((size) => {
       const label = labelFor(size);
       return (
         typeof label === "string" && label.toUpperCase().includes("LARGE")
@@ -471,8 +499,8 @@ const HalfAndHalfSelector = ({
 
     const defaultChoice =
       preferredLarge ||
-      defaultSize({ sizes: halfSizeOptions }) ||
-      halfSizeOptions[0];
+      defaultSize({ sizes: pool }) ||
+      pool[0];
 
     const key = labelFor(defaultChoice);
     setSelectedSizeKey(key);
@@ -487,7 +515,7 @@ const HalfAndHalfSelector = ({
     if (typeof derivedRef === "string") {
       setSizeRef(derivedRef.toUpperCase());
     }
-  }, [halfSizeOptions, lockedNorm, setSizeRef]);
+  }, [halfSizeOptions, lockedNorm, setSizeRef, allowedHHSizeSet]);
 
   const applyHalfEditorResult = React.useCallback(
     (itemsToAdd, isGlutenFree, addOnSelections = []) => {
@@ -2249,6 +2277,7 @@ function _filterMenuDataForMealStep(menuData, step, opts = {}) {
 
   const search = String(opts.search || "").trim().toLowerCase();
   const activeCat = String(opts.activeCategoryRef || "").toUpperCase();
+  const hideHalfHalf = !!opts.hideHalfHalf;
 
   const categories = (menuData.categories || [])
     .filter((cat) => {
@@ -2264,6 +2293,11 @@ function _filterMenuDataForMealStep(menuData, step, opts = {}) {
       items = items.filter(
         (p) => !(p?.bundle && Array.isArray(p.bundle.slots) && p.bundle.slots.length),
       );
+      if (hideHalfHalf) {
+        items = items.filter(
+          (p) => !(p?.id === "half_half" || p?.isHalfHalf === true),
+        );
+      }
       if (prodSet.size) items = items.filter((p) => prodSet.has(String(p?.id)));
       if (needle) items = items.filter((p) => String(p?.name || "").toLowerCase().includes(needle));
       if (search) items = items.filter((p) => String(p?.name || "").toLowerCase().includes(search));
@@ -2281,11 +2315,22 @@ function _filterMenuDataForMealStep(menuData, step, opts = {}) {
 function _halfHalfAllowedSizeSet(menuData) {
   const api = (menuData && (menuData.raw || menuData)) || {};
   const globals = api.globals || {};
-  const sizes =
-    Array.isArray(globals.halfHalfSizes) && globals.halfHalfSizes.length
-      ? globals.halfHalfSizes
-      : ["large", "family", "party"];
-  return new Set(sizes.map((s) => normalizeAddonSizeRef(s)));
+  const settings = api.settings || {};
+
+  // Prefer settings if present; otherwise fall back to globals; otherwise default.
+  const rawSizes =
+    (Array.isArray(settings.half_allowed_sizes) && settings.half_allowed_sizes) ||
+    (Array.isArray(settings.halfHalfSizes) && settings.halfHalfSizes) ||
+    (Array.isArray(globals.halfHalfSizes) && globals.halfHalfSizes) ||
+    ["large", "family", "party"];
+
+  // menu.json may include "regular", but Half & Half must not allow it.
+  const normalized = rawSizes
+    .map((s) => normalizeAddonSizeRef(s))
+    .filter((s) => s && s !== "REGULAR");
+
+  const fallback = ["LARGE", "FAMILY", "PARTY"].map((s) => normalizeAddonSizeRef(s));
+  return new Set(normalized.length ? normalized : fallback);
 }
 
 function _productHasAnyAllowedHalfHalfSize(product, allowedSizeSet) {
@@ -2488,6 +2533,29 @@ const MealDealBuilderPanel = ({
     return null;
   }, [inferMealPizzaSizeFromDeal]);
 
+  const hhAllowedForThisStep = React.useMemo(() => {
+    if (!step) return false;
+
+    // Only relevant for pizza slots
+    const slotKey = String(step.slotKey || "").toLowerCase();
+    if (slotKey !== "pizza") return false;
+
+    // Half/Half allowed sizes from menu.json (helper excludes REGULAR)
+    const hhSet = _halfHalfAllowedSizeSet(menuData);
+
+    // If the step forces a single size, use it; otherwise use all allowed sizes
+    const forced = getForcedSizeForStep(step);
+    const slotSizes = forced ? [forced] : _slotAllowedSizes(step.slot);
+
+    return slotSizes.some((s) => hhSet.has(normalizeAddonSizeRef(s)));
+  }, [step, menuData, getForcedSizeForStep]);
+
+  const warnHHNotAllowed = React.useCallback(() => {
+    try {
+      window.alert("Half & Half isn't available for Regular-size meal deals.");
+    } catch {}
+  }, []);
+
   const forcedHalfHalfSizeRef = React.useMemo(() => {
     if (!step) return null;
     const allowed = _slotAllowedSizes(step.slot);
@@ -2496,8 +2564,13 @@ const MealDealBuilderPanel = ({
   }, [step]);
 
   const stepMenuData = React.useMemo(
-    () => _filterMenuDataForMealStep(menuData, step, { search, activeCategoryRef }),
-    [menuData, step, search, activeCategoryRef],
+    () =>
+      _filterMenuDataForMealStep(menuData, step, {
+        search,
+        activeCategoryRef,
+        hideHalfHalf: !hhAllowedForThisStep,
+      }),
+    [menuData, step, search, activeCategoryRef, hhAllowedForThisStep],
   );
 
   const halfHalfMenuRows = React.useMemo(() => {
@@ -2608,6 +2681,10 @@ const MealDealBuilderPanel = ({
         (product.id === "half_half" || product.isHalfHalf) &&
         String(step.slotKey || "").toLowerCase() === "pizza"
       ) {
+        if (!hhAllowedForThisStep) {
+          warnHHNotAllowed();
+          return;
+        }
         setPickerOpen(false);
         setEditorItem(null);
         if (isMobile) {
@@ -2643,6 +2720,8 @@ const MealDealBuilderPanel = ({
       getForcedSizeForStep,
       setHhMealPickSide,
       setHhMealStage,
+      hhAllowedForThisStep,
+      warnHHNotAllowed,
     ],
   );
 
@@ -2860,8 +2939,17 @@ const MealDealBuilderPanel = ({
       activeCategoryRef,
       search,
       halfHalfMode: !isMobile && !!halfHalfOpenDesktop,
+      hideHalfHalf: !hhAllowedForThisStep,
     });
-  }, [onMenuFilterChange, step, activeCategoryRef, search, isMobile, halfHalfOpenDesktop]);
+  }, [
+    onMenuFilterChange,
+    step,
+    activeCategoryRef,
+    search,
+    isMobile,
+    halfHalfOpenDesktop,
+    hhAllowedForThisStep,
+  ]);
 
   React.useEffect(() => {
     return () => {
@@ -2875,6 +2963,11 @@ const MealDealBuilderPanel = ({
     const handler = (product) => {
       if (!product || !step) return;
       if (product?.enabled === false) return;
+      // Prevent opening Half & Half in meal deals that are Regular-only
+      if ((product?.id === "half_half" || product?.isHalfHalf) && !hhAllowedForThisStep) {
+        warnHHNotAllowed();
+        return;
+      }
       // If the Meal Deal -> Half & Half overlay is open, route eligible pizza clicks into it
       if (halfHalfOpenDesktop && halfHalfApplyPizzaRef.current) {
         const categoryRef = String(product.category_ref || product.categoryRef || "").toUpperCase();
@@ -2944,6 +3037,8 @@ const MealDealBuilderPanel = ({
     halfHalfOpenDesktop,
     menuData,
     prepareItemForPanel,
+    hhAllowedForThisStep,
+    warnHHNotAllowed,
   ]);
 
   // Mobile: when meal-deal overlays are open, prevent scroll/taps leaking to the page behind.
@@ -3138,6 +3233,9 @@ const MealDealBuilderPanel = ({
                 <div className="pp-mealpick__grid">
                   {(stepMenuData?.categories || []).flatMap((cat) =>
                     (cat.items || []).map((p) => {
+                      if (!p) return null;
+                      if (!hhAllowedForThisStep && (p.id === "half_half" || p.isHalfHalf))
+                        return null;
                       const img = getImagePath(p);
                       return (
                         <div
@@ -7592,15 +7690,10 @@ function ReviewOrderPanel({
             </div>
           ))
         ) : (
-          <p
-            style={{
-              color: "var(--text-medium)",
-              textAlign: "center",
-              marginTop: "2rem",
-            }}
-          >
-            Your cart is empty.
-          </p>
+          <div className="pp-emptyCart">
+            <div className="pp-emptyCartTitle">Your cart is empty</div>
+            <div className="pp-emptyCartSub">Pick something from the menu 👈</div>
+          </div>
         )}
       </div>
 
@@ -7821,29 +7914,17 @@ function OrderInfoPanel({
     setOrderDeliveryFee,
   ]);
 
-  const activeBtn = {
-    backgroundColor: "var(--brand-neon-green)",
-    color: "var(--background-dark)",
-    border: "none",
-    padding: "0.75rem 1rem",
-    borderRadius: "0.5rem",
-    fontWeight: 700,
-    cursor: "pointer",
-    width: "50%",
-  };
-  const inactiveBtn = {
-    ...activeBtn,
-    backgroundColor: "var(--border-color)",
-    color: "var(--text-light)",
-  };
-
   return (
     <>
       <h2 className="panel-title">Your Order</h2>
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+      <div className="pp-orderTypeSwitch">
         <button
-          style={orderType === "Pickup" ? activeBtn : inactiveBtn}
+          type="button"
+          className={[
+            "pp-orderTypeBtn",
+            orderType === "Pickup" ? "is-active" : "",
+          ].join(" ")}
           onClick={() => {
             setOrderType("Pickup");
             setOrderAddress("");
@@ -7853,8 +7934,13 @@ function OrderInfoPanel({
         >
           Pickup
         </button>
+
         <button
-          style={orderType === "Delivery" ? activeBtn : inactiveBtn}
+          type="button"
+          className={[
+            "pp-orderTypeBtn",
+            orderType === "Delivery" ? "is-active" : "",
+          ].join(" ")}
           onClick={() => setOrderType("Delivery")}
         >
           Delivery
@@ -8025,15 +8111,10 @@ function OrderInfoPanel({
             </div>
           ))
         ) : (
-          <p
-            style={{
-              color: "var(--text-medium)",
-              textAlign: "center",
-              marginTop: "2rem",
-            }}
-          >
-            Your cart is empty.
-          </p>
+          <div className="pp-emptyCart">
+            <div className="pp-emptyCartTitle">Your cart is empty</div>
+            <div className="pp-emptyCartSub">Pick something from the menu 👈</div>
+          </div>
         )}
       </div>
 
@@ -11332,6 +11413,7 @@ function AppLayout({ isMapsLoaded }) {
       out = _filterMenuDataForMealStep(base, mealDealMenuFilter.step, {
         activeCategoryRef: mealDealMenuFilter.activeCategoryRef,
         search: mealDealMenuFilter.search,
+        hideHalfHalf: mealDealMenuFilter.hideHalfHalf,
       });
     }
 
