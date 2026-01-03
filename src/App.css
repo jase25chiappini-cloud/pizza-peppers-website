@@ -2355,8 +2355,8 @@ html[data-theme-transition="1"] *{
   box-shadow: var(--shadow-card);
 }
 
-/* Remove highlight sweep (it causes "weird" hover artifacts on some layouts/browsers) */
-.pp-btn::after,
+/* Remove highlight sweep (but DON'T break close buttons that draw their X with ::before/::after) */
+.pp-btn:not(.pp-modal-close):not([aria-label="Close"])::after,
 .place-order-button::after{
   content: none !important;
 }
@@ -6733,4 +6733,219 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     position: sticky;
     bottom: 0;
   }
+}
+
+/* =========================================================
+   Meal Deal (DESKTOP) -- Half & Half overlay inside panel
+   Gives HH editor priority over navigator/detail content
+   ========================================================= */
+@media (min-width: 1024px){
+  .pp-md-hhOverlay--inpanel{
+    position: absolute;
+    inset: 0;
+    z-index: 90;
+
+    background: rgba(2, 6, 23, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+
+    padding: 1.25rem;
+    overflow: hidden;
+  }
+
+  .pp-md-hhShell--inpanel{
+    width: 100%;
+    max-width: 980px;
+    height: 100%;
+    min-height: 0;
+
+    display: flex;
+    overflow: hidden;
+  }
+
+  .pp-md-hhShell--inpanel .pp-halfhalf-panel{
+    height: 100% !important;
+    min-height: 0;
+  }
+}
+
+/* =========================================================
+   Meal Deal (DESKTOP) -- HH overlay should fully take priority
+   ========================================================= */
+@media (min-width: 1024px){
+  /* Make the overlay backdrop opaque (no overlap look) */
+  .pp-md-hhOverlay--inpanel{
+    background: var(--pp-surface, var(--panel)) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Subtle separation around the HH shell */
+  .pp-md-hhShell--inpanel{
+    border-radius: 22px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-modal);
+    overflow: hidden;
+    background: var(--pp-surface, var(--panel));
+  }
+
+  /* While HH is open, dim + disable the underlying meal deal UI */
+  .pp-md-root--hhopen .pp-md-head,
+  .pp-md-root--hhopen .pp-md-steps,
+  .pp-md-root--hhopen .pp-md-active,
+  .pp-md-root--hhopen .pp-md-body,
+  .pp-md-root--hhopen .cart-total-section{
+    opacity: 0.12;
+    pointer-events: none;
+    user-select: none;
+  }
+}
+
+/* =========================================
+   Ashmore footer lockup -- FUTURISTIC / DYNAMIC
+   ========================================= */
+
+.ashmore-lockup{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  position: relative;
+
+  padding: 12px 16px 12px;
+  border-radius: 18px;
+
+  /* sharper, "tech glass" plate */
+  background:
+    radial-gradient(140px 70px at 18% 35%, rgba(99,102,241,0.22), transparent 60%),
+    radial-gradient(220px 90px at 80% 50%, rgba(34,211,238,0.18), transparent 62%),
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.18));
+
+  border: 1px solid rgba(148,163,184,0.20);
+  box-shadow:
+    0 18px 56px rgba(0,0,0,0.22),
+    0 0 0 3px rgba(34,211,238,0.10);
+
+  overflow: hidden;
+}
+
+/* subtle scanline */
+.ashmore-lockup::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255,255,255,0.045) 0px,
+    rgba(255,255,255,0.045) 1px,
+    rgba(0,0,0,0) 7px
+  );
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+/* angled "energy" underline */
+.ashmore-lockup::after{
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 6px;
+  height: 3px;
+  border-radius: 999px;
+  transform: skewX(-18deg);
+
+  background: linear-gradient(
+    90deg,
+    rgba(34,211,238,0.0),
+    rgba(34,211,238,0.85),
+    rgba(99,102,241,0.75),
+    rgba(34,211,238,0.0)
+  );
+  box-shadow: 0 0 22px rgba(34,211,238,0.22);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.ashmore-lockup__mark{
+  height: 36px;
+  width: 36px;
+  border-radius: 999px;
+  display: block;
+
+  /* "reactor core" ring */
+  box-shadow:
+    0 0 0 2px rgba(34,211,238,0.28),
+    0 0 0 6px rgba(99,102,241,0.10),
+    0 16px 34px rgba(0,0,0,0.22);
+
+  filter:
+    contrast(1.12)
+    saturate(1.15);
+  opacity: 0.98;
+}
+
+.ashmore-lockup__words{
+  display: flex;
+  flex-direction: column;
+  line-height: 1.02;
+  min-width: 0;
+}
+
+.ashmore-lockup__kicker{
+  font-weight: 900;
+  font-size: 0.62rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(226,232,240,0.72);
+}
+
+/* FUTURISTIC wordmark feel: tighter + higher contrast */
+.ashmore-lockup__brand{
+  font-weight: 1000;
+  font-size: 0.98rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(241,245,249,0.95);
+
+  text-shadow:
+    0 10px 24px rgba(0,0,0,0.22),
+    0 0 18px rgba(34,211,238,0.10);
+}
+
+/* Replace "eco green" with cyan/violet energy */
+.ashmore-lockup__co{
+  color: rgba(34,211,238,0.95);
+  text-shadow:
+    0 0 20px rgba(34,211,238,0.22),
+    0 0 34px rgba(99,102,241,0.12);
+}
+
+/* Light theme: keep it tech, not eco */
+[data-theme="light"] .ashmore-lockup{
+  background:
+    radial-gradient(140px 70px at 18% 35%, rgba(99,102,241,0.16), transparent 60%),
+    radial-gradient(220px 90px at 80% 50%, rgba(34,211,238,0.14), transparent 62%),
+    linear-gradient(180deg, rgba(15,23,42,0.02), rgba(15,23,42,0.07));
+  border-color: rgba(15,23,42,0.12);
+  box-shadow:
+    0 14px 40px rgba(2,6,23,0.10),
+    0 0 0 3px rgba(34,211,238,0.08);
+}
+
+[data-theme="light"] .ashmore-lockup__kicker{
+  color: rgba(15,23,42,0.55);
+}
+[data-theme="light"] .ashmore-lockup__brand{
+  color: rgba(15,23,42,0.92);
+  text-shadow: 0 10px 22px rgba(2,6,23,0.10);
+}
+[data-theme="light"] .ashmore-lockup__co{
+  color: rgba(8,145,178,0.95); /* cyan */
+  text-shadow:
+    0 0 16px rgba(8,145,178,0.14),
+    0 0 26px rgba(99,102,241,0.10);
 }

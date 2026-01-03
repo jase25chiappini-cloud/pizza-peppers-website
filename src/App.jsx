@@ -2360,11 +2360,37 @@ const MealDealBuilderPanel = ({
   isMobile: isMobileProp = false,
   onCommitAndReview = null,
 }) => {
-  const isMobile =
-    isMobileProp ||
-    (typeof window !== "undefined" &&
-      window.matchMedia &&
-      window.matchMedia("(max-width: 1023.98px)").matches);
+  const [isViewportMobile, setIsViewportMobile] = React.useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return !!isMobileProp;
+    return window.matchMedia("(max-width: 1023.98px)").matches;
+  });
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const onChange = (e) => setIsViewportMobile(!!e.matches);
+
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange);
+
+    setIsViewportMobile(!!mql.matches);
+
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
+    };
+  }, []);
+
+  const isMobile = typeof window === "undefined" ? !!isMobileProp : isViewportMobile;
+  const [halfHalfMode, setHalfHalfMode] = React.useState(null); // "mobile" | "desktop" | null
+  const halfHalfOpenMobile = halfHalfMode === "mobile";
+  const halfHalfOpenDesktop = halfHalfMode === "desktop";
+  const openHalfHalfForView = React.useCallback(() => {
+    setHalfHalfMode(isMobile ? "mobile" : "desktop");
+  }, [isMobile]);
+  const closeHalfHalf = React.useCallback(() => {
+    setHalfHalfMode(null);
+  }, []);
   const slots = Array.isArray(item?.bundle?.slots) ? item.bundle.slots : [];
   const steps = React.useMemo(() => _expandBundleSlots(slots), [slots]);
 
@@ -2372,7 +2398,6 @@ const MealDealBuilderPanel = ({
   const [search, setSearch] = React.useState("");
   const [editorItem, setEditorItem] = React.useState(null);
   const [editorForcedSizeRef, setEditorForcedSizeRef] = React.useState(null);
-  const [halfHalfOpen, setHalfHalfOpen] = React.useState(false);
   const [halfHalfSeed, setHalfHalfSeed] = React.useState(null);
   const [hhMealStage, setHhMealStage] = React.useState("review"); // "pick" | "review"
   const [hhMealPickSide, setHhMealPickSide] = React.useState("A"); // "A" | "B"
@@ -2596,13 +2621,13 @@ const MealDealBuilderPanel = ({
           });
           setHhMealPickSide("A");
           setHhMealStage("pick");
-          setHalfHalfOpen(true);
+          openHalfHalfForView();
           return;
         }
 
         setHalfHalfSeed(null);
         setHhMealStage("review");
-        setHalfHalfOpen(true);
+        openHalfHalfForView();
         return;
       }
 
@@ -2613,6 +2638,7 @@ const MealDealBuilderPanel = ({
       step,
       openEditorForProduct,
       isMobile,
+      openHalfHalfForView,
       forcedHalfHalfSizeRef,
       getForcedSizeForStep,
       setHhMealPickSide,
@@ -2642,7 +2668,7 @@ const MealDealBuilderPanel = ({
         });
         setHhMealStage("review");
         setHhMealPickSide("A");
-        setHalfHalfOpen(true);
+        openHalfHalfForView();
         return;
       }
 
@@ -2671,7 +2697,7 @@ const MealDealBuilderPanel = ({
       setHalfHalfSeed,
       setHhMealStage,
       setHhMealPickSide,
-      setHalfHalfOpen,
+      openHalfHalfForView,
     ],
   );
 
@@ -2822,15 +2848,20 @@ const MealDealBuilderPanel = ({
         return next;
       });
 
-      setHalfHalfOpen(false);
+      closeHalfHalf();
     },
-    [step, activeStep],
+    [step, activeStep, closeHalfHalf],
   );
 
   React.useEffect(() => {
     if (typeof onMenuFilterChange !== "function") return;
-    onMenuFilterChange({ step, activeCategoryRef, search });
-  }, [onMenuFilterChange, step, activeCategoryRef, search]);
+    onMenuFilterChange({
+      step,
+      activeCategoryRef,
+      search,
+      halfHalfMode: !isMobile && !!halfHalfOpenDesktop,
+    });
+  }, [onMenuFilterChange, step, activeCategoryRef, search, isMobile, halfHalfOpenDesktop]);
 
   React.useEffect(() => {
     return () => {
@@ -2845,7 +2876,7 @@ const MealDealBuilderPanel = ({
       if (!product || !step) return;
       if (product?.enabled === false) return;
       // If the Meal Deal -> Half & Half overlay is open, route eligible pizza clicks into it
-      if (halfHalfOpen && halfHalfApplyPizzaRef.current) {
+      if (halfHalfOpenDesktop && halfHalfApplyPizzaRef.current) {
         const categoryRef = String(product.category_ref || product.categoryRef || "").toUpperCase();
         const allowedHalfSizes = _halfHalfAllowedSizeSet(menuData);
         const allowHalfFlag = (product?.allowHalf ?? product?.allow_half ?? true) !== false;
@@ -2866,7 +2897,7 @@ const MealDealBuilderPanel = ({
         if (String(step.slotKey || "").toLowerCase() !== "pizza") return;
         setEditorItem(null);
         setHalfHalfSeed(null);
-        setHalfHalfOpen(true);
+        openHalfHalfForView();
         return;
       }
       if (product?.bundle && Array.isArray(product.bundle.slots) && product.bundle.slots.length)
@@ -2908,9 +2939,9 @@ const MealDealBuilderPanel = ({
     step,
     activeCategoryRef,
     search,
-    setHalfHalfOpen,
     setEditorItem,
-    halfHalfOpen,
+    openHalfHalfForView,
+    halfHalfOpenDesktop,
     menuData,
     prepareItemForPanel,
   ]);
@@ -2918,7 +2949,7 @@ const MealDealBuilderPanel = ({
   // Mobile: when meal-deal overlays are open, prevent scroll/taps leaking to the page behind.
   React.useEffect(() => {
     if (!isMobile) return;
-    const open = !!pickerOpen || !!editorItem || !!halfHalfOpen;
+    const open = !!pickerOpen || !!editorItem || !!halfHalfOpenMobile;
     if (!open) return;
 
     const body = document.body;
@@ -2936,7 +2967,7 @@ const MealDealBuilderPanel = ({
       body.style.touchAction = prevBodyTouch;
       html.style.overscrollBehavior = prevHtmlOverscroll;
     };
-  }, [isMobile, pickerOpen, editorItem, halfHalfOpen]);
+  }, [isMobile, pickerOpen, editorItem, halfHalfOpenMobile]);
 
   const isComplete = steps.length > 0 && bundleItems.every(Boolean);
 
@@ -3275,7 +3306,43 @@ const MealDealBuilderPanel = ({
         </div>
       )}
 
-      {halfHalfOpen && (
+      {!isMobile && halfHalfOpenDesktop && (
+        <div
+          className="pp-md-hhOverlay--inpanel"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeHalfHalf();
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="pp-md-hhShell--inpanel" onClick={(e) => e.stopPropagation()}>
+            <HalfAndHalfSelector
+              menuItems={halfHalfMenuRows}
+              menuData={menuData}
+              selectedItem={HALF_HALF_FORCED_ITEM}
+              setSelectedItem={(v) => {
+                if (v == null) closeHalfHalf();
+              }}
+              registerExternalPizzaApply={registerExternalMealHalfHalfPizzaApply}
+              useExternalMenuSelection
+              hidePizzaPicker
+              initialHalfA={halfHalfSeed?.halfA || null}
+              initialHalfB={halfHalfSeed?.halfB || null}
+              initialSizeRef={
+                (forcedHalfHalfSizeRef || halfHalfSeed?.sizeRef || "LARGE")
+                  .toString()
+                  .toUpperCase()
+              }
+              initialIsGlutenFree={!!halfHalfSeed?.isGlutenFree}
+              initialQty={Number(halfHalfSeed?.qty || 1)}
+              lockedSizeRef={forcedHalfHalfSizeRef}
+              onAddItemToOrder={(hh) => commitHalfHalfToBundleStep(hh)}
+            />
+          </div>
+        </div>
+      )}
+
+      {halfHalfOpenMobile && (
         <div
           style={
             isMobile
@@ -3361,7 +3428,7 @@ const MealDealBuilderPanel = ({
                       type="button"
                       className="pp-hh-pickNotice__exit"
                       onClick={() => {
-                        setHalfHalfOpen(false);
+                        closeHalfHalf();
                         setHalfHalfSeed(null);
                         setHhMealPickSide("A");
                         setHhMealStage("review");
@@ -3424,13 +3491,13 @@ const MealDealBuilderPanel = ({
                 selectedItem={HALF_HALF_FORCED_ITEM}
                 setSelectedItem={(v) => {
                   if (v == null) {
-                    setHalfHalfOpen(false);
+                    closeHalfHalf();
                     setHalfHalfSeed(null);
                     setHhMealPickSide("A");
                     setHhMealStage("review");
                   }
                 }}
-                compactUiMode
+                compactUiMode={isMobile}
                 initialHalfA={halfHalfSeed?.halfA || null}
                 initialHalfB={halfHalfSeed?.halfB || null}
                 initialSizeRef={
@@ -3441,8 +3508,11 @@ const MealDealBuilderPanel = ({
                 initialIsGlutenFree={!!halfHalfSeed?.isGlutenFree}
                 initialQty={Number(halfHalfSeed?.qty || 1)}
                 lockedSizeRef={forcedHalfHalfSizeRef}
-                hidePizzaPicker={isMobile}
-                useExternalMenuSelection={false}
+                registerExternalPizzaApply={
+                  isMobile ? null : registerExternalMealHalfHalfPizzaApply
+                }
+                useExternalMenuSelection={!isMobile}
+                hidePizzaPicker={!isMobile}
                 onRequestChangeHalf={
                   isMobile
                     ? (side) => {
@@ -3671,6 +3741,7 @@ const MealDealBuilderPanel = ({
 
   const desktopBody = (
     <div
+      className={["pp-md-root", halfHalfOpenDesktop ? "pp-md-root--hhopen" : ""].join(" ")}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -3823,7 +3894,13 @@ const MealDealBuilderPanel = ({
 
       <div ref={listRef} className="pp-md-body">
         <div className="pp-md-bodyHint">
-          Select an item for <b>{step?.label || "this step"}</b>
+          {halfHalfOpenDesktop ? (
+            "Half & Half is open — select pizzas from the menu to fill LEFT then RIGHT."
+          ) : (
+            <>
+              Select an item for <b>{step?.label || "this step"}</b>
+            </>
+          )}
         </div>
       </div>
 
@@ -10829,7 +10906,20 @@ function Navbar({
 function Footer() {
   return (
     <footer className="site-footer">
-      <p className="footer-text">Forged by Ashmore Co</p>
+      <div className="ashmore-lockup" aria-label="Forged by Ashmore Co">
+        <img
+          className="ashmore-lockup__mark"
+          src="/ashmore-co.png"
+          alt=""
+          aria-hidden="true"
+        />
+        <div className="ashmore-lockup__words">
+          <div className="ashmore-lockup__kicker">FORGED BY</div>
+          <div className="ashmore-lockup__brand">
+            ASHMORE <span className="ashmore-lockup__co">CO</span>
+          </div>
+        </div>
+      </div>
     </footer>
   );
 }
@@ -11235,8 +11325,10 @@ function AppLayout({ isMapsLoaded }) {
 
     let out = base;
 
-    // Meal deal builder: restrict to the current step/category/search
-    if (builderOpen && mealDealMenuFilter?.step) {
+    if (mealDealMenuFilter?.halfHalfMode) {
+      out = _filterMenuDataForHalfHalf(base);
+    } else if (builderOpen && mealDealMenuFilter?.step) {
+      // Meal deal builder: restrict to the current step/category/search
       out = _filterMenuDataForMealStep(base, mealDealMenuFilter.step, {
         activeCategoryRef: mealDealMenuFilter.activeCategoryRef,
         search: mealDealMenuFilter.search,
