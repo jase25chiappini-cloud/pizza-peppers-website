@@ -4950,7 +4950,7 @@ function useApp() {
 }
 
   // ----------------- MENU PIPELINE (stable) -----------------
-const MENU_URL = "/pp-proxy/public/menu";
+const MENU_URL = import.meta.env.DEV ? "/pp-proxy/public/menu" : "/menu.json";
 
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
 function unwrapMenuApi(raw) {
@@ -4982,9 +4982,20 @@ async function fetchMenu(url = MENU_URL) {
   console.log("[menu] GET", url);
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   const ct = res.headers.get("content-type") || "";
-  try {
-    console.log("[menu][debug] status:", res.status, "content-type:", ct);
-  } catch {}
+  console.log("[menu][debug] status:", res.status, "content-type:", ct);
+
+  // If backend/proxy is missing, Render will return HTML 404.
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Menu fetch failed (${res.status}) from ${url}: ${text.slice(0, 80)}`);
+  }
+
+  // Guard against HTML being returned.
+  if (!ct.includes("application/json")) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Menu response not JSON from ${url}: ${text.slice(0, 80)}`);
+  }
+
   const raw = await res.json();
   return unwrapMenuApi(raw);
 }
