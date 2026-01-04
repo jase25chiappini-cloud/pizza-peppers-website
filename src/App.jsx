@@ -4949,8 +4949,14 @@ function useApp() {
   return useContext(AppContext);
 }
 
-  // ----------------- MENU PIPELINE (stable) -----------------
-const MENU_URL = import.meta.env.DEV ? "/pp-proxy/public/menu" : "/menu.json";
+// ----------------- MENU PIPELINE (stable) -----------------
+const PP_POS_BASE_URL = (import.meta.env.VITE_PP_POS_BASE_URL || "").replace(/\/+$/, "");
+
+// DEV: Vite proxy
+// PROD: Flask proxy (must be set on Render Static Site)
+const MENU_URL = import.meta.env.DEV
+  ? "/pp-proxy/public/menu"
+  : `${PP_POS_BASE_URL}/public/menu`;
 
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
 function unwrapMenuApi(raw) {
@@ -5626,12 +5632,6 @@ function useTheme() {
 }
 
 // Helpers
-
-const PP_POS_BASE_URL = (
-  import.meta.env.VITE_PP_POS_BASE_URL ||
-  import.meta.env.VITE_PP_RENDER_BASE_URL ||
-  ""
-).replace(/\/+$/, "");
 
 const PP_PROXY_PREFIX = (import.meta.env.VITE_PP_PROXY_PREFIX || "/pp-proxy").replace(/\/+$/, "");
 
