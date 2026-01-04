@@ -4982,10 +4982,32 @@ const slugify = (text) =>
     .replace(/^-+/, "")
     .replace(/-+$/, "");
 
-const getProductImageUrl = (p, base = IMG_BASE || MENU_BASE || "") => {
+const _isAbsUrl = (s) => /^https?:\/\//i.test(String(s || ""));
+
+const _extractUploadFilename = (val) => {
+  const s = String(val || "").trim();
+  if (!s) return "";
+  if (_isAbsUrl(s)) return s;
+
+  const cleaned = s.replace(/^\/+/, "");
+  const idx = cleaned.toLowerCase().lastIndexOf("static/uploads/");
+  if (idx !== -1) {
+    return cleaned.slice(idx + "static/uploads/".length);
+  }
+  return cleaned;
+};
+
+const getProductImageUrl = (p, base = IMG_BASE || "") => {
   const baseUrl = base || "";
-  if (p?.image) return `${baseUrl}/static/uploads/${p.image}`;
-  return `${baseUrl}/static/uploads/${slugify(p?.name)}.jpg`;
+  const raw = p?.image || "";
+  const name = p?.name || "";
+
+  const extracted = _extractUploadFilename(raw);
+
+  if (_isAbsUrl(extracted)) return extracted;
+  if (extracted) return `${baseUrl}/static/uploads/${extracted}`;
+
+  return `${baseUrl}/static/uploads/${slugify(name)}.jpg`;
 };
 
 const PP_PROXY_PREFIX = (import.meta.env.VITE_PP_PROXY_PREFIX || "/pp-proxy").replace(/\/+$/, "");
@@ -12488,6 +12510,11 @@ function AppLayout({ isMapsLoaded }) {
 function App() {
   console.log("[env] VITE_PP_MENU_BASE_URL =", import.meta.env.VITE_PP_MENU_BASE_URL);
   console.log("[env] VITE_PP_IMAGES_BASE_URL =", import.meta.env.VITE_PP_IMAGES_BASE_URL);
+  console.log("[img][debug] IMG_BASE =", IMG_BASE);
+  console.log(
+    "[img][debug] sample =",
+    getProductImageUrl({ name: "Italian", image: "italian.jpg" }),
+  );
   const isMapsLoaded = useGoogleMaps();
 
   return (
