@@ -14,7 +14,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 CORS(app)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
