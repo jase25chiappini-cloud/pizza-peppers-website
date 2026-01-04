@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory
+from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory, Response
 import json
 import os
 import re
@@ -22,6 +22,42 @@ db = SQLAlchemy(app)
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "static" / "uploads"
+
+# Optional persistent uploads directory (Render Disk or shared volume)
+DB_DIR = Path(os.getenv("DB_DIR", str(BASE_DIR / "data"))).resolve()
+PERSIST_UPLOAD_DIR = DB_DIR / "uploads"
+
+# Secret Files live at /etc/secrets/<filename> on Render Web Services
+SECRETS_DIR = Path("/etc/secrets")
+
+def _read_secret_file(name: str) -> str:
+    try:
+        p = SECRETS_DIR / name
+        if p.exists():
+            return p.read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+    return ""
+
+def _images_api_key() -> str:
+    # Prefer env var, then secret file
+    return (
+        os.getenv("POS_IMAGES_API_KEY")
+        or _read_secret_file("brother_images_key")
+        or ""
+    )
+
+def _images_upstream_base() -> str:
+    # If your brother gave you a dedicated images URL, set POS_IMAGES_URL
+    # Otherwise use POS_BASE_URL as base and append /static/uploads
+    explicit = (os.getenv("POS_IMAGES_URL") or "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    base = (os.getenv("POS_BASE_URL") or "").strip().rstrip("/")
+    return f"{base}/static/uploads" if base else ""
+
+# Check persistent first, then repo bundled
+UPLOAD_DIRS = [PERSIST_UPLOAD_DIR, UPLOAD_DIR]
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -185,15 +221,21 @@ def _pick_best_match(request_stem: str, files: list[str]) -> str | None:
 
 def _list_images_payload() -> dict:
     """Return a JSON-friendly listing of available image files."""
-    if not UPLOAD_DIR.is_dir():
+    dirs = [d for d in UPLOAD_DIRS if d.is_dir()]
+    if not dirs:
         return {"ok": True, "images": []}
 
     images = []
-    for name in sorted(os.listdir(UPLOAD_DIR)):
-        ext = Path(name).suffix.lower()
-        if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
-            continue
-        images.append({"filename": name, "url": f"/api/images/{name}"})
+    seen = set()
+    for d in dirs:
+        for name in sorted(os.listdir(d)):
+            ext = Path(name).suffix.lower()
+            if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
+                continue
+            if name in seen:
+                continue
+            seen.add(name)
+            images.append({"filename": name, "url": f"/api/images/{name}"})
     return {"ok": True, "images": images}
 
 
@@ -208,26 +250,60 @@ def public_images_index():
     return resp
 
 
+@app.route("/static/uploads/<path:filename>", methods=["GET"])
+def public_static_uploads(filename: str):
+    # Reuse the same logic as /api/images
+    return api_images_file(filename)
+
+
 @app.route("/api/images/<path:filename>", methods=["GET"])
 def api_images_file(filename: str):
     """
     Serve image files with a best-effort fallback for naming mismatches.
+    If not found locally, proxy from upstream POS server using images API key (if provided).
     """
     safe = os.path.basename(filename)
-    direct_path = UPLOAD_DIR / safe
 
-    if direct_path.is_file():
-        return send_from_directory(UPLOAD_DIR, safe)
+    # 1) Try direct file in our upload dirs (persistent first, then repo bundled)
+    for d in UPLOAD_DIRS:
+        direct_path = d / safe
+        if direct_path.is_file():
+            return send_from_directory(d, safe)
 
+    # 2) Try fuzzy match across upload dirs
     req_stem = Path(safe).stem
-    try:
-        files = os.listdir(UPLOAD_DIR)
-    except Exception:
-        return jsonify({"ok": False, "error": "uploads dir missing"}), 404
+    for d in UPLOAD_DIRS:
+        try:
+            files = os.listdir(d)
+        except Exception:
+            continue
 
-    alt = _pick_best_match(req_stem, files)
-    if alt:
-        return send_from_directory(UPLOAD_DIR, alt)
+        alt = _pick_best_match(req_stem, files)
+        if alt:
+            return send_from_directory(d, alt)
+
+    # 3) Upstream fallback (brother server)
+    upstream_base = _images_upstream_base()
+    if upstream_base:
+        try:
+            upstream_url = f"{upstream_base}/{safe}"
+            key = _images_api_key()
+
+            headers = {}
+            # Apply key if we have one (supports both common patterns)
+            if key:
+                headers["x-api-key"] = key
+                headers["Authorization"] = f"Bearer {key}"
+
+            r = requests.get(upstream_url, headers=headers, timeout=12)
+            if r.ok and r.content:
+                ct = r.headers.get("content-type") or "application/octet-stream"
+                resp = Response(r.content, status=200, mimetype=ct)
+                resp.headers["Cache-Control"] = "public, max-age=86400"  # 24h
+                resp.headers["Access-Control-Allow-Origin"] = "*"
+                return resp
+        except Exception:
+            pass
 
     return jsonify({"ok": False, "error": "not found"}), 404
 
