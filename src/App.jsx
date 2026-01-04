@@ -4954,16 +4954,17 @@ function useApp() {
   return useContext(AppContext);
 }
 
-const rawBase = (
-  import.meta.env.VITE_PP_POS_BASE_URL ||
-  import.meta.env.VITE_PP_RENDER_BASE_URL ||
-  ""
-).trim().replace(/\/+$/, "");
+const RAW_MENU_BASE = (import.meta.env.VITE_PP_MENU_BASE_URL || "").trim().replace(/\/+$/, "");
+const MENU_BASE =
+  RAW_MENU_BASE && !/^https?:\/\//i.test(RAW_MENU_BASE)
+    ? `https://${RAW_MENU_BASE}`
+    : RAW_MENU_BASE;
 
-// If someone accidentally enters "pizza-peppers-proxy.onrender.com" without https://,
-// prevent the browser turning it into a relative path.
-const PP_POS_BASE_URL =
-  rawBase && !/^https?:\/\//i.test(rawBase) ? `https://${rawBase}` : rawBase;
+const RAW_IMG_BASE = (import.meta.env.VITE_PP_IMAGES_BASE_URL || "").trim().replace(/\/+$/, "");
+const IMG_BASE =
+  RAW_IMG_BASE && !/^https?:\/\//i.test(RAW_IMG_BASE)
+    ? `https://${RAW_IMG_BASE}`
+    : RAW_IMG_BASE;
 
 const slugify = (text) =>
   String(text || "")
@@ -4977,7 +4978,7 @@ const slugify = (text) =>
     .replace(/-+$/, "");
 
 const getProductImageUrl = (p) => {
-  const base = PP_POS_BASE_URL || "";
+  const base = IMG_BASE || MENU_BASE || "";
   if (p?.image) return `${base}/static/uploads/${p.image}`;
   return `${base}/static/uploads/${slugify(p?.name)}.jpg`;
 };
@@ -4985,7 +4986,7 @@ const getProductImageUrl = (p) => {
 // ----------------- MENU PIPELINE (stable) -----------------
 const MENU_URL = import.meta.env.DEV
   ? "/pp-proxy/public/menu"
-  : `${PP_POS_BASE_URL}/public/menu`;
+  : `${MENU_BASE}/public/menu`;
 
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
 function unwrapMenuApi(raw) {
@@ -12458,7 +12459,8 @@ function AppLayout({ isMapsLoaded }) {
 
 
 function App() {
-  console.log("[env] VITE_PP_POS_BASE_URL =", import.meta.env.VITE_PP_POS_BASE_URL);
+  console.log("[env] VITE_PP_MENU_BASE_URL =", import.meta.env.VITE_PP_MENU_BASE_URL);
+  console.log("[env] VITE_PP_IMAGES_BASE_URL =", import.meta.env.VITE_PP_IMAGES_BASE_URL);
   const isMapsLoaded = useGoogleMaps();
 
   return (
