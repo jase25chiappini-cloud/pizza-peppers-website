@@ -587,8 +587,13 @@ const HalfAndHalfSelector = ({
   // Resolve pizza image (explicit image first, fallback to generated asset)
   const resolveHalfImage = React.useCallback((p) => {
     const target = p?.product || p;
-    if (!target) return getImagePath("Half & Half");
-    return getImagePath(target) || getImagePath(target.name) || getImagePath("Half & Half");
+    if (!target) return getProductImageUrl({ name: "Half & Half" });
+    const normalizedTarget = typeof target === "string" ? { name: target } : target;
+    return (
+      getProductImageUrl(normalizedTarget) ||
+      getProductImageUrl({ name: normalizedTarget?.name }) ||
+      getProductImageUrl({ name: "Half & Half" })
+    );
   }, []);
 
   const svgSizeLabel = ((sizeRef || selectedSizeKey) || "").toLowerCase();
@@ -1935,7 +1940,7 @@ const HalfAndHalfSelector = ({
                         halfB?.id === p.id ||
                         pendingHalfB?.id === p.id;
 
-                      const img = getImagePath(p);
+                      const img = getProductImageUrl(p);
 
                       return (
                         <button
@@ -2491,7 +2496,7 @@ const MealDealBuilderPanel = ({
       // Half & Half: use one of the halves if present, otherwise the Half & Half image
       if (chosen.isHalfHalf || String(chosen.id || "").includes("half_half")) {
         const h = chosen.halfA || chosen.halfB || "Half & Half";
-        return getImagePath(h);
+        return getProductImageUrl(typeof h === "string" ? { name: h } : h);
       }
 
       // Normal item: prefer the real product (has image filename), fallback to name slug
@@ -2500,7 +2505,7 @@ const MealDealBuilderPanel = ({
         allProducts.find((p) => String(p?.name) === String(chosen.name)) ||
         null;
 
-      return getImagePath(prod || chosen.name || chosen.id);
+      return getProductImageUrl(prod || { name: chosen.name || chosen.id });
     },
     [allProducts],
   );
@@ -3236,7 +3241,7 @@ const MealDealBuilderPanel = ({
                       if (!p) return null;
                       if (!hhAllowedForThisStep && (p.id === "half_half" || p.isHalfHalf))
                         return null;
-                      const img = getImagePath(p);
+                      const img = getProductImageUrl(p);
                       return (
                         <div
                           key={p.id || `${cat.ref}-${p.name}`}
@@ -4949,14 +4954,30 @@ function useApp() {
   return useContext(AppContext);
 }
 
-// ----------------- MENU PIPELINE (stable) -----------------
-const PP_POS_BASE_URL = (import.meta.env.VITE_PP_POS_BASE_URL || "").replace(/\/+$/, "");
+const RAW_BASE = (import.meta.env.VITE_PP_POS_BASE_URL || "").trim().replace(/\/+$/, "");
+const POS_BASE = RAW_BASE && !/^https?:\/\//i.test(RAW_BASE) ? `https://${RAW_BASE}` : RAW_BASE;
 
-// DEV: Vite proxy
-// PROD: Flask proxy (must be set on Render Static Site)
+const slugify = (text) =>
+  String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/&/g, "")
+    .replace(/[^\w\-]+/g, "")
+    .replace(/\-\-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
+
+const getProductImageUrl = (p) => {
+  const base = POS_BASE || "";
+  if (p?.image) return `${base}/static/uploads/${p.image}`;
+  return `${base}/static/uploads/${slugify(p?.name)}.jpg`;
+};
+
+// ----------------- MENU PIPELINE (stable) -----------------
 const MENU_URL = import.meta.env.DEV
   ? "/pp-proxy/public/menu"
-  : `${PP_POS_BASE_URL}/public/menu`;
+  : `${POS_BASE}/public/menu`;
 
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
 function unwrapMenuApi(raw) {
@@ -5528,7 +5549,7 @@ function AuthProvider({ children }) {
  *  INLINE CONTEXTS + HELPERS + COMPONENTS (from /context, /components, /utils)
  *  - CartContext (CartProvider, useCart)
  *  - ThemeContext (ThemeProvider, useTheme)
- *  - Helpers: getImagePath, formatId
+ *  - Helpers: getProductImageUrl, formatId
  *  - ErrorBoundary, FirebaseBanner, QuickNav, Menu, ItemDetailPanel, OrderSummaryPanel, ThemeSwitcher
  *  Place above the rest so App can reference them without imports.
  *  ------------------------------------------------------------ */
@@ -5633,61 +5654,7 @@ function useTheme() {
 
 // Helpers
 
-const PP_PROXY_PREFIX = (import.meta.env.VITE_PP_PROXY_PREFIX || "/pp-proxy").replace(/\/+$/, "");
-
 const FALLBACK_IMAGE_URL = "/pizza-peppers-logo.jpg";
-
-const slugify = (text) =>
-  String(text || "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/&/g, "")
-    .replace(/[^\w\-]+/g, "")
-    .replace(/\-\-+/g, "-")
-    .replace(/^-+/, "")
-    .replace(/-+$/, "");
-
-const joinBase = (base, path) => {
-  const p = path.startsWith("/") ? path : `/${path}`;
-  if (!base) return p;
-  return `${String(base).replace(/\/+$/, "")}${p}`;
-};
-
-const getProductImageUrl = (p, base = "") => {
-  if (!p) return FALLBACK_IMAGE_URL;
-
-  // If backend ever sends a full URL, respect it
-  if (typeof p.image === "string" && /^https?:\/\//i.test(p.image)) return p.image;
-
-  // Admin-uploaded filename
-  if (typeof p.image === "string" && p.image.trim()) {
-    return joinBase(base, `/static/uploads/${p.image.trim()}`);
-  }
-
-  // Legacy fallback by slugified name
-  return joinBase(base, `/static/uploads/${slugify(p.name)}.jpg`);
-};
-
-const getProductImageUrlCandidates = (p) => {
-  const list = [
-    getProductImageUrl(p, PP_POS_BASE_URL),
-    getProductImageUrl(p, ""),
-    getProductImageUrl(p, PP_PROXY_PREFIX),
-  ].filter(Boolean);
-
-  return Array.from(new Set(list)); // de-dupe
-};
-
-function getImagePath(productOrName) {
-  if (!productOrName) return FALLBACK_IMAGE_URL;
-
-  if (typeof productOrName === "string") {
-    return getProductImageUrl({ name: productOrName }, PP_POS_BASE_URL || "");
-  }
-
-  return getProductImageUrl(productOrName, PP_POS_BASE_URL || "");
-}
 
 function cycleImgCandidates(imgEl, candidates) {
   if (!imgEl || !Array.isArray(candidates) || !candidates.length) {
@@ -5962,7 +5929,7 @@ function QuickNav({ menuData, activeCategory }) {
 function HalfHalfPizzaThumbnail() {
   return (
     <img
-      src={getImagePath("Half & Half") || FALLBACK_IMAGE_URL}
+      src={getProductImageUrl({ name: "Half & Half" }) || FALLBACK_IMAGE_URL}
       alt="Half & Half"
       className="card-image"
       onError={(e) => {
@@ -5998,8 +5965,8 @@ function Menu({ menuData, onItemClick }) {
               const isHalfHalf =
                 item.isHalfHalf === true || item.id === "half_half";
               const displayImage = !isHalfHalf
-                ? getImagePath(item)
-                : getImagePath("Half & Half");
+                ? getProductImageUrl(item)
+                : getProductImageUrl({ name: "Half & Half" });
               const imgSrc = displayImage || FALLBACK_IMAGE_URL;
               return (
                 <div
@@ -6753,7 +6720,7 @@ function ItemDetailPanel({
     if (Number.isFinite(item?.minPriceCents)) return item.minPriceCents;
     return 0;
   };
-  const heroImage = getImagePath(item);
+  const heroImage = getProductImageUrl(item);
   const HERO_RADIUS = "1rem";
   const quantityTotal = quantity || 0;
   const secondaryActionLabel = lockQty ? "Back" : "Cancel";
@@ -6801,7 +6768,10 @@ function ItemDetailPanel({
           }}
         >
           {heroImage && (() => {
-            const heroCandidates = getProductImageUrlCandidates(item);
+            const heroCandidates = [
+              getProductImageUrl(item),
+              FALLBACK_IMAGE_URL,
+            ].filter(Boolean);
             const heroSrc = heroCandidates[0] || FALLBACK_IMAGE_URL;
             return (
               <img
@@ -11561,7 +11531,7 @@ function AppLayout({ isMapsLoaded }) {
     }
     return {
       ...item,
-      image: getImagePath(item),
+      image: getProductImageUrl(item),
       rawSizes: sizeEntries,
       sizes: sizeNames,
       prices: priceMap,
