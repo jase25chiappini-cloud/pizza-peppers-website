@@ -12450,6 +12450,7 @@ function AppLayout({ isMapsLoaded }) {
 
 
 function App() {
+  console.log("[env] VITE_PP_POS_BASE_URL =", import.meta.env.VITE_PP_POS_BASE_URL);
   const isMapsLoaded = useGoogleMaps();
 
   return (
