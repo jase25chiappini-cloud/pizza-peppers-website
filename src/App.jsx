@@ -4954,17 +4954,22 @@ function useApp() {
   return useContext(AppContext);
 }
 
-const RAW_MENU_BASE = (import.meta.env.VITE_PP_MENU_BASE_URL || "").trim().replace(/\/+$/, "");
-const MENU_BASE =
-  RAW_MENU_BASE && !/^https?:\/\//i.test(RAW_MENU_BASE)
-    ? `https://${RAW_MENU_BASE}`
-    : RAW_MENU_BASE;
+const _normalizeBase = (raw) => {
+  const s = String(raw || "").trim().replace(/\/+$/, "");
+  if (!s) return "";
+  return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+};
 
-const RAW_IMG_BASE = (import.meta.env.VITE_PP_IMAGES_BASE_URL || "").trim().replace(/\/+$/, "");
-const IMG_BASE =
-  RAW_IMG_BASE && !/^https?:\/\//i.test(RAW_IMG_BASE)
-    ? `https://${RAW_IMG_BASE}`
-    : RAW_IMG_BASE;
+const PP_MENU_BASE_URL = _normalizeBase(import.meta.env.VITE_PP_MENU_BASE_URL);
+const PP_IMAGES_BASE_URL = _normalizeBase(import.meta.env.VITE_PP_IMAGES_BASE_URL);
+
+// Back-compat: if you still set only VITE_PP_POS_BASE_URL, use it as fallback
+const PP_POS_BASE_URL = _normalizeBase(
+  import.meta.env.VITE_PP_POS_BASE_URL || import.meta.env.VITE_PP_RENDER_BASE_URL,
+);
+
+const MENU_BASE = PP_MENU_BASE_URL || PP_POS_BASE_URL;
+const IMG_BASE = PP_IMAGES_BASE_URL || PP_POS_BASE_URL;
 
 const slugify = (text) =>
   String(text || "")
@@ -4977,15 +4982,37 @@ const slugify = (text) =>
     .replace(/^-+/, "")
     .replace(/-+$/, "");
 
-const getProductImageUrl = (p) => {
-  const base = IMG_BASE || MENU_BASE || "";
-  if (p?.image) return `${base}/static/uploads/${p.image}`;
-  return `${base}/static/uploads/${slugify(p?.name)}.jpg`;
+const getProductImageUrl = (p, base = IMG_BASE || MENU_BASE || "") => {
+  const baseUrl = base || "";
+  if (p?.image) return `${baseUrl}/static/uploads/${p.image}`;
+  return `${baseUrl}/static/uploads/${slugify(p?.name)}.jpg`;
 };
+
+const PP_PROXY_PREFIX = (import.meta.env.VITE_PP_PROXY_PREFIX || "/pp-proxy").replace(/\/+$/, "");
+
+const getProductImageUrlCandidates = (p) => {
+  const list = [
+    getProductImageUrl(p, IMG_BASE),
+    getProductImageUrl(p, ""),
+    getProductImageUrl(p, PP_PROXY_PREFIX),
+  ].filter(Boolean);
+
+  return Array.from(new Set(list)); // de-dupe
+};
+
+function getImagePath(productOrName) {
+  if (!productOrName) return FALLBACK_IMAGE_URL;
+
+  if (typeof productOrName === "string") {
+    return getProductImageUrl({ name: productOrName }, IMG_BASE || "");
+  }
+
+  return getProductImageUrl(productOrName, IMG_BASE || "");
+}
 
 // ----------------- MENU PIPELINE (stable) -----------------
 const MENU_URL = import.meta.env.DEV
-  ? "/pp-proxy/public/menu"
+  ? `${PP_PROXY_PREFIX}/public/menu`
   : `${MENU_BASE}/public/menu`;
 
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
