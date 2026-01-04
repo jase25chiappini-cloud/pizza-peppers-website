@@ -4954,8 +4954,16 @@ function useApp() {
   return useContext(AppContext);
 }
 
-const RAW_BASE = (import.meta.env.VITE_PP_POS_BASE_URL || "").trim().replace(/\/+$/, "");
-const POS_BASE = RAW_BASE && !/^https?:\/\//i.test(RAW_BASE) ? `https://${RAW_BASE}` : RAW_BASE;
+const rawBase = (
+  import.meta.env.VITE_PP_POS_BASE_URL ||
+  import.meta.env.VITE_PP_RENDER_BASE_URL ||
+  ""
+).trim().replace(/\/+$/, "");
+
+// If someone accidentally enters "pizza-peppers-proxy.onrender.com" without https://,
+// prevent the browser turning it into a relative path.
+const PP_POS_BASE_URL =
+  rawBase && !/^https?:\/\//i.test(rawBase) ? `https://${rawBase}` : rawBase;
 
 const slugify = (text) =>
   String(text || "")
@@ -4969,7 +4977,7 @@ const slugify = (text) =>
     .replace(/-+$/, "");
 
 const getProductImageUrl = (p) => {
-  const base = POS_BASE || "";
+  const base = PP_POS_BASE_URL || "";
   if (p?.image) return `${base}/static/uploads/${p.image}`;
   return `${base}/static/uploads/${slugify(p?.name)}.jpg`;
 };
@@ -4977,7 +4985,7 @@ const getProductImageUrl = (p) => {
 // ----------------- MENU PIPELINE (stable) -----------------
 const MENU_URL = import.meta.env.DEV
   ? "/pp-proxy/public/menu"
-  : `${POS_BASE}/public/menu`;
+  : `${PP_POS_BASE_URL}/public/menu`;
 
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
 function unwrapMenuApi(raw) {
