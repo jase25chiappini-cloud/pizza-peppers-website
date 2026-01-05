@@ -8195,58 +8195,31 @@ function OrderInfoPanel({
   );
 }
 
-// ThemeSwitcher
+// ThemeSwitcher (single toggle)
 function ThemeSwitcher({ compact = false }) {
   const { theme, setTheme } = useTheme();
 
-  const btnSize = compact ? "1.75rem" : "2rem";
-  const fontSize = compact ? "0.95rem" : "1.1rem";
-
-  const base = {
-    width: btnSize,
-    height: btnSize,
-    borderRadius: "50%",
-    cursor: "pointer",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    fontSize,
-    backgroundColor: "var(--background-light)",
-    borderWidth: "2px",
-    borderStyle: "solid",
-    borderColor: "var(--border-color)",
-    transition: "background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease",
-  };
-
-  const active = {
-    ...base,
-    borderColor: "var(--brand-neon-green)",
-    transform: "translateY(-1px)",
-  };
+  const isDark = theme === "dark";
+  const nextTheme = isDark ? "light" : "dark";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: compact ? "0.35rem" : "0.5rem",
-        alignItems: "center",
-      }}
+    <button
+      type="button"
+      className={`pp-theme-toggle ${compact ? "pp-theme-toggle--compact" : ""}`}
+      onClick={() => setTheme(nextTheme)}
+      aria-label={`Switch to ${nextTheme} mode`}
+      title={`Switch to ${nextTheme} mode`}
     >
-      <button
-        style={theme === "light" ? active : base}
-        onClick={() => setTheme("light")}
-        title="Light theme"
-      >
-        L
-      </button>
-      <button
-        style={theme === "dark" ? active : base}
-        onClick={() => setTheme("dark")}
-        title="Dark theme"
-      >
-        D
-      </button>
-    </div>
+      <span className="pp-theme-toggle__emoji" aria-hidden="true">
+        {isDark ? "\uD83C\uDF19" : "\uD83C\uDF1E"}
+      </span>
+
+      {!compact && (
+        <span className="pp-theme-toggle__label">
+          {isDark ? "Dark" : "Light"}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -10680,7 +10653,6 @@ function Navbar({
     return window.matchMedia("(max-width: 1023.98px)").matches;
   });
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileUserOpen, setMobileUserOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -10705,7 +10677,6 @@ function Navbar({
   // If we leave mobile sizing, ensure drawer is closed.
   useEffect(() => {
     if (!isMobile) setMobileSearchOpen(false);
-    if (!isMobile) setMobileUserOpen(false);
   }, [isMobile]);
 
   return (
@@ -10784,98 +10755,13 @@ function Navbar({
                 className={
                   "pp-topnav__iconBtn" + (mobileSearchOpen ? " is-active" : "")
                 }
-                onClick={() => {
-                  setMobileSearchOpen((v) => !v);
-                  setMobileUserOpen(false);
-                }}
+                onClick={() => setMobileSearchOpen((v) => !v)}
                 aria-label={mobileSearchOpen ? "Close search" : "Open search"}
                 aria-expanded={mobileSearchOpen}
                 title="Search"
               >
                 {"\uD83D\uDD0D"}
               </button>
-
-              <button
-                type="button"
-                className="pp-topnav__iconBtn"
-                onClick={() => {
-                  setMobileSearchOpen(false);
-                  setMobileUserOpen(false);
-                  onMenuClick?.();
-                }}
-                aria-label="Menu"
-                title="Menu"
-              >
-                {"\uD83C\uDF55"}
-              </button>
-
-              <button
-                type="button"
-                className="pp-topnav__iconBtn"
-                onClick={() => {
-                  setMobileSearchOpen(false);
-                  setMobileUserOpen(false);
-                  onAboutClick?.();
-                }}
-                aria-label="About"
-                title="About"
-              >
-                {"\u2139\uFE0F"}
-              </button>
-
-              <button
-                type="button"
-                className="pp-topnav__iconBtn pp-topnav__cartBtn"
-                onClick={() => {
-                  setMobileSearchOpen(false);
-                  setMobileUserOpen(false);
-                  (onCartClick || onMenuClick)?.();
-                }}
-                aria-label={`Cart (${totalItems})`}
-                title="Cart"
-              >
-                <span aria-hidden="true">{"\uD83D\uDED2"}</span>
-                {totalItems > 0 ? (
-                  <span
-                    className="pp-topnav__badge"
-                    aria-label={`${totalItems} items`}
-                  >
-                    {totalItems}
-                  </span>
-                ) : null}
-              </button>
-
-              {authLoading ? null : currentUser ? (
-                <button
-                  type="button"
-                  className={
-                    "pp-topnav__iconBtn" + (mobileUserOpen ? " is-active" : "")
-                  }
-                  onClick={() => {
-                    setMobileUserOpen((v) => !v);
-                    setMobileSearchOpen(false);
-                  }}
-                  aria-label="Account"
-                  aria-expanded={mobileUserOpen}
-                  title="Account"
-                >
-                  {"\uD83D\uDC64"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="pp-topnav__iconBtn"
-                  onClick={() => {
-                    setMobileSearchOpen(false);
-                    setMobileUserOpen(false);
-                    onLoginClick?.();
-                  }}
-                  aria-label="Login"
-                  title="Login"
-                >
-                  {"\uD83D\uDD10"}
-                </button>
-              )}
             </>
           ) : (
             /* Desktop: keep your existing full text nav exactly as-is */
@@ -10932,45 +10818,6 @@ function Navbar({
         </div>
       </div>
 
-      {isMobile && mobileUserOpen ? (
-        <div
-          className="pp-topnav__userBackdrop"
-          onClick={() => setMobileUserOpen(false)}
-        />
-      ) : null}
-
-      {isMobile ? (
-        <div
-          className={
-            "pp-topnav__userDrawer" + (mobileUserOpen ? " is-open" : "")
-          }
-        >
-          <div className="pp-topnav__userDrawerInner">
-            <button
-              type="button"
-              className="pp-topnav__drawerBtn"
-              onClick={() => {
-                setMobileUserOpen(false);
-                onProfileClick?.();
-              }}
-            >
-              {"\uD83D\uDC64"} Profile
-            </button>
-
-            <button
-              type="button"
-              className="pp-topnav__drawerBtn pp-topnav__drawerBtn--danger"
-              onClick={() => {
-                setMobileUserOpen(false);
-                logout?.();
-              }}
-            >
-              {"\uD83D\uDEAA"} Logout
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {/* Backdrop (tap anywhere to close) */}
       {isMobile && mobileSearchOpen ? (
         <div
@@ -11018,6 +10865,36 @@ function Navbar({
           </div>
         </div>
       ) : null}
+    </nav>
+  );
+}
+
+// Mobile bottom nav (Menu / About / Profile)
+function MobileBottomNav({
+  activeKey = "menu",
+  authed = false,
+  onMenu,
+  onAbout,
+  onProfile,
+  onLogin,
+}) {
+  const item = (key, icon, label, onClick) => (
+    <button
+      type="button"
+      className={["pp-bottomnav__item", activeKey === key ? "is-active" : ""].join(" ")}
+      aria-current={activeKey === key ? "page" : undefined}
+      onClick={onClick}
+    >
+      <span className="pp-bottomnav__icon" aria-hidden="true">{icon}</span>
+      <span className="pp-bottomnav__label">{label}</span>
+    </button>
+  );
+
+  return (
+    <nav className="pp-bottomnav" aria-label="Primary">
+      {item("menu", "🍕", "Menu", () => onMenu?.())}
+      {item("about", "🏪", "About", () => onAbout?.())}
+      {item("profile", "👤", "Profile", () => (authed ? onProfile?.() : onLogin?.()))}
     </nav>
   );
 }
@@ -12510,6 +12387,25 @@ function AppLayout({ isMapsLoaded }) {
               <div className={mobileOrderPanelClassName}>{rightPanelBody}</div>
             </div>
           </div>
+        )}
+        {isMobile && (
+          <MobileBottomNav
+            activeKey={
+              isProfileOpen
+                ? "profile"
+                : cartModalOpen && rightPanelView === "about"
+                ? "about"
+                : "menu"
+            }
+            authed={!authLoadingFlag && !!authUser}
+            onMenu={() => showOrderPanel()}
+            onAbout={() => showAboutPanel()}
+            onProfile={() => {
+              setCartModalOpen(false);
+              handleProfileOpen();
+            }}
+            onLogin={() => authCtx.openLogin?.("providers")}
+          />
         )}
       </div>
       {isMobile && isMealDealSelected && (

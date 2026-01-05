@@ -2003,6 +2003,101 @@ footer,
   color: var(--brand-pink);
 }
 
+/* =========================================================
+   Theme toggle (single button)
+   ========================================================= */
+.pp-theme-toggle{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  height: 2rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+
+  border: 2px solid var(--border-color);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+
+  transition:
+    transform 160ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+[data-theme="light"] .pp-theme-toggle{
+  background: rgba(255,255,255,0.9);
+}
+
+[data-theme="dark"] .pp-theme-toggle{
+  background: rgba(255,255,255,0.06);
+}
+
+.pp-theme-toggle:hover{
+  border-color: rgba(120, 255, 120, 0.55);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+  transform: translateY(-1px);
+}
+
+.pp-theme-toggle:active{
+  transform: translateY(0px) scale(0.98);
+}
+
+.pp-theme-toggle:focus-visible{
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(120, 255, 120, 0.22),
+    0 10px 28px rgba(0,0,0,0.22);
+}
+
+.pp-theme-toggle__emoji{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  font-size: 1.05rem;
+  line-height: 1;
+
+  transform: rotate(0deg) scale(1);
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1);
+}
+
+.pp-theme-toggle__label{
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  opacity: 0.82;
+}
+
+/* Compact (mobile topbar): emoji-only */
+.pp-theme-toggle--compact{
+  width: 2rem;
+  min-width: 2rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
+/* Emoji animates when theme changes */
+[data-theme="light"] .pp-theme-toggle__emoji{
+  transform: rotate(14deg) scale(1.06);
+}
+
+[data-theme="dark"] .pp-theme-toggle__emoji{
+  transform: rotate(-14deg) scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce){
+  .pp-theme-toggle,
+  .pp-theme-toggle__emoji{
+    transition: none !important;
+  }
+}
+
 .pp-topnav__auth{
   display:flex;
   align-items:center;
@@ -6886,6 +6981,160 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   .pp-loading-spinner,
   .pp-loading-bar {
     animation: none;
+  }
+}
+
+/* =========================================================
+   MOBILE -- make menu feel fuller / closer to edges
+   (put at VERY BOTTOM so it overrides duplicate mobile blocks)
+   ========================================================= */
+@media (max-width: 640px) {
+  /* outer gutters */
+  .app-grid-layout {
+    padding-inline: 0.35rem !important;
+    padding-block: 0.45rem !important;
+  }
+
+  /* main slab: reduce side padding */
+  .main-content-area {
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
+  }
+
+  /* category "panel" is currently too padded */
+  [data-theme='light'] .menu-category,
+  [data-theme='dark'] .menu-category {
+    padding: 0.55rem 0.55rem 0.75rem !important;
+    border-radius: 14px !important;
+  }
+
+  /* tighten the grid so cards fill the row */
+  .menu-grid {
+    gap: 0.55rem !important;
+  }
+
+  /* slightly wider cards within the 2-col grid */
+  .card-text-container {
+    padding: 0.5rem !important;
+  }
+
+  .card-item-description {
+    font-size: 0.76rem !important;
+    line-height: 1.2 !important;
+  }
+}
+
+/* =========================================================
+   Mobile Bottom Nav (Menu / About / Profile)
+   Desktop unchanged
+   ========================================================= */
+:root{
+  --pp-bottomnav-h: 64px;
+}
+
+@media (max-width: 1023.98px){
+  /* give the page room so content isn't hidden behind the bottom nav */
+  .app-grid-layout{
+    padding-bottom: calc(0.55rem + var(--pp-bottomnav-h) + env(safe-area-inset-bottom)) !important;
+  }
+
+  .pp-bottomnav{
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 58;
+
+    height: calc(var(--pp-bottomnav-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+
+    border-top: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--pp-surface, var(--panel)) 86%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .pp-bottomnav__item{
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--text-medium);
+
+    display: grid;
+    place-items: center;
+    gap: 4px;
+
+    padding: 10px 6px 8px;
+    cursor: pointer;
+
+    transition: transform 160ms var(--pp-ease, ease), color 180ms ease;
+  }
+
+  .pp-bottomnav__item:active{ transform: scale(0.98); }
+
+  .pp-bottomnav__icon{
+    font-size: 22px;
+    line-height: 1;
+    transform: translateY(0px) scale(1);
+    transition: transform 220ms var(--pp-ease, ease);
+  }
+
+  .pp-bottomnav__label{
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: 0.02em;
+  }
+
+  .pp-bottomnav__item::after{
+    content: "";
+    height: 3px;
+    width: 26px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 200ms ease, transform 200ms ease;
+  }
+
+  .pp-bottomnav__item.is-active{
+    color: #ef4444;
+  }
+
+  .pp-bottomnav__item.is-active .pp-bottomnav__icon{
+    transform: translateY(-1px) scale(1.08);
+  }
+
+  .pp-bottomnav__item.is-active::after{
+    opacity: 1;
+    transform: translateY(2px);
+  }
+
+  /* Keep the cart FAB above the bottom nav */
+  .pp-cart-fab{
+    bottom: calc(1rem + var(--pp-bottomnav-h) + env(safe-area-inset-bottom)) !important;
+    z-index: 60;
+  }
+}
+
+/* =========================================================
+   Mobile bottom nav: ALWAYS visible above overlays/modals
+   ========================================================= */
+@media (max-width: 1023.98px){
+  .pp-bottomnav{
+    z-index: 20000 !important;       /* above all modals */
+    pointer-events: auto !important;
+  }
+
+  .pp-bottomnav *{
+    pointer-events: auto !important;
+  }
+
+  /* keep the cart FAB behaving nicely too */
+  .pp-cart-fab{
+    z-index: 20010 !important;       /* above nav if needed */
   }
 }
 
