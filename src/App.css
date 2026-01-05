@@ -3266,7 +3266,8 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 
   /* Main content: reduce padding */
   .main-content-area {
-    padding: 1rem;
+    /* Tighten the gap under the sticky header on mobile */
+    padding: 0.65rem 1rem 1rem;
   }
 
   /* ✅ Bring back the right panel on mobile */
@@ -3436,7 +3437,8 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 
   /* Quick-nav sticky offset: navbar is compact again */
   .quick-nav-container {
-    top: 5.5rem;
+    /* Keep category chips snug under the sticky header */
+    top: calc(3.75rem + env(safe-area-inset-top));
   }
 }
 
