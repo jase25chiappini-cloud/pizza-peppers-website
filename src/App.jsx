@@ -11211,6 +11211,28 @@ function Home({
   );
 }
 
+function LoadingScreen({
+  title = "Loading\u2026",
+  subtitle = "Please wait",
+}) {
+  return (
+    <div className="pp-loading-screen" role="status" aria-live="polite">
+      <div className="pp-loading-card">
+        <div className="pp-loading-brand">Pizza Peppers</div>
+        <div className="pp-loading-spinner" aria-hidden="true" />
+        <div className="pp-loading-title">{title}</div>
+        <div className="pp-loading-subtitle">{subtitle}</div>
+
+        <div className="pp-loading-bars" aria-hidden="true">
+          <div className="pp-loading-bar" />
+          <div className="pp-loading-bar" />
+          <div className="pp-loading-bar" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- LAYOUT COMPONENT ---
 function AppLayout({ isMapsLoaded }) {
   // --- DIAG BLOCK (prove this is the file actually rendering) ---
@@ -12165,11 +12187,10 @@ function AppLayout({ isMapsLoaded }) {
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center text-gray-400">
-        Loading
-        menu
-        (AppLayout spinner A)
-      </div>
+      <LoadingScreen
+        title="Loading menu"
+        subtitle="Fetching the latest items\u2026"
+      />
     );
   }
 

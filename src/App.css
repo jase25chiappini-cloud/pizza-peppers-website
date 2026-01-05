@@ -6799,6 +6799,96 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 }
 
+/* ---------- Neat Loading Screen ---------- */
+.pp-loading-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background:
+    radial-gradient(80% 60% at 50% 30%, rgba(122, 162, 255, 0.12), transparent 60%),
+    var(--bg);
+}
+
+.pp-loading-card {
+  width: min(440px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border-radius: 18px;
+  padding: 22px 18px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.pp-loading-brand {
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+
+.pp-loading-spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.14);
+  border-top-color: var(--accent);
+  margin: 0 auto 12px;
+  animation: ppSpin 0.9s linear infinite;
+}
+
+@keyframes ppSpin {
+  to { transform: rotate(360deg); }
+}
+
+.pp-loading-title {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.pp-loading-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.pp-loading-bars {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.pp-loading-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.06)
+  );
+  background-size: 220% 100%;
+  animation: ppShimmer 1.2s ease-in-out infinite;
+}
+
+.pp-loading-bar:nth-child(2) { width: 88%; margin: 0 auto; }
+.pp-loading-bar:nth-child(3) { width: 72%; margin: 0 auto; }
+
+@keyframes ppShimmer {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-loading-spinner,
+  .pp-loading-bar {
+    animation: none;
+  }
+}
+
 /* =========================================================
    Meal Deal (DESKTOP) -- HH overlay should fully take priority
    ========================================================= */
