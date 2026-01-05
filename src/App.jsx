@@ -6081,14 +6081,29 @@ function Menu({ menuData, onItemClick }) {
                         }}
                       />
                     )}
-                  </div>
-                  <div className="card-text-container">
-                    <h3 className="card-item-name">{item.name}</h3>
-                    <p className="card-item-description">{item.description}</p>
-                    <div className="card-item-price">
-                      {currency(minPriceCents(item))}
+                    {/* NEW: overlay name + price on the image */}
+                    <div className="pp-cardOverlay" aria-hidden="true">
+                      <div className="pp-cardOverlay__row">
+                        <div className="pp-cardOverlay__title">{item.name}</div>
+                        <div className="pp-cardOverlay__price">
+                          {currency(minPriceCents(item))}
+                        </div>
+                      </div>
+
+                      <div className="pp-cardOverlay__hint">
+                        Tap to customise →
+                      </div>
                     </div>
                   </div>
+
+                  {/* Description lives under the image (optional) */}
+                  {item.description ? (
+                    <div className="card-text-container">
+                      <p className="card-item-description">
+                        {item.description}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
