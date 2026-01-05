@@ -1001,6 +1001,9 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 .menu-category {
   margin-bottom: 3rem;
 }
+@media (max-width: 640px){
+  .menu-category { margin-bottom: 1.6rem; }
+}
 
 /* Light: white card wrapping the whole category */
 [data-theme='light'] .menu-category {
@@ -1057,6 +1060,27 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 }
 
 .menu-grid { display: grid; grid-template-columns: repeat(1, 1fr); gap: 1.5rem; }
+
+/* Mobile: fit the screen better (denser 2-col grid + tighter spacing) */
+@media (max-width: 640px) {
+  .menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+  .menu-item-card { min-width: 0; } /* prevents overflow in grid */
+  .card-image-container { padding-top: 56%; } /* shorter image strip */
+  .card-text-container { padding: 0.55rem; }
+  .card-item-name { font-size: 0.95rem; line-height: 1.15; }
+  .card-item-price { font-size: 0.95rem; }
+}
+
+/* Extra-small phones: go even tighter */
+@media (max-width: 420px) {
+  .menu-grid { gap: 0.6rem; }
+  .card-image-container { padding-top: 52%; }
+  .card-text-container { padding: 0.5rem; }
+  .card-item-description { display: none; } /* kills dead space */
+}
 @media (min-width: 640px) { .menu-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 1024px) { .menu-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 1280px) { .menu-grid { grid-template-columns: repeat(4, 1fr); } }
@@ -2997,20 +3021,20 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 
   /* comfortable padding on small screens */
   .app-grid-layout {
-    padding-inline: 0.85rem;
-    padding-block: 0.85rem;
-    gap: 0.9rem;
+    padding-inline: 0.45rem;
+    padding-block: 0.55rem;
+    gap: 0.75rem;
   }
 
   /* main slab tighter */
   .main-content-area {
-    padding: 1rem;
+    padding: 0.6rem 0.45rem 0.85rem;
   }
 
   /* categories: less chunky */
   .menu-category {
-    margin-bottom: 1.5rem;
-    padding: 0.95rem 0.95rem 1.15rem;
+    margin-bottom: 1.1rem;
+    padding: 0.55rem 0.55rem 0.75rem;
   }
 
   /* category title scroll offset should match taller mobile nav */
@@ -3021,12 +3045,12 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 
   /* menu grid spacing tighter */
   .menu-grid {
-    gap: 0.95rem;
+    gap: 0.6rem;
   }
 
   /* card text slightly tighter */
   .card-text-container {
-    padding: 0.7rem;
+    padding: 0.55rem;
   }
   .card-item-name {
     font-size: 0.92rem;
