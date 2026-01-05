@@ -5827,131 +5827,138 @@ function FirebaseBanner() {
 function QuickNav({ menuData, activeCategory }) {
   const containerRef = useRef(null);
   const chipRefs = useRef({});
-  const sectionInfoRef = useRef([]);
-  const targetScrollLeftRef = useRef(0);
-  const animFrameRef = useRef(null);
+  const jumpLockRef = useRef(false);
+  const jumpRafRef = useRef(null);
 
-  // Build mapping between category sections (vertical) and chip centers (horizontal)
+  const beginJumpLock = (scroller) => {
+    if (!scroller) return;
+
+    // lock the follow-scroll behaviour while we animate to target
+    jumpLockRef.current = true;
+
+    // cancel any previous watcher
+    try {
+      if (jumpRafRef.current) cancelAnimationFrame(jumpRafRef.current);
+    } catch {}
+    jumpRafRef.current = null;
+
+    const settleMs = 140; // "no movement" window
+    const maxMs = 1400; // safety unlock
+    const start = performance.now();
+
+    let lastTop = scroller.scrollTop || 0;
+    let lastMoveAt = performance.now();
+
+    const tick = () => {
+      const now = performance.now();
+      const curTop = scroller.scrollTop || 0;
+
+      if (Math.abs(curTop - lastTop) > 0.5) {
+        lastTop = curTop;
+        lastMoveAt = now;
+      }
+
+      // unlock when scroll has settled (or we hit max time)
+      if (now - lastMoveAt > settleMs || now - start > maxMs) {
+        jumpLockRef.current = false;
+        jumpRafRef.current = null;
+        return;
+      }
+
+      jumpRafRef.current = requestAnimationFrame(tick);
+    };
+
+    jumpRafRef.current = requestAnimationFrame(tick);
+  };
+
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    const computeSections = () => {
-      const categories = menuData?.categories || [];
-      const scrollY = window.scrollY || window.pageYOffset;
-      const containerRect = container.getBoundingClientRect();
-      const currentScrollLeft = container.scrollLeft || 0;
-
-      const next = [];
-      categories.forEach((category) => {
-        const id = formatId(category.name);
-        const sectionEl = document.getElementById(id);
-        const chipEl = chipRefs.current[id];
-        if (!sectionEl || !chipEl) return;
-
-        const secRect = sectionEl.getBoundingClientRect();
-        const secTop = secRect.top + scrollY;
-
-        const chipRect = chipEl.getBoundingClientRect();
-        const chipLeftInContainer =
-          chipRect.left - containerRect.left + currentScrollLeft;
-        const chipCenter = chipLeftInContainer + chipRect.width / 2;
-
-        next.push({ id, top: secTop, chipCenter });
-      });
-
-      sectionInfoRef.current = next;
-    };
-
-    const updateTargetFromScroll = () => {
-      const sections = sectionInfoRef.current;
-      const el = containerRef.current;
-      if (!sections.length || !el) return;
-
-      const scrollY = window.scrollY || window.pageYOffset;
-      // Track a point ~30% down the viewport; feels nicer than exact center
-      const trackY = scrollY + window.innerHeight * 0.3;
-
-      let target = 0;
-
-      if (trackY <= sections[0].top) {
-        const first = sections[0];
-        target = first.chipCenter - el.clientWidth / 2;
-      } else if (trackY >= sections[sections.length - 1].top) {
-        const last = sections[sections.length - 1];
-        target = last.chipCenter - el.clientWidth / 2;
-      } else {
-        // Find which two sections we're between
-        for (let i = 0; i < sections.length - 1; i++) {
-          const a = sections[i];
-          const b = sections[i + 1];
-          if (trackY >= a.top && trackY <= b.top) {
-            const span = b.top - a.top || 1;
-            const t = (trackY - a.top) / span; // 0-1 between a and b
-
-            const chipCenter =
-              a.chipCenter + (b.chipCenter - a.chipCenter) * t;
-
-            target = chipCenter - el.clientWidth / 2;
-            break;
-          }
-        }
-      }
-
-      targetScrollLeftRef.current = target;
-    };
-
-    // Initial measurement + target
-    computeSections();
-    updateTargetFromScroll();
-
-    const onScroll = () => updateTargetFromScroll();
-    const onResize = () => {
-      computeSections();
-      updateTargetFromScroll();
-    };
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onResize);
-
     return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [menuData]);
-
-  // Smooth animation loop: ease scrollLeft towards target
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const animate = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      const current = container.scrollLeft;
-      const target = targetScrollLeftRef.current;
-
-      const diff = target - current;
-
-      if (Math.abs(diff) > 0.5) {
-        // Lerp factor; lower = smoother/slower, higher = snappier
-        const step = diff * 0.18;
-        container.scrollLeft = current + step;
-      } else {
-        container.scrollLeft = target;
-      }
-
-      animFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animFrameRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-      }
+      try {
+        if (jumpRafRef.current) cancelAnimationFrame(jumpRafRef.current);
+      } catch {}
     };
   }, []);
+
+  const getScrollContainer = (el) => {
+    // Find the nearest scrollable parent; fallback to the page scroller.
+    let p = el?.parentElement;
+    while (p) {
+      const s = window.getComputedStyle(p);
+      const oy = s.overflowY;
+      if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight) {
+        return p;
+      }
+      p = p.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  };
+
+  const scrollToCategory = (categoryId) => {
+    const target = document.getElementById(categoryId);
+    if (!target) return;
+
+    const scroller = getScrollContainer(target);
+
+    beginJumpLock(scroller);
+
+    const headerH =
+      document.querySelector(".pp-topnav")?.getBoundingClientRect().height || 0;
+    const navH = containerRef.current?.getBoundingClientRect().height || 0;
+
+    const gap = 6;
+
+    const scrollerRectTop =
+      scroller === document.scrollingElement ||
+      scroller === document.documentElement ||
+      scroller === document.body
+        ? 0
+        : scroller.getBoundingClientRect().top;
+
+    const targetTop =
+      target.getBoundingClientRect().top -
+      scrollerRectTop +
+      (scroller.scrollTop || 0);
+
+    const top = Math.max(0, targetTop - headerH - navH - gap);
+
+    try {
+      scroller.scrollTo({ top, behavior: "smooth" });
+    } catch {
+      scroller.scrollTop = top;
+    }
+  };
+
+  // When the active category changes (user scrolls), softly keep the active chip visible.
+  useEffect(() => {
+    if (jumpLockRef.current) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+    if (!activeCategory) return;
+
+    const chipEl = chipRefs.current[activeCategory];
+    if (!chipEl) return;
+
+    const cRect = container.getBoundingClientRect();
+    const chipRect = chipEl.getBoundingClientRect();
+
+    // If it's already comfortably visible, do nothing.
+    const pad = 10;
+    const leftOk = chipRect.left >= cRect.left + pad;
+    const rightOk = chipRect.right <= cRect.right - pad;
+    if (leftOk && rightOk) return;
+
+    // Center the chip smoothly.
+    const chipCenter = chipRect.left + chipRect.width / 2;
+    const containerCenter = cRect.left + cRect.width / 2;
+    const delta = chipCenter - containerCenter;
+
+    try {
+      container.scrollBy({ left: delta, behavior: "smooth" });
+    } catch {
+      container.scrollLeft = container.scrollLeft + delta;
+    }
+  }, [activeCategory]);
 
   return (
     <div className="quick-nav-container" ref={containerRef}>
@@ -5959,20 +5966,28 @@ function QuickNav({ menuData, activeCategory }) {
         {(menuData?.categories || []).map((category) => {
           const categoryId = formatId(category.name);
           const isActive = activeCategory === categoryId;
+
           return (
             <li
               key={category.name}
               className="quick-nav-item"
               ref={(el) => {
-                if (el) {
-                  chipRefs.current[categoryId] = el;
-                }
+                if (el) chipRefs.current[categoryId] = el;
               }}
             >
               <a
                 href={`#${categoryId}`}
                 className={isActive ? "active-nav-link" : ""}
                 aria-current={isActive ? "true" : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToCategory(categoryId);
+
+                  // keep URL hash updated (nice for refresh/share)
+                  try {
+                    window.history.replaceState(null, "", `#${categoryId}`);
+                  } catch {}
+                }}
               >
                 {category.name}
               </a>
@@ -10682,90 +10697,103 @@ function Navbar({
   return (
     <nav className="pp-topnav">
       <div className="pp-topnav__row">
-        <div className="pp-topnav__left">
-          <ThemeSwitcher compact={isMobile} />
-          <Link to="/" onClick={onMenuClick} className="pp-topnav__logo">
-            <img
-              src="/pizza-peppers-logo.jpg"
-              alt="Pizza Peppers Logo"
-              className="pp-topnav__logoImg"
-            />
-          </Link>
+        {isMobile ? (
+          <div className="pp-topnav__mobileRow">
+            <ThemeSwitcher compact />
 
-          {/* Desktop: keep the inline searches */}
-          {!isMobile ? (
-            <div className="pp-topnav__searchWrap">
-              <div
-                style={{
-                  position: "relative",
-                  width:
-                    isNameFocused || (searchName && searchName.length > 0)
-                      ? "190px"
-                      : "120px",
-                  transition: "width 150ms ease-out",
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="Search pizzas"
-                  value={searchName || ""}
-                  onChange={(e) =>
-                    onSearchNameChange && onSearchNameChange(e.target.value)
-                  }
-                  onFocus={() => setIsNameFocused(true)}
-                  onBlur={() => setIsNameFocused(false)}
-                  className="pp-topnav__searchInput"
-                />
-              </div>
+            <Link
+              to="/"
+              onClick={onMenuClick}
+              className="pp-topnav__logo pp-topnav__logo--center"
+              aria-label="Go to menu"
+              title="Menu"
+            >
+              <img
+                src="/pizza-peppers-logo.jpg"
+                alt="Pizza Peppers Logo"
+                className="pp-topnav__logoImg"
+              />
+            </Link>
 
-              <div
-                style={{
-                  position: "relative",
-                  width:
-                    isToppingFocused ||
-                    (searchTopping && searchTopping.length > 0)
-                      ? "190px"
-                      : "120px",
-                  transition: "width 150ms ease-out",
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="Search toppings"
-                  value={searchTopping || ""}
-                  onChange={(e) =>
-                    onSearchToppingChange &&
-                    onSearchToppingChange(e.target.value)
-                  }
-                  onFocus={() => setIsToppingFocused(true)}
-                  onBlur={() => setIsToppingFocused(false)}
-                  className="pp-topnav__searchInput"
+            <button
+              type="button"
+              className={
+                "pp-topnav__iconBtn pp-topnav__iconBtn--search" +
+                (mobileSearchOpen ? " is-active" : "")
+              }
+              onClick={() => setMobileSearchOpen((v) => !v)}
+              aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+              aria-expanded={mobileSearchOpen}
+              title="Search"
+            >
+              {"\uD83D\uDD0D"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="pp-topnav__left">
+              <ThemeSwitcher compact={false} />
+              <Link to="/" onClick={onMenuClick} className="pp-topnav__logo">
+                <img
+                  src="/pizza-peppers-logo.jpg"
+                  alt="Pizza Peppers Logo"
+                  className="pp-topnav__logoImg"
                 />
+              </Link>
+
+              {/* Desktop: keep the inline searches */}
+              <div className="pp-topnav__searchWrap">
+                <div
+                  style={{
+                    position: "relative",
+                    width:
+                      isNameFocused || (searchName && searchName.length > 0)
+                        ? "190px"
+                        : "120px",
+                    transition: "width 150ms ease-out",
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Search pizzas"
+                    value={searchName || ""}
+                    onChange={(e) =>
+                      onSearchNameChange && onSearchNameChange(e.target.value)
+                    }
+                    onFocus={() => setIsNameFocused(true)}
+                    onBlur={() => setIsNameFocused(false)}
+                    className="pp-topnav__searchInput"
+                  />
+                </div>
+
+                <div
+                  style={{
+                    position: "relative",
+                    width:
+                      isToppingFocused ||
+                      (searchTopping && searchTopping.length > 0)
+                        ? "190px"
+                        : "120px",
+                    transition: "width 150ms ease-out",
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Search toppings"
+                    value={searchTopping || ""}
+                    onChange={(e) =>
+                      onSearchToppingChange &&
+                      onSearchToppingChange(e.target.value)
+                    }
+                    onFocus={() => setIsToppingFocused(true)}
+                    onBlur={() => setIsToppingFocused(false)}
+                    className="pp-topnav__searchInput"
+                  />
+                </div>
               </div>
             </div>
-          ) : null}
-        </div>
 
-        <div className="pp-topnav__right">
-          {/* Mobile: compact icon bar */}
-          {isMobile ? (
-            <>
-              <button
-                type="button"
-                className={
-                  "pp-topnav__iconBtn" + (mobileSearchOpen ? " is-active" : "")
-                }
-                onClick={() => setMobileSearchOpen((v) => !v)}
-                aria-label={mobileSearchOpen ? "Close search" : "Open search"}
-                aria-expanded={mobileSearchOpen}
-                title="Search"
-              >
-                {"\uD83D\uDD0D"}
-              </button>
-            </>
-          ) : (
-            /* Desktop: keep your existing full text nav exactly as-is */
-            <>
+            <div className="pp-topnav__right">
               <Link to="/" onClick={onMenuClick} className="pp-topnav__link">
                 Menu
               </Link>
@@ -10813,9 +10841,9 @@ function Navbar({
                   Login
                 </button>
               )}
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Backdrop (tap anywhere to close) */}
