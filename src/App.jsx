@@ -6049,10 +6049,17 @@ function Menu({ menuData, onItemClick }) {
                 ? getProductImageUrl(item)
                 : getProductImageUrl({ name: "Half & Half" });
               const imgSrc = displayImage || FALLBACK_IMAGE_URL;
+              const isMealDeal =
+                item?.bundle &&
+                Array.isArray(item.bundle.slots) &&
+                item.bundle.slots.length > 0;
               return (
                 <div
-                  key={item.name}
-                  className="menu-item-card"
+                  key={item.id || item.name}
+                  className={[
+                    "menu-item-card",
+                    isMealDeal ? "menu-item-card--mealdeal" : "",
+                  ].join(" ")}
                   onClick={() => onItemClick(item)}
                 >
                   <div className="card-image-container">

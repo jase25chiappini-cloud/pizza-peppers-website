@@ -1061,6 +1061,43 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 
 .menu-grid { display: grid; grid-template-columns: repeat(1, 1fr); gap: 1.5rem; }
 
+/* =========================================================
+   Meal Deal cards: span 2 "regular" cards
+   ========================================================= */
+
+.menu-grid {
+  /* helps the grid pack around 2-col cards */
+  grid-auto-flow: dense;
+}
+
+.menu-item-card--mealdeal {
+  grid-column: span 2;
+}
+
+/* Make meal deals taller (less "squat" when double-width) */
+.menu-item-card--mealdeal .card-image-container {
+  padding-top: 62%;
+}
+
+/* Slightly more breathing room for meal deals */
+.menu-item-card--mealdeal .card-text-container {
+  padding: 0.9rem;
+}
+
+/* Mobile: meal deals become full-width (2-col grid => span 2) */
+@media (max-width: 640px) {
+  .menu-item-card--mealdeal .card-image-container {
+    padding-top: 72%;
+  }
+}
+
+/* Extra-small phones: keep meal deals tall even when other cards shrink */
+@media (max-width: 420px) {
+  .menu-item-card--mealdeal .card-image-container {
+    padding-top: 70%;
+  }
+}
+
 /* Mobile: fit the screen better (denser 2-col grid + tighter spacing) */
 @media (max-width: 640px) {
   .menu-grid {
