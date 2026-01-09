@@ -1074,27 +1074,39 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   grid-column: span 2;
 }
 
-/* Make meal deals taller (less "squat" when double-width) */
+/* Meal deal cards: slightly zoom the image so it feels bigger */
+.menu-item-card--mealdeal .card-image{
+  transform: scale(1.02);
+  transform-origin: center;
+  will-change: transform;
+}
+
+/* Meal deal cards: significantly smaller (height + padding) */
 .menu-item-card--mealdeal .card-image-container {
-  padding-top: 62%;
+  padding-top: 49%;
 }
 
-/* Slightly more breathing room for meal deals */
+/* Meal deal cards: significantly smaller (height + padding) */
 .menu-item-card--mealdeal .card-text-container {
-  padding: 0.9rem;
+  padding: 0.6rem;
 }
 
-/* Mobile: meal deals become full-width (2-col grid => span 2) */
-@media (max-width: 640px) {
-  .menu-item-card--mealdeal .card-image-container {
-    padding-top: 72%;
+.menu-item-card.pp-card--dessert-combo{
+  --pp-card-img-pos: 50% 70%;
+}
+
+@media (max-width: 640px){
+  .menu-item-card--mealdeal .card-image-container{
+    padding-top: 43%;
+  }
+  .menu-item-card--mealdeal .card-text-container{
+    padding: 0.55rem;
   }
 }
 
-/* Extra-small phones: keep meal deals tall even when other cards shrink */
-@media (max-width: 420px) {
-  .menu-item-card--mealdeal .card-image-container {
-    padding-top: 70%;
+@media (max-width: 420px){
+  .menu-item-card--mealdeal .card-image-container{
+    padding-top: 41%;
   }
 }
 
@@ -1105,7 +1117,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
     gap: 0.7rem;
   }
   .menu-item-card { min-width: 0; } /* prevents overflow in grid */
-  .card-image-container { padding-top: 56%; } /* shorter image strip */
+  .card-image-container { padding-top: 62%; } /* shorter image strip */
   .card-text-container { padding: 0.55rem; }
   .card-item-name { font-size: 0.95rem; line-height: 1.15; }
   .card-item-price { font-size: 0.95rem; }
@@ -1114,7 +1126,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 /* Extra-small phones: go even tighter */
 @media (max-width: 420px) {
   .menu-grid { gap: 0.6rem; }
-  .card-image-container { padding-top: 52%; }
+  .card-image-container { padding-top: 58%; }
   .card-text-container { padding: 0.5rem; }
   .card-item-description { display: none; } /* kills dead space */
 }
@@ -1181,15 +1193,32 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   background-color: var(--brand-neon-green);
 }
 
-/* card header image strip gets a sharper edge */
-.card-image-container {
+/* card header image strip */
+.card-image-container{
   position: relative;
   width: 100%;
-  padding-top: 65%;
+  padding-top: 72%;
   overflow: hidden;
   border-bottom: 1px solid rgba(148,163,184,0.5);
 }
-.card-image { width: 100%; height: 100%; object-fit: cover; position:absolute; top:0; left:0; }
+
+/* image fills the strip, centered */
+.card-image{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--pp-card-img-pos, center);
+  z-index: 0;
+}
+
+/* overlay stays above the image */
+.pp-cardOverlay{
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
 .card-text-container { padding: 0.75rem; flex-grow: 1; display: flex; flex-direction: column; }
 .card-item-name {
   font-size: 0.98rem;

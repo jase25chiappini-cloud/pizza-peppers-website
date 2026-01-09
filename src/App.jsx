@@ -6053,12 +6053,16 @@ function Menu({ menuData, onItemClick }) {
                 item?.bundle &&
                 Array.isArray(item.bundle.slots) &&
                 item.bundle.slots.length > 0;
+              const isDessertComboMealDeal =
+                String(item?.name || "").trim().toLowerCase() ===
+                "dessert combo meal deal";
               return (
                 <div
                   key={item.id || item.name}
                   className={[
                     "menu-item-card",
                     isMealDeal ? "menu-item-card--mealdeal" : "",
+                    isDessertComboMealDeal ? "pp-card--dessert-combo" : "",
                   ].join(" ")}
                   onClick={() => onItemClick(item)}
                 >
@@ -10992,6 +10996,41 @@ function Home({
   onResumeMealDeal,
   isMobile,
 }) {
+  // --- Meal deal "resume" banner dismiss (does NOT delete the draft) ---
+  const mealDealDraftKey = React.useMemo(() => {
+    if (!mealDealDraft) return "";
+    return String(
+      mealDealDraft.draftId ||
+        mealDealDraft.id ||
+        mealDealDraft.item?.id ||
+        mealDealDraft.name ||
+        "draft",
+    );
+  }, [mealDealDraft]);
+
+  const [hideMealDealResumeBanner, setHideMealDealResumeBanner] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!mealDealDraft) {
+      setHideMealDealResumeBanner(false);
+      return;
+    }
+    try {
+      const k = `pp_hide_mealdeal_resume_${mealDealDraftKey}`;
+      setHideMealDealResumeBanner(window.localStorage.getItem(k) === "1");
+    } catch {
+      setHideMealDealResumeBanner(false);
+    }
+  }, [mealDealDraft, mealDealDraftKey]);
+
+  const dismissMealDealResumeBanner = React.useCallback(() => {
+    setHideMealDealResumeBanner(true);
+    try {
+      const k = `pp_hide_mealdeal_resume_${mealDealDraftKey}`;
+      window.localStorage.setItem(k, "1");
+    } catch {}
+  }, [mealDealDraftKey]);
+
   const [activeCategory, setActiveCategory] = useState("");
 
   useEffect(() => {
@@ -11022,7 +11061,7 @@ function Home({
 
   return (
     <>
-      {mealDealDraft && (
+      {mealDealDraft && !hideMealDealResumeBanner && (
         <div
           style={{
             marginBottom: "0.85rem",
@@ -11043,14 +11082,28 @@ function Home({
               Tap to resume building
             </div>
           </div>
-          <button
-            type="button"
-            className="place-order-button"
-            style={{ width: "auto", paddingInline: "1rem" }}
-            onClick={onResumeMealDeal}
-          >
-            Resume
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+            <button
+              type="button"
+              className="place-order-button"
+              style={{ width: "auto", paddingInline: "1rem" }}
+              onClick={onResumeMealDeal}
+            >
+              Resume
+            </button>
+
+            {/* Dismiss banner (keeps draft saved) */}
+            <button
+              type="button"
+              className="pp-btn pp-btn-subtle"
+              aria-label="Close"
+              title="Dismiss"
+              onClick={(e) => {
+                e.stopPropagation();
+                dismissMealDealResumeBanner();
+              }}
+            />
+          </div>
         </div>
       )}
       <QuickNav
