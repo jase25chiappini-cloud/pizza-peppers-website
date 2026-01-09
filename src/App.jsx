@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   BrowserRouter as Router,
   Routes,
@@ -5824,7 +5825,7 @@ function FirebaseBanner() {
 }
 
 // QuickNav
-function QuickNav({ menuData, activeCategory }) {
+function QuickNav({ menuData, activeCategory, usePortal }) {
   const containerRef = useRef(null);
   const chipRefs = useRef({});
   const jumpLockRef = useRef(false);
@@ -5960,7 +5961,7 @@ function QuickNav({ menuData, activeCategory }) {
     }
   }, [activeCategory]);
 
-  return (
+  const nav = (
     <div className="quick-nav-container" ref={containerRef}>
       <ul className="quick-nav-list">
         {(menuData?.categories || []).map((category) => {
@@ -5997,6 +5998,13 @@ function QuickNav({ menuData, activeCategory }) {
       </ul>
     </div>
   );
+
+  if (!usePortal || typeof document === "undefined") {
+    return nav;
+  }
+
+  const portalTarget = document.querySelector(".pp-qnav-slot");
+  return portalTarget ? createPortal(nav, portalTarget) : nav;
 }
 
 function HalfHalfPizzaThumbnail() {
@@ -10861,6 +10869,8 @@ function Navbar({
         )}
       </div>
 
+      <div className="pp-qnav-slot" />
+
       {/* Backdrop (tap anywhere to close) */}
       {isMobile && mobileSearchOpen ? (
         <div
@@ -10973,6 +10983,7 @@ function Home({
   setHhMobileDraft,
   mealDealDraft,
   onResumeMealDeal,
+  isMobile,
 }) {
   const [activeCategory, setActiveCategory] = useState("");
 
@@ -11035,7 +11046,11 @@ function Home({
           </button>
         </div>
       )}
-      <QuickNav menuData={menuData} activeCategory={activeCategory} />
+      <QuickNav
+        menuData={menuData}
+        activeCategory={activeCategory}
+        usePortal={isMobile}
+      />
       {hhMobilePicking && (
         <div className="pp-hh-pickNotice" role="status" aria-live="polite">
           <div className="pp-hh-pickNotice__top">
@@ -12384,6 +12399,7 @@ function AppLayout({ isMapsLoaded }) {
                     setHhMobileDraft={setHhMobileDraft}
                     mealDealDraft={mealDealDraft}
                     onResumeMealDeal={handleResumeMealDeal}
+                    isMobile={isMobileScreen}
                   />
                 }
               />

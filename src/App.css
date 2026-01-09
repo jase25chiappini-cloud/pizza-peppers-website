@@ -7991,7 +7991,7 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   :root{
     /* header pill total occupied height (tuned) */
     --pp-mobile-header-offset: 76px;
-    --pp-mobile-header-gap: 1px;
+    --pp-mobile-header-gap: 0px;
   }
 
   /* This is the sticky category chips bar */
@@ -8059,7 +8059,7 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
     z-index: 40 !important;
 
     /* keep your existing top logic, but ensure it always applies */
-    top: calc(var(--pp-mobile-header-offset, 82px) + 4px + env(safe-area-inset-top)) !important;
+    top: calc(var(--pp-mobile-header-offset, 82px) + env(safe-area-inset-top)) !important;
 
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
@@ -8182,13 +8182,25 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* Only left-side containers (menu/header/nav). DO NOT touch right sidebar/order panel. */
-.left-pane .pp-topnav,
-.left-pane .quick-nav-container,
-.left-pane .main-content-area,
 .left-pane .menu-category{
   position: relative;
   isolation: isolate;
   overflow: hidden;
+}
+
+.left-pane .pp-topnav{
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.left-pane .quick-nav-container{
+  isolation: isolate;
+}
+
+.left-pane .main-content-area{
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
 }
 
 /* fine micro-diagonal film (very subtle) */
@@ -8235,7 +8247,7 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 /* keep real content above texture */
 .left-pane .pp-topnav > *,
 .left-pane .quick-nav-container > *,
-.left-pane .main-content-area > *,
+.left-pane .main-content-area > :not(.quick-nav-container),
 .left-pane .menu-category > *{
   position: relative;
   z-index: 1;
@@ -8243,3 +8255,64 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 
 /* ---------- (D) Don't change order panel at all ---------- */
 /* (Intentionally no .order-panel-container overrides here) */
+
+/* =========================================================
+   SOLID NAV SURFACES: header + quick nav (no transparency)
+   ========================================================= */
+.pp-topnav,
+.quick-nav-container{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-theme='dark'] .pp-topnav{
+  background: #0f172a !important;
+}
+[data-theme='light'] .pp-topnav{
+  background: #ffffff !important;
+}
+
+[data-theme='dark'] .quick-nav-container{
+  background: #0b0f14 !important;
+}
+[data-theme='light'] .quick-nav-container{
+  background: #ffffff !important;
+}
+
+@media (max-width: 1023.98px){
+  .pp-topnav__mobileRow{
+    background: #0f172a !important;
+  }
+  [data-theme='light'] .pp-topnav__mobileRow{
+    background: #ffffff !important;
+  }
+}
+
+/* =========================================================
+   DESKTOP: keep header sticky + tuck QuickNav under it
+   ========================================================= */
+@media (min-width: 1024px){
+  .pp-topnav{
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 30 !important;
+  }
+
+  .quick-nav-container{
+    top: calc(4.35rem + 8px + env(safe-area-inset-top)) !important;
+  }
+}
+
+@media (max-width: 1023.98px){
+  .pp-topnav{
+    padding-bottom: 0 !important;
+  }
+
+  .pp-topnav .quick-nav-container{
+    margin-top: 8px !important;
+  }
+
+  .pp-topnav__searchDrawer{
+    position: absolute !important;
+  }
+}
