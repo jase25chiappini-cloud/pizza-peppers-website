@@ -6688,6 +6688,9 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     -webkit-overflow-scrolling: touch;
     position: relative;
     top: auto;
+    /* Allow content to scroll above the fixed bottom nav */
+    padding-bottom: calc(var(--pp-bottomnav-h) + env(safe-area-inset-bottom) + 0.75rem);
+    scroll-padding-bottom: calc(var(--pp-bottomnav-h) + env(safe-area-inset-bottom) + 0.75rem);
   }
 }
 
