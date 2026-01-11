@@ -6639,7 +6639,7 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     right: 1rem;
     bottom: calc(1rem + env(safe-area-inset-bottom));
     z-index: 60;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 1.05rem;
     border-radius: 999px;
     border: 1px solid rgba(148,163,184,0.28);
     background: rgba(15,23,42,0.55);
@@ -6649,6 +6649,88 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     font-weight: 900;
     letter-spacing: 0.10em;
     text-transform: uppercase;
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    line-height: 1;
+  }
+
+  /* Light mode: crisp pill so the count is always readable */
+  [data-theme='light'] .pp-cart-fab{
+    background: rgba(255,255,255,0.92);
+    border-color: rgba(15,23,42,0.14);
+    box-shadow: 0 18px 44px rgba(15,23,42,0.14);
+    color: var(--text-primary);
+  }
+
+  .pp-cart-fab__icon{
+    font-size: 1.05rem;
+    line-height: 1;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
+  }
+
+  .pp-cart-fab__label{
+    font-size: 0.78rem;
+    font-weight: 950;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    opacity: 0.92;
+  }
+
+  .pp-cart-fab__count{
+    position: absolute;
+    top: -0.45rem;
+    right: -0.45rem;
+    min-width: 1.45rem;
+    height: 1.45rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+
+    font-size: 0.78rem;
+    font-weight: 950;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+
+    pointer-events: none;
+
+    background: var(--brand-neon-green);
+    color: #0b1220;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+  }
+
+  [data-theme='light'] .pp-cart-fab__count{
+    border-color: rgba(15,23,42,0.18);
+    box-shadow: 0 14px 32px rgba(15,23,42,0.18);
+  }
+
+  /* Add-to-cart feedback: a quick premium "bump" */
+  @keyframes ppCartFabBump{
+    0%   { transform: translateY(0) scale(1); }
+    40%  { transform: translateY(-1px) scale(1.04); }
+    100% { transform: translateY(0) scale(1); }
+  }
+  @keyframes ppCartBadgePop{
+    0%   { transform: scale(0.78); }
+    55%  { transform: scale(1.16); }
+    100% { transform: scale(1); }
+  }
+
+  .pp-cart-fab.is-bump{
+    animation: ppCartFabBump 420ms var(--pp-ease, cubic-bezier(.22,1,.36,1));
+  }
+  .pp-cart-fab.is-bump .pp-cart-fab__count{
+    animation: ppCartBadgePop 520ms var(--pp-ease, cubic-bezier(.22,1,.36,1));
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .pp-cart-fab.is-bump,
+    .pp-cart-fab.is-bump .pp-cart-fab__count{
+      animation: none !important;
+    }
   }
 
   .pp-cart-modal{
@@ -9496,14 +9578,62 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 [data-theme='dark'] .order-panel-header{ background: #0f172a !important; }
 [data-theme='light'] .order-panel-header{ background: #ffffff !important; }
 
+/* Ensure emoji glyphs render even if the main font doesn't support them */
+.pp-cart-fab__icon,
+.pp-bottomnav__icon,
+.pp-topnav__iconBtn,
+.pp-theme-toggle__emoji{
+  font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
+}
+
 /* =========================================================
-   MOBILE: remove the order detail panel at bottom (right sidebar)
+   Item Detail Panel — Ingredients readability (light + dark)
+   Scoped to the ingredients summary inside the detail panel
    ========================================================= */
-@media (max-width: 1023.98px){
-  /* Only hide the layout sidebar (won't affect modals that reuse order-panel classes) */
-  .app-grid-layout > .right-sidebar{
-    display: none !important;
-  }
+
+.detail-panel .pp-ingredients-summary{
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background:
+    radial-gradient(700px 220px at 50% 0%, rgba(190,242,100,0.10), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.10));
+  box-shadow: 0 14px 34px rgba(0,0,0,0.18);
+}
+
+[data-theme="light"] .detail-panel .pp-ingredients-summary{
+  border-color: rgba(15,23,42,0.14);
+  background:
+    radial-gradient(700px 220px at 50% 0%, rgba(22,163,74,0.10), transparent 60%),
+    linear-gradient(180deg, rgba(2,6,23,0.02), rgba(2,6,23,0.00));
+  box-shadow: 0 12px 26px rgba(2,6,23,0.10);
+}
+
+.detail-panel .pp-ingredients-summary__title{
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 950;
+  margin-bottom: 0.45rem;
+  color: rgba(190,242,100,0.92);
+}
+
+[data-theme="light"] .detail-panel .pp-ingredients-summary__title{
+  color: rgba(15,23,42,0.82);
+}
+
+.detail-panel .pp-ingredients-summary .pp-chip{
+  /* make chips readable (don’t rely on global pp-chip colours) */
+  background: rgba(190,242,100,0.14);
+  border: 1px solid rgba(190,242,100,0.30);
+  color: var(--text-primary);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+}
+
+[data-theme="light"] .detail-panel .pp-ingredients-summary .pp-chip{
+  background: rgba(22,163,74,0.10);
+  border-color: rgba(22,163,74,0.22);
+  color: rgba(15,23,42,0.92);
+  box-shadow: 0 8px 18px rgba(2,6,23,0.08);
 }
 
 /* Desktop: let the header search pills hug their placeholder text */
@@ -9523,6 +9653,28 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   .pp-topnav__searchInput{
     width: 100%;
     box-sizing: border-box;
+  }
+}
+
+/* =========================================================
+   MOBILE: hide the bottom "order summary" panel,
+   but KEEP the right-sidebar mounted so modals still work.
+   ========================================================= */
+@media (max-width: 1023.98px){
+  /* Ensure the sidebar exists (it contains the fixed modals) */
+  .right-sidebar{
+    display: block !important;
+    position: relative !important;
+    height: auto !important;
+  }
+
+  /* Hide ONLY the normal order panel (when no modal is open) */
+  .right-sidebar .order-panel-container
+    :not(.order-panel-container--detail)
+    :not(.order-panel-container--halfhalf)
+    :not(.order-panel-container--mealdeal)
+    :not(.order-panel-container--mobileCart){
+    display: none !important;
   }
 }
 

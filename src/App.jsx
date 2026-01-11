@@ -199,6 +199,7 @@ const HalfAndHalfSelector = ({
 
   const halfBodyRef = React.useRef(null);
   const halfOptionsRef = React.useRef(null);
+  const panelScrollRef = React.useRef(null);
 
   const scrollToHalfOptions = React.useCallback(() => {
     const target = halfOptionsRef.current;
@@ -237,6 +238,41 @@ const HalfAndHalfSelector = ({
       else mql.removeListener(onChange);
     };
   }, []);
+
+  // Mobile: always start Half & Half at the very top (prevents spawning mid pizza list)
+  React.useEffect(() => {
+    if (!isNarrowScreen) return;
+
+    const hardTop = () => {
+      try {
+        // Main scroll container on mobile (THIS is the one that matters)
+        panelScrollRef.current?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+        if (panelScrollRef.current) panelScrollRef.current.scrollTop = 0;
+      } catch {}
+
+      try {
+        // Defensive: inner body ref (sometimes used by older code paths)
+        halfBodyRef.current?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+        if (halfBodyRef.current) halfBodyRef.current.scrollTop = 0;
+      } catch {}
+
+      try {
+        // Defensive: modal panel wrapper (in case the browser scrolls it)
+        const modalPanel = document.querySelector(".pp-halfhalf-modal__panel");
+        modalPanel?.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+        if (modalPanel) modalPanel.scrollTop = 0;
+      } catch {}
+    };
+
+    // Run twice to beat layout/image settling
+    const r1 = requestAnimationFrame(hardTop);
+    const t1 = window.setTimeout(hardTop, 60);
+
+    return () => {
+      try { cancelAnimationFrame(r1); } catch {}
+      try { window.clearTimeout(t1); } catch {}
+    };
+  }, [isNarrowScreen]);
 
 
   const resetHalf = React.useCallback(
@@ -1011,6 +1047,7 @@ const HalfAndHalfSelector = ({
 
   return (
     <div
+      ref={panelScrollRef}
       className="pp-halfhalf-panel"
       data-compact={compactUi ? "1" : "0"}
       style={{
@@ -7274,42 +7311,32 @@ function ItemDetailPanel({
           ) : (
             <>
               <h3 className="panel-title pp-idp-title">{item.name}</h3>
-              <p className="pp-idp-desc">{item.description}</p>
 
-              {!compactHalfMode && ingredientSummary.length > 0 && (
-                <div
-                  className="pp-ingredients-summary"
-                  style={{
-                    marginTop: "0.75rem",
-                    padding: "0.75rem 0.75rem 0.25rem",
-                    borderRadius: "0.75rem",
-                    background: "var(--pp-surface-soft, rgba(0,0,0,0.035))",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "var(--pp-text-dim)",
-                      marginBottom: "0.35rem",
-                    }}
-                  >
-                    Ingredients
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-                    {ingredientSummary.map((name) => (
-                      <span
-                        key={name}
-                        className="pp-chip"
-                        style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
-                      >
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {(() => {
+                const descText = String(item?.description || "").trim();
+                const descLower = descText.toLowerCase();
+
+                // If the description looks like an ingredient list AND we already show ingredient chips,
+                // hide the description to prevent duplicates.
+                const matchCount = (ingredientSummary || []).reduce((n, ing) => {
+                  const k = String(ing || "").trim().toLowerCase();
+                  if (!k) return n;
+                  return descLower.includes(k) ? n + 1 : n;
+                }, 0);
+
+                const looksLikeIngredientList =
+                  !!descText &&
+                  descText.includes(",") &&
+                  matchCount >= Math.min(2, Math.max(1, (ingredientSummary || []).length));
+
+                const hideDescBecauseIngredients =
+                  !isMealDealPick && !compactHalfMode && (ingredientSummary || []).length > 0 && looksLikeIngredientList;
+
+                if (!descText || hideDescBecauseIngredients) return null;
+
+                return <p className="pp-idp-desc">{descText}</p>;
+              })()}
+
             </>
           )}
         </div>
@@ -7326,6 +7353,34 @@ function ItemDetailPanel({
           paddingBottom: mdPickFooterPad,
         }}
       >
+        {/* Ingredients summary moved into the scroll area for more breathing room */}
+        {!isMealDealPick && !compactHalfMode && ingredientSummary.length > 0 && (
+          <div
+            className="pp-ingredients-summary"
+            style={{
+              marginTop: "0.25rem",
+              marginBottom: "0.85rem",
+              padding: "0.75rem 0.75rem 0.25rem",
+              borderRadius: "0.75rem",
+              background: "var(--pp-surface-soft, rgba(0,0,0,0.035))",
+            }}
+          >
+            <div className="pp-ingredients-summary__title">Ingredients</div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+              {ingredientSummary.map((name) => (
+                <span
+                  key={name}
+                  className="pp-chip"
+                  style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {!compactHalfMode && (
           <>
             {lockedSizeRef ? (
@@ -11450,9 +11505,9 @@ function MobileBottomNav({
       className={["pp-bottomnav", elevated ? "pp-bottomnav--elevated" : ""].join(" ")}
       aria-label="Primary"
     >
-      {item("menu", "🍕", "Menu", () => onMenu?.())}
-      {item("about", "🏪", "About", () => onAbout?.())}
-      {item("profile", "👤", "Profile", () => (authed ? onProfile?.() : onLogin?.()))}
+      {item("menu", "\uD83C\uDF55", "Menu", () => onMenu?.())}
+      {item("about", "\uD83C\uDFEA", "About", () => onAbout?.())}
+      {item("profile", "\uD83D\uDC64", "Profile", () => (authed ? onProfile?.() : onLogin?.()))}
     </nav>
   );
 }
@@ -11740,6 +11795,40 @@ function AppLayout({ isMapsLoaded }) {
     new URLSearchParams(window.location.search).has("menuDebug");
 
   const { cart, totalPrice, addToCart, removeFromCart } = useCart();
+  const cartItemCount = React.useMemo(() => {
+    return (cart || []).reduce((sum, it) => sum + (Number(it?.qty) || 1), 0);
+  }, [cart]);
+  // Mobile cart FAB: item count + subtle "added" animation
+  const [cartFabBump, setCartFabBump] = React.useState(false);
+  const cartFabPrevCountRef = React.useRef(null);
+  const cartFabTimerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    // first render: just set baseline
+    if (cartFabPrevCountRef.current == null) {
+      cartFabPrevCountRef.current = cartItemCount;
+      return;
+    }
+
+    const prev = Number(cartFabPrevCountRef.current || 0);
+    const next = Number(cartItemCount || 0);
+    cartFabPrevCountRef.current = next;
+
+    // Only bump when count increases
+    if (next > prev) {
+      setCartFabBump(true);
+      if (cartFabTimerRef.current) window.clearTimeout(cartFabTimerRef.current);
+      cartFabTimerRef.current = window.setTimeout(() => {
+        setCartFabBump(false);
+      }, 520);
+    }
+  }, [cartItemCount]);
+
+  React.useEffect(() => {
+    return () => {
+      if (cartFabTimerRef.current) window.clearTimeout(cartFabTimerRef.current);
+    };
+  }, []);
   const [menuData, setMenuData] = React.useState({
     categories: [],
     option_lists: [],
@@ -11790,6 +11879,73 @@ function AppLayout({ isMapsLoaded }) {
   }, []);
 
   const [cartModalOpen, setCartModalOpen] = React.useState(false);
+  const showViewOrderFab =
+    isMobile &&
+    !cartModalOpen &&
+    !isProfileOpen &&
+    !selectedItem; // hides during item detail + meal deal editor + half&half, etc.
+
+  const prevIsHalfHalfOpenRef = React.useRef(false);
+
+  const hardScrollToTopAndClearHash = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    // 1) Clear hash so the browser stops anchoring to #classic-pizzas etc.
+    try {
+      if (window.location.hash) {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+      }
+    } catch {}
+
+    // 2) Temporarily disable smooth scrolling (CSS has html { scroll-behavior:smooth; })
+    const html = document.documentElement;
+    const prevScrollBehavior = html.style.scrollBehavior;
+    try {
+      html.style.scrollBehavior = "auto";
+    } catch {}
+
+    const hardTop = () => {
+      try { window.scrollTo(0, 0); } catch {}
+
+      // Hit common scrollers (covers future layout changes)
+      const scrollers = [
+        document.scrollingElement,
+        document.documentElement,
+        document.body,
+        document.querySelector(".left-pane"),
+        document.querySelector(".main-content-area"),
+        document.querySelector(".menu-content"),
+      ].filter(Boolean);
+
+      for (const el of scrollers) {
+        try {
+          el.scrollTop = 0;
+          el.scrollTo?.({ top: 0, left: 0, behavior: "auto" });
+        } catch {}
+      }
+    };
+
+    // Run a few times to beat layout / sticky elements / reflow
+    try {
+      hardTop();
+      requestAnimationFrame(hardTop);
+      setTimeout(hardTop, 50);
+      setTimeout(hardTop, 120);
+    } finally {
+      // Restore previous behavior
+      try {
+        setTimeout(() => {
+          html.style.scrollBehavior = prevScrollBehavior || "";
+        }, 150);
+      } catch {}
+    }
+  }, []);
+  // Ensure Half & Half always opens at the top on mobile
+  const prevHalfHalfOpenRef = React.useRef(false);
   const navigate = useNavigate();
 
   const goToMenu = React.useCallback(() => {
@@ -11821,6 +11977,43 @@ function AppLayout({ isMapsLoaded }) {
   React.useEffect(() => {
     if (!isMobile) setCartModalOpen(false);
   }, [isMobile]);
+
+  React.useEffect(() => {
+    const isHH =
+      !!selectedItem && (selectedItem.isHalfHalf === true || String(selectedItem.id) === "half_half");
+
+    if (isMobileScreen && isHH && !prevIsHalfHalfOpenRef.current) {
+      hardScrollToTopAndClearHash();
+    }
+
+    prevIsHalfHalfOpenRef.current = isHH;
+  }, [isMobileScreen, selectedItem, hardScrollToTopAndClearHash]);
+
+  React.useEffect(() => {
+    const isHH = !!selectedItem?.isHalfHalf;
+    if (!isMobileScreen) {
+      prevHalfHalfOpenRef.current = isHH;
+      return;
+    }
+
+    // Only on transition: closed -> open
+    if (isHH && !prevHalfHalfOpenRef.current) {
+      try {
+        requestAnimationFrame(() => {
+          // Reset any page scroll
+          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
+          // Reset the Half & Half modal scroll container
+          const panel = document.querySelector(".pp-halfhalf-modal__panel");
+          if (panel && panel.scrollTo) {
+            panel.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          }
+        });
+      } catch {}
+    }
+
+    prevHalfHalfOpenRef.current = isHH;
+  }, [isMobileScreen, selectedItem]);
 
   React.useEffect(() => {
     if (!isMobile) return;
@@ -12259,6 +12452,7 @@ function AppLayout({ isMapsLoaded }) {
         menuItem?.id === "half_half" ||
         menuItem?.isHalfHalf
       ) {
+        hardScrollToTopAndClearHash();
         setSelectedItem(null);
         setCustomizingItem(null);
         setEditingIndex(null);
@@ -12270,12 +12464,6 @@ function AppLayout({ isMapsLoaded }) {
           halfB: null,
           sizeRef: "LARGE",
         });
-
-        try {
-          requestAnimationFrame(() => {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          });
-        } catch {}
         return;
       }
 
@@ -12302,6 +12490,7 @@ function AppLayout({ isMapsLoaded }) {
       setEditingIndex,
       setRightPanelView,
       mealDealApplyItemRef,
+      hardScrollToTopAndClearHash,
     ],
   );
 
@@ -12376,6 +12565,7 @@ function AppLayout({ isMapsLoaded }) {
         menuItem?.id === "half_half" ||
         menuItem?.isHalfHalf
       ) {
+        hardScrollToTopAndClearHash();
         setSelectedItem(HALF_HALF_FORCED_ITEM);
         setCustomizingItem(null);
         setEditingIndex(null);
@@ -12405,6 +12595,7 @@ function AppLayout({ isMapsLoaded }) {
       setEditingIndex,
       setRightPanelView,
       mealDealApplyItemRef,
+      hardScrollToTopAndClearHash,
     ],
   );
 
@@ -12991,17 +13182,33 @@ function AppLayout({ isMapsLoaded }) {
             <Footer />
           </main>
         </div>
-        <div className={rightSidebarClassName}>
-          <div className={orderPanelClassName}>{rightPanelBody}</div>
-        </div>
-        {isMobile && (
+        {/* Desktop only: keep the right sidebar */}
+        {!isMobileScreen && (
+          <div className={rightSidebarClassName}>
+            <div className={orderPanelClassName}>{rightPanelBody}</div>
+          </div>
+        )}
+        {showViewOrderFab && (
           <button
             type="button"
-            className="pp-cart-fab"
+            className={["pp-cart-fab", cartFabBump ? "is-bump" : ""].join(" ")}
             onClick={() => setCartModalOpen(true)}
-            aria-label="Open cart"
+            aria-label={
+              cartItemCount > 0
+                ? `View order (${cartItemCount} item${cartItemCount === 1 ? "" : "s"})`
+                : "View order"
+            }
           >
-            🛒 Cart
+            <span className="pp-cart-fab__icon" aria-hidden="true">
+              {EM.CART}
+            </span>
+            <span className="pp-cart-fab__label">View order</span>
+
+            {cartItemCount > 0 && (
+              <span className="pp-cart-fab__count" aria-hidden="true">
+                {cartItemCount}
+              </span>
+            )}
           </button>
         )}
         {isMobile && cartModalOpen && (
@@ -13046,6 +13253,8 @@ function AppLayout({ isMapsLoaded }) {
           />
         )}
       </div>
+      {/* Mobile: render selected item modals outside the grid (so they can't be hidden) */}
+      {isMobileScreen && !!selectedItem ? rightPanelBody : null}
       {isMobile && isMealDealSelected && (
         <div className="pp-mealdeal-modal" role="dialog" aria-modal="true">
           <div
