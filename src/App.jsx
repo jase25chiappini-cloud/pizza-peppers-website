@@ -5826,10 +5826,312 @@ function FirebaseBanner() {
 
 // QuickNav
 function QuickNav({ menuData, activeCategory, usePortal }) {
-  const containerRef = useRef(null);
-  const chipRefs = useRef({});
+  const shellRef = useRef(null);      // sticky container (NOT scrollable)
+  const scrollerRef = useRef(null);   // inner horizontal scroller
+  const chipRefs = useRef({});        // store <a> nodes (for focus + centering)
   const jumpLockRef = useRef(false);
   const jumpRafRef = useRef(null);
+  const qnavSnapTimerRef = useRef(null);
+  const qnavSnappingRef = useRef(false);
+  const qnavProgrammaticTimerRef = useRef(null);
+  const qnavSuppressFollowUntilRef = useRef(0);
+
+  const suppressActiveFollow = React.useCallback((ms = 900) => {
+    qnavSuppressFollowUntilRef.current = Date.now() + ms;
+  }, []);
+
+  const scrollId = React.useId ? React.useId() : "pp-qnav-scroll";
+
+  const [isMobileQnav, setIsMobileQnav] = React.useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(max-width: 900px)").matches;
+  });
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
+  const [canScrollRight, setCanScrollRight] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia("(max-width: 900px)");
+    const onChange = (e) => setIsMobileQnav(!!e.matches);
+    if (mql.addEventListener) mql.addEventListener("change", onChange);
+    else mql.addListener(onChange);
+    setIsMobileQnav(!!mql.matches);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", onChange);
+      else mql.removeListener(onChange);
+    };
+  }, []);
+
+  const updateArrowState = React.useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const max = Math.max(0, (el.scrollWidth || 0) - (el.clientWidth || 0));
+    const left = el.scrollLeft || 0;
+    setCanScrollLeft(left > 2);
+    setCanScrollRight(left < max - 2);
+  }, []);
+
+  // Lock the "follow active chip" behaviour while arrows are moving.
+  // Keep this VERY simple to avoid timer churn + jitter during scroll.
+  const lockProgrammaticNavScroll = React.useCallback(
+    (ms = 420) => {
+      qnavSnappingRef.current = true;
+
+      if (qnavProgrammaticTimerRef.current) {
+        clearTimeout(qnavProgrammaticTimerRef.current);
+      }
+
+      qnavProgrammaticTimerRef.current = setTimeout(() => {
+        qnavSnappingRef.current = false;
+        updateArrowState();
+      }, ms);
+    },
+    [updateArrowState],
+  );
+
+  const animateNavScrollTo = React.useCallback(
+    (targetLeft) => {
+      const el = scrollerRef.current;
+      if (!el) return;
+
+      const max = Math.max(0, (el.scrollWidth || 0) - (el.clientWidth || 0));
+      const clamped = Math.max(0, Math.min(max, targetLeft));
+
+      // If we're basically already there, don't animate (prevents tiny jitter moves)
+      if (Math.abs((el.scrollLeft || 0) - clamped) < 1) {
+        updateArrowState();
+        return;
+      }
+
+      // Lock long enough for the browser smooth scroll to finish.
+      lockProgrammaticNavScroll(460);
+
+      try {
+        el.scrollTo({ left: clamped, behavior: "smooth" });
+      } catch {
+        el.scrollLeft = clamped;
+      }
+
+      // Arrow enable/disable state can lag on some browsers; force refresh.
+      requestAnimationFrame(updateArrowState);
+      setTimeout(updateArrowState, 220);
+      setTimeout(updateArrowState, 520);
+    },
+    [lockProgrammaticNavScroll, updateArrowState],
+  );
+
+  const snapQuickNavToWholePills = React.useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    if (isMobileQnav) return; // keep mobile free scroll
+    if (qnavSnappingRef.current) return;
+
+    const pad = 18; // "safe" inner edge
+    const cRect = el.getBoundingClientRect();
+    const leftEdge = cRect.left + pad;
+    const rightEdge = cRect.right - pad;
+
+    const links = Array.from(el.querySelectorAll('a[data-qnav-link="1"]'));
+    if (!links.length) return;
+
+    // Find first visible link and ensure its LEFT edge isn't cut
+    let delta = 0;
+
+    for (const a of links) {
+      const r = a.getBoundingClientRect();
+      if (r.right > leftEdge) {
+        if (r.left < leftEdge) {
+          delta = r.left - leftEdge; // negative => scroll left to reveal
+        }
+        break;
+      }
+    }
+
+    // If no left fix needed, ensure last visible link isn't cut on the RIGHT
+    if (Math.abs(delta) < 1) {
+      for (let i = links.length - 1; i >= 0; i--) {
+        const r = links[i].getBoundingClientRect();
+        if (r.left < rightEdge) {
+          if (r.right > rightEdge) {
+            delta = r.right - rightEdge; // positive => scroll right to reveal
+          }
+          break;
+        }
+      }
+    }
+
+    if (Math.abs(delta) < 1) return;
+
+    qnavSnappingRef.current = true;
+    try {
+      el.scrollBy({ left: delta, behavior: "smooth" });
+    } catch {
+      el.scrollLeft = (el.scrollLeft || 0) + delta;
+    }
+
+    setTimeout(() => {
+      qnavSnappingRef.current = false;
+      updateArrowState();
+    }, 220);
+  }, [isMobileQnav, updateArrowState]);
+
+  React.useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    updateArrowState();
+    const onScroll = () => {
+      // Any nav-rail movement (user OR programmatic) should suppress "follow active chip".
+      suppressActiveFollow(900);
+
+      // If we're in programmatic scroll (arrows), keep it "locked" until scrolling stops.
+      if (qnavSnappingRef.current) {
+        return; // IMPORTANT: don't schedule settle-snap while arrows are moving
+      }
+
+      // USER scroll only: update arrows + optional settle snap
+      updateArrowState();
+
+      // Only "settle snap" after USER scrolls (not arrow/programmatic smooth scroll)
+      if (!qnavSnappingRef.current) {
+        if (qnavSnapTimerRef.current) clearTimeout(qnavSnapTimerRef.current);
+        qnavSnapTimerRef.current = setTimeout(() => {
+          snapQuickNavToWholePills();
+        }, 120);
+      }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (qnavSnapTimerRef.current) clearTimeout(qnavSnapTimerRef.current);
+      if (qnavProgrammaticTimerRef.current) clearTimeout(qnavProgrammaticTimerRef.current);
+    };
+  }, [lockProgrammaticNavScroll, suppressActiveFollow, updateArrowState, snapQuickNavToWholePills]);
+
+  // Re-check arrow state after layout/content changes (fonts, chip widths, etc.)
+  React.useEffect(() => {
+    if (isMobileQnav) return;
+    const raf = requestAnimationFrame(() => updateArrowState());
+    return () => cancelAnimationFrame(raf);
+  }, [isMobileQnav, menuData?.categories?.length, updateArrowState]);
+
+  const nudgeNav = React.useCallback((dir) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const amt = Math.round((el.clientWidth || 320) * 0.7);
+    const dx = dir === "left" ? -amt : amt;
+    try {
+      el.scrollBy({ left: dx, behavior: "smooth" });
+    } catch {
+      el.scrollLeft = (el.scrollLeft || 0) + dx;
+    }
+    // Ensure arrow enable/disable state updates even if the browser batches scroll events
+    requestAnimationFrame(() => updateArrowState());
+    setTimeout(updateArrowState, 160);
+    setTimeout(updateArrowState, 420);
+    setTimeout(snapQuickNavToWholePills, 220);
+  }, [updateArrowState, snapQuickNavToWholePills]);
+
+  const jumpNavByChip = React.useCallback(
+    (dir) => {
+      const el = scrollerRef.current;
+      if (!el) return;
+
+      const max = Math.max(0, (el.scrollWidth || 0) - (el.clientWidth || 0));
+      const cur = el.scrollLeft || 0;
+
+      // Consistent "page" move so left/right feel identical
+      const page = Math.round((el.clientWidth || 320) * 0.82);
+      const desired = Math.max(0, Math.min(max, cur + (dir === "left" ? -page : page)));
+
+      // Snap directionally so we NEVER rest mid-pill or "bounce back"
+      const links = Array.from(el.querySelectorAll('a[data-qnav-link="1"]'));
+      const pad = 12;
+
+      let targetLeft = desired;
+
+      if (links.length) {
+        const wanted = desired + pad;
+        let chosenLeft = null;
+
+        if (dir === "right") {
+          // first chip whose start is at/after the wanted position
+          for (const a of links) {
+            if (a.offsetLeft >= wanted) {
+              chosenLeft = a.offsetLeft;
+              break;
+            }
+          }
+          // if none, clamp to last chip
+          if (chosenLeft == null) chosenLeft = links[links.length - 1].offsetLeft;
+        } else {
+          // last chip whose start is at/before the wanted position
+          for (let i = links.length - 1; i >= 0; i--) {
+            if (links[i].offsetLeft <= wanted) {
+              chosenLeft = links[i].offsetLeft;
+              break;
+            }
+          }
+          // if none, clamp to start
+          if (chosenLeft == null) chosenLeft = 0;
+        }
+
+        targetLeft = Math.max(0, Math.min(max, chosenLeft - pad));
+      }
+
+      animateNavScrollTo(targetLeft);
+    },
+    [animateNavScrollTo],
+  );
+
+  const focusChipByIndex = React.useCallback((index) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const links = Array.from(el.querySelectorAll('a[data-qnav-link="1"]'));
+    if (!links.length) return;
+
+    const clamped = Math.max(0, Math.min(index, links.length - 1));
+    const target = links[clamped];
+    target?.focus?.();
+
+    // keep focused chip comfortably visible (desktop)
+    if (!isMobileQnav && target) {
+      const cRect = el.getBoundingClientRect();
+      const r = target.getBoundingClientRect();
+      const pad = 16;
+      if (r.left < cRect.left + pad || r.right > cRect.right - pad) {
+        const delta = (r.left + r.width / 2) - (cRect.left + cRect.width / 2);
+        try { el.scrollBy({ left: delta, behavior: "smooth" }); }
+        catch { el.scrollLeft = (el.scrollLeft || 0) + delta; }
+      }
+    }
+  }, [isMobileQnav]);
+
+  const onQuickNavKeyDown = React.useCallback((e) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    const links = Array.from(el.querySelectorAll('a[data-qnav-link="1"]'));
+    if (!links.length) return;
+
+    const activeEl = document.activeElement;
+    const curIdx = links.findIndex((n) => n === activeEl);
+
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      focusChipByIndex((curIdx === -1 ? 0 : curIdx + 1));
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      focusChipByIndex((curIdx === -1 ? 0 : curIdx - 1));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      focusChipByIndex(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      focusChipByIndex(links.length - 1);
+    }
+  }, [focusChipByIndex]);
 
   const beginJumpLock = (scroller) => {
     if (!scroller) return;
@@ -5904,7 +6206,7 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
 
     const headerH =
       document.querySelector(".pp-topnav")?.getBoundingClientRect().height || 0;
-    const navH = containerRef.current?.getBoundingClientRect().height || 0;
+    const navH = shellRef.current?.getBoundingClientRect().height || 0;
 
     const gap = 6;
 
@@ -5932,8 +6234,11 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   // When the active category changes (user scrolls), softly keep the active chip visible.
   useEffect(() => {
     if (jumpLockRef.current) return;
+    if (isMobileQnav) return; // free scroll on mobile
+    if (qnavSnappingRef.current) return; // don't fight arrow/programmatic rail moves
+    if (Date.now() < qnavSuppressFollowUntilRef.current) return;
 
-    const container = containerRef.current;
+    const container = scrollerRef.current;
     if (!container) return;
     if (!activeCategory) return;
 
@@ -5959,44 +6264,92 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
     } catch {
       container.scrollLeft = container.scrollLeft + delta;
     }
-  }, [activeCategory]);
+  }, [activeCategory, isMobileQnav]);
 
   const nav = (
-    <div className="quick-nav-container" ref={containerRef}>
-      <ul className="quick-nav-list">
-        {(menuData?.categories || []).map((category) => {
-          const categoryId = formatId(category.name);
-          const isActive = activeCategory === categoryId;
+    <nav
+      className={[
+        "quick-nav-container",
+        !isMobileQnav ? "quick-nav-container--arrows" : "",
+        !isMobileQnav && !canScrollLeft && !canScrollRight
+          ? "quick-nav--fits"
+          : "",
+      ].join(" ")}
+      ref={shellRef}
+      aria-label="Menu categories"
+    >
+      {!isMobileQnav ? (
+        <button
+          type="button"
+          className="quick-nav-arrow quick-nav-arrow--left quick-nav-arrow--slot"
+          aria-label="Scroll categories left"
+          aria-disabled={!canScrollLeft}
+          data-disabled={!canScrollLeft ? "1" : "0"}
+          onClick={() => {
+            const el = scrollerRef.current;
+            if (!el || (el.scrollLeft || 0) <= 2) return;
+            suppressActiveFollow(2600);
+            jumpNavByChip("left");
+          }}
+        >
+          ‹
+        </button>
+      ) : null}
 
-          return (
-            <li
-              key={category.name}
-              className="quick-nav-item"
-              ref={(el) => {
-                if (el) chipRefs.current[categoryId] = el;
-              }}
-            >
-              <a
-                href={`#${categoryId}`}
-                className={isActive ? "active-nav-link" : ""}
-                aria-current={isActive ? "true" : undefined}
-                onClick={(e) => {
-                  e.preventDefault();
-                  scrollToCategory(categoryId);
+      <div
+        id={scrollId}
+        className="quick-nav-scroll"
+        ref={scrollerRef}
+        onKeyDown={onQuickNavKeyDown}
+      >
+        <ul className="quick-nav-list" role="list">
+          {(menuData?.categories || []).map((category) => {
+            const categoryId = formatId(category.name);
+            const isActive = activeCategory === categoryId;
 
-                  // keep URL hash updated (nice for refresh/share)
-                  try {
-                    window.history.replaceState(null, "", `#${categoryId}`);
-                  } catch {}
-                }}
-              >
-                {category.name}
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+            return (
+              <li key={category.name} className="quick-nav-item">
+                <a
+                  data-qnav-link="1"
+                  href={`#${categoryId}`}
+                  className={isActive ? "active-nav-link" : ""}
+                  aria-current={isActive ? "page" : undefined}
+                  ref={(el) => {
+                    if (el) chipRefs.current[categoryId] = el;
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    scrollToCategory(categoryId);
+                    try {
+                      window.history.replaceState(null, "", `#${categoryId}`);
+                    } catch {}
+                  }}
+                >
+                  {category.name}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {!isMobileQnav ? (
+        <button
+          type="button"
+          className="quick-nav-arrow quick-nav-arrow--right quick-nav-arrow--slot"
+          aria-label="Scroll categories right"
+          aria-disabled={!canScrollRight}
+          data-disabled={!canScrollRight ? "1" : "0"}
+          onClick={() => {
+            if (!canScrollRight) return;
+            suppressActiveFollow(2600);
+            jumpNavByChip("right");
+          }}
+        >
+          ›
+        </button>
+      ) : null}
+    </nav>
   );
 
   if (!usePortal || typeof document === "undefined") {
@@ -10702,6 +11055,57 @@ function Navbar({
     return window.matchMedia("(max-width: 1023.98px)").matches;
   });
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const navRef = useRef(null);
+  const mobileSearchOpenedAtRef = useRef(0);
+  const mobileNameInputRef = useRef(null);
+  const [mobileNavHeight, setMobileNavHeight] = useState(0);
+
+  const closeMobileSearch = useCallback(() => setMobileSearchOpen(false), []);
+  const toggleMobileSearch = useCallback(() => {
+    setMobileSearchOpen((prev) => {
+      const next = !prev;
+      if (next) mobileSearchOpenedAtRef.current = Date.now();
+      return next;
+    });
+  }, []);
+
+  // Keep a reliable nav height so the (portal) drawer can sit directly beneath it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const measure = () => {
+      const h = navRef.current?.getBoundingClientRect?.().height || 0;
+      setMobileNavHeight(h);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  // When the drawer opens: measure again + focus the first input.
+  useEffect(() => {
+    if (!isMobile || !mobileSearchOpen) return;
+
+    const h = navRef.current?.getBoundingClientRect?.().height || 0;
+    if (h) setMobileNavHeight(h);
+
+    const t = window.setTimeout(() => {
+      try {
+        mobileNameInputRef.current?.focus?.();
+      } catch {}
+    }, 30);
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") closeMobileSearch();
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isMobile, mobileSearchOpen, closeMobileSearch]);
+
+  const mobileDrawerTop = mobileNavHeight ? mobileNavHeight + 6 : 72;
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -10729,7 +11133,7 @@ function Navbar({
   }, [isMobile]);
 
   return (
-    <nav className="pp-topnav">
+    <nav ref={navRef} className="pp-topnav">
       <div className="pp-topnav__row">
         {isMobile ? (
           <div className="pp-topnav__mobileRow">
@@ -10755,9 +11159,15 @@ function Navbar({
                 "pp-topnav__iconBtn pp-topnav__iconBtn--search" +
                 (mobileSearchOpen ? " is-active" : "")
               }
-              onClick={() => setMobileSearchOpen((v) => !v)}
+              onClick={(e) => {
+                // keyboard accessibility
+                e.preventDefault();
+                e.stopPropagation();
+                toggleMobileSearch();
+              }}
               aria-label={mobileSearchOpen ? "Close search" : "Open search"}
               aria-expanded={mobileSearchOpen}
+              aria-controls="pp-mobile-search-drawer"
               title="Search"
             >
               {"\uD83D\uDD0D"}
@@ -10882,53 +11292,78 @@ function Navbar({
 
       <div className="pp-qnav-slot" />
 
-      {/* Backdrop (tap anywhere to close) */}
-      {isMobile && mobileSearchOpen ? (
-        <div
-          className="pp-topnav__searchBackdrop"
-          onClick={() => setMobileSearchOpen(false)}
-        />
-      ) : null}
-
-      {/* Mobile search drawer (dropdown) */}
-      {isMobile ? (
-        <div
-          className={
-            "pp-topnav__searchDrawer" + (mobileSearchOpen ? " is-open" : "")
-          }
-          role="region"
-          aria-label="Search"
-        >
-          <div className="pp-topnav__searchDrawerInner">
-            <div className="pp-topnav__searchField">
-              <div className="pp-topnav__searchLabel">Pizzas</div>
-              <input
-                type="text"
-                placeholder="Search pizzas"
-                value={searchName || ""}
-                onChange={(e) =>
-                  onSearchNameChange && onSearchNameChange(e.target.value)
-                }
-                className="pp-topnav__searchInput"
+      {/* Mobile search drawer (PORTAL) — fixes cases where the drawer is clipped/hidden */}
+      {isMobile && mobileSearchOpen && typeof document !== "undefined" && document.body
+        ? createPortal(
+            <>
+              {/* Backdrop starts BELOW the header so the search button stays clickable */}
+              <div
+                className="pp-topnav__searchBackdrop"
+                style={{
+                  position: "fixed",
+                  left: 0,
+                  right: 0,
+                  top: `${mobileDrawerTop}px`,
+                  bottom: 0,
+                  zIndex: 20040,
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Prevent the "finger release" from instantly closing the drawer
+                  if (Date.now() - mobileSearchOpenedAtRef.current < 250) return;
+                  closeMobileSearch();
+                }}
               />
-            </div>
 
-            <div className="pp-topnav__searchField">
-              <div className="pp-topnav__searchLabel">Toppings</div>
-              <input
-                type="text"
-                placeholder="Search toppings"
-                value={searchTopping || ""}
-                onChange={(e) =>
-                  onSearchToppingChange &&
-                  onSearchToppingChange(e.target.value)
-                }
-                className="pp-topnav__searchInput"
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
+              <div
+                id="pp-mobile-search-drawer"
+                className="pp-topnav__searchDrawer is-open"
+                style={{
+                  position: "fixed",
+                  left: 0,
+                  right: 0,
+                  top: `${mobileDrawerTop}px`,
+                  zIndex: 20050,
+                  marginTop: 0,
+                }}
+                role="region"
+                aria-label="Search"
+              >
+                <div className="pp-topnav__searchDrawerInner">
+                  <div className="pp-topnav__searchField">
+                    <div className="pp-topnav__searchLabel">Pizzas</div>
+                    <input
+                      ref={mobileNameInputRef}
+                      type="text"
+                      placeholder="Search pizzas"
+                      value={searchName || ""}
+                      onChange={(e) =>
+                        onSearchNameChange && onSearchNameChange(e.target.value)
+                      }
+                      className="pp-topnav__searchInput"
+                    />
+                  </div>
+
+                  <div className="pp-topnav__searchField">
+                    <div className="pp-topnav__searchLabel">Toppings</div>
+                    <input
+                      type="text"
+                      placeholder="Search toppings"
+                      value={searchTopping || ""}
+                      onChange={(e) =>
+                        onSearchToppingChange &&
+                        onSearchToppingChange(e.target.value)
+                      }
+                      className="pp-topnav__searchInput"
+                    />
+                  </div>
+                </div>
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
     </nav>
   );
 }
@@ -10941,6 +11376,7 @@ function MobileBottomNav({
   onAbout,
   onProfile,
   onLogin,
+  elevated = false,
 }) {
   const item = (key, icon, label, onClick) => (
     <button
@@ -10955,7 +11391,10 @@ function MobileBottomNav({
   );
 
   return (
-    <nav className="pp-bottomnav" aria-label="Primary">
+    <nav
+      className={["pp-bottomnav", elevated ? "pp-bottomnav--elevated" : ""].join(" ")}
+      aria-label="Primary"
+    >
       {item("menu", "🍕", "Menu", () => onMenu?.())}
       {item("about", "🏪", "About", () => onAbout?.())}
       {item("profile", "👤", "Profile", () => (authed ? onProfile?.() : onLogin?.()))}
@@ -11296,6 +11735,32 @@ function AppLayout({ isMapsLoaded }) {
   }, []);
 
   const [cartModalOpen, setCartModalOpen] = React.useState(false);
+  const navigate = useNavigate();
+
+  const goToMenu = React.useCallback(() => {
+    // Hard reset: close any overlays and return to the menu screen.
+    setIsProfileOpen(false);
+    setCartModalOpen(false);
+
+    setSelectedItem(null);
+    setCustomizingItem(null);
+    setEditingIndex(null);
+
+    setRightPanelView("order");
+
+    // If user is on /login or /terms, bring them back home too.
+    try {
+      navigate("/", { replace: false });
+    } catch {}
+  }, [
+    navigate,
+    setIsProfileOpen,
+    setCartModalOpen,
+    setSelectedItem,
+    setCustomizingItem,
+    setEditingIndex,
+    setRightPanelView,
+  ]);
 
   // Safety: if you resize back to desktop, close the modal
   React.useEffect(() => {
@@ -12002,10 +12467,7 @@ function AppLayout({ isMapsLoaded }) {
   };
 
   const showOrderPanel = () => {
-    // "Menu" button behavior: go back to menu, do NOT force modal open.
-    setSelectedItem(null);
-    setRightPanelView("order");
-    setCartModalOpen(false);
+    goToMenu();
   };
 
   const showCartPanel = () => {
@@ -12017,6 +12479,7 @@ function AppLayout({ isMapsLoaded }) {
 
   const showAboutPanel = () => {
     // About on mobile should open as a full-screen modal.
+    setIsProfileOpen(false);
     setSelectedItem(null);
     setRightPanelView("about");
     if (isMobile) setCartModalOpen(true);
@@ -12509,6 +12972,7 @@ function AppLayout({ isMapsLoaded }) {
         )}
         {isMobile && (
           <MobileBottomNav
+            elevated={!!cartModalOpen || !!isProfileOpen}
             activeKey={
               isProfileOpen
                 ? "profile"
@@ -12517,7 +12981,7 @@ function AppLayout({ isMapsLoaded }) {
                 : "menu"
             }
             authed={!authLoadingFlag && !!authUser}
-            onMenu={() => showOrderPanel()}
+            onMenu={() => goToMenu()}
             onAbout={() => showAboutPanel()}
             onProfile={() => {
               setCartModalOpen(false);

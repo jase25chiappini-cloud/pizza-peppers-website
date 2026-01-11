@@ -74,7 +74,8 @@
   max-height: 72vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;  /* let arrow glow + rounded ends render cleanly */
+  position: relative; /* keeps layering predictable */
   position: relative;
 
   background: var(--pp-surface);
@@ -545,20 +546,20 @@ html { scroll-behavior: smooth; }
   top: 0;
   z-index: 20;
   border-bottom: 1px solid var(--border-color);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* Dark: aggressive glass bar */
 [data-theme='dark'] .navbar {
-  background-color: rgba(15,23,42,0.96);
+  background-color: var(--pp-surface, #0f172a);
   box-shadow: 0 20px 50px rgba(0,0,0,0.9);
   border-bottom-color: rgba(15,23,42,0.95);
 }
 
 /* Light: crisp white bar */
 [data-theme='light'] .navbar {
-  background-color: rgba(255,255,255,0.975);
+  background-color: #ffffff;
   box-shadow: 0 16px 40px rgba(15,23,42,0.14);
   border-bottom-color: rgba(209,213,219,0.9);
 }
@@ -1299,7 +1300,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 .quantity-btn:active { transform: translateY(0) scale(0.99); }
 
 /* =========================
-   Quick Nav (categories) — fixed dark mode
+   Quick Nav — clean 3-column rail
    ========================= */
 
 .quick-nav-container{
@@ -1307,19 +1308,26 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   top: 5.5rem;
   z-index: 15;
 
-  margin: 0 0 1.25rem;
-  padding: 0.55rem;
+  margin: 0 0 1.1rem;
+  padding: 0.45rem;
 
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid var(--border-color);
 
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 
-  overflow-x: auto;
-  white-space: nowrap;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  overflow: visible;  /* let arrow glow + rounded ends render cleanly */
+  position: relative; /* keeps layering predictable */
+
+  /* outer should NOT be a grid anymore */
+  display: block;
+  min-height: 60px;
+}
+
+/* When arrows are present (desktop), keep the rail consistent */
+.quick-nav-container.quick-nav-container--arrows{
+  padding: 0.45rem;
 }
 
 [data-theme='dark'] .quick-nav-container{
@@ -1329,18 +1337,136 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 }
 
 [data-theme='light'] .quick-nav-container{
-  background: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.78);
   border-color: rgba(15,23,42,0.12);
   box-shadow: 0 10px 24px rgba(15,23,42,0.10);
 }
 
-.quick-nav-container::-webkit-scrollbar{ display:none; }
+.quick-nav-scroll{
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  overflow-x: auto;
+  overflow-y: visible;
+
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+
+  /* arrows are INSIDE the scroller now - don't add fake side gutters */
+  padding: 8px 12px;
+
+  position: relative;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.quick-nav-scroll::-webkit-scrollbar{ display:none; }
+
+/* When arrows are sticky, reserve space so pills never slide underneath */
+
+/* arrow buttons */
+.quick-nav-arrow{
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+
+  font-weight: 950;
+  font-size: 1.25rem;
+  line-height: 1;
+
+  box-shadow: 0 10px 22px rgba(0,0,0,0.12);
+}
+
+.quick-nav-arrow--inscroll{
+  position: sticky;
+  z-index: 5;
+  flex: 0 0 auto;
+
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+
+  /* this makes them look "part of the bar" */
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+
+  align-self: center;
+  margin: 0;
+}
+
+.quick-nav-arrow--left.quick-nav-arrow--inscroll{
+  left: 8px;
+}
+
+.quick-nav-arrow--right.quick-nav-arrow--inscroll{
+  right: 8px;
+}
+
+[data-theme='light'] .quick-nav-arrow:not(.quick-nav-arrow--inscroll){
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 10px 22px rgba(15,23,42,0.10);
+}
+
+.quick-nav-arrow:hover:enabled{
+  transform: scale(1.03);
+  border-color: rgba(190,242,100,0.45);
+}
+
+.quick-nav-arrow:disabled{
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.quick-nav-arrow:focus-visible{
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 900px){
+  .quick-nav-container{
+    padding: 0.5rem;
+  }
+
+  .quick-nav-arrow{
+    display: none;
+  }
+
+  .quick-nav-scroll{
+    padding: 0.15rem 0.25rem;
+    scroll-padding-left: 0.25rem;
+    scroll-padding-right: 0.25rem;
+  }
+
+  .quick-nav-container--arrows .quick-nav-scroll{
+    padding-left: 0.15rem;
+    padding-right: 0.25rem;
+    scroll-padding-left: 0.25rem;
+    scroll-padding-right: 0.25rem;
+  }
+}
 
 .quick-nav-list{
   list-style:none;
   padding:0;
   margin:0;
   display:flex;
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -1349,7 +1475,9 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   align-items:center;
   justify-content:center;
 
-  padding: 0.46rem 0.95rem;
+  height: 38px;
+  padding: 0 0.95rem;
+  line-height: 1;
 
   border-radius: 999px;
   border: 1px solid transparent;
@@ -1963,17 +2091,17 @@ footer,
   z-index: 30;
   padding: 0.55rem 1.25rem;
   border-bottom: 1px solid var(--border-color);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 [data-theme='dark'] .pp-topnav{
-  background: rgba(15, 23, 42, 0.92);
+  background: var(--pp-surface, #0f172a);
   box-shadow: 0 16px 40px rgba(0,0,0,0.55);
 }
 
 [data-theme='light'] .pp-topnav{
-  background: rgba(255,255,255,0.94);
+  background: #ffffff;
   box-shadow: 0 14px 34px rgba(15,23,42,0.12);
 }
 
@@ -7123,6 +7251,11 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     -webkit-backdrop-filter: blur(14px);
   }
 
+  /* When an overlay (About/Profile) is open, keep bottom nav clickable */
+  .pp-bottomnav.pp-bottomnav--elevated{
+    z-index: 2005; /* above .pp-cart-modal (1500) & .modal-overlay (1000) */
+  }
+
   .pp-bottomnav__item{
     appearance: none;
     border: 0;
@@ -7189,12 +7322,12 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
    Mobile bottom nav: ALWAYS visible above overlays/modals
    ========================================================= */
 @media (max-width: 1023.98px){
-  .pp-bottomnav{
-    z-index: 20000 !important;       /* above all modals */
+  .pp-bottomnav.pp-bottomnav--elevated{
+    z-index: 2005 !important;       /* above .pp-cart-modal & .modal-overlay */
     pointer-events: auto !important;
   }
 
-  .pp-bottomnav *{
+  .pp-bottomnav.pp-bottomnav--elevated *{
     pointer-events: auto !important;
   }
 
@@ -8126,7 +8259,9 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 
     /* keep your existing top logic, but ensure it always applies */
     top: calc(var(--pp-mobile-header-offset, 82px) + env(safe-area-inset-top)) !important;
+  }
 
+  .quick-nav-scroll{
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x;
@@ -8323,38 +8458,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 /* (Intentionally no .order-panel-container overrides here) */
 
 /* =========================================================
-   SOLID NAV SURFACES: header + quick nav (no transparency)
-   ========================================================= */
-.pp-topnav,
-.quick-nav-container{
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
-[data-theme='dark'] .pp-topnav{
-  background: #0f172a !important;
-}
-[data-theme='light'] .pp-topnav{
-  background: #ffffff !important;
-}
-
-[data-theme='dark'] .quick-nav-container{
-  background: #0b0f14 !important;
-}
-[data-theme='light'] .quick-nav-container{
-  background: #ffffff !important;
-}
-
-@media (max-width: 1023.98px){
-  .pp-topnav__mobileRow{
-    background: #0f172a !important;
-  }
-  [data-theme='light'] .pp-topnav__mobileRow{
-    background: #ffffff !important;
-  }
-}
-
-/* =========================================================
    DESKTOP: keep header sticky + tuck QuickNav under it
    ========================================================= */
 @media (min-width: 1024px){
@@ -8381,4 +8484,1074 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   .pp-topnav__searchDrawer{
     position: absolute !important;
   }
+}
+
+/* =========================================================
+   QUICK NAV — FINAL OVERRIDE (clean rail + no clipping)
+   Paste at VERY BOTTOM so it wins
+   ========================================================= */
+
+.quick-nav-container{
+  display: block !important;
+
+  padding: 0.45rem !important;
+  min-height: 60px !important;
+
+  border-radius: 20px !important;
+  border: 1px solid var(--border-color) !important;
+
+  overflow: visible !important;  /* let arrow glow + rounded ends render cleanly */
+  position: relative; /* keeps layering predictable */
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+/* When arrows are present (desktop), keep the rail consistent */
+.quick-nav-container.quick-nav-container--arrows{
+  padding: 0.45rem !important;
+}
+
+[data-theme='dark'] .quick-nav-container{
+  background: rgba(2,6,23,0.42) !important;
+  border-color: rgba(255,255,255,0.14) !important;
+}
+
+[data-theme='light'] .quick-nav-container{
+  background: rgba(255,255,255,0.86) !important;
+  border-color: rgba(15,23,42,0.12) !important;
+}
+
+.quick-nav-scroll{
+  width: 100% !important;
+  min-width: 0 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  white-space: nowrap !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+
+  /* arrows are INSIDE the scroller now - don't add fake side gutters */
+  padding: 8px 12px !important;
+
+  position: relative !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.quick-nav-scroll::-webkit-scrollbar{ display:none; }
+
+.quick-nav-list{
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  flex: 0 0 auto !important;
+}
+
+/* When the row fits, visually balance the pills */
+.quick-nav--fits .quick-nav-list{
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Optional: when it fits, make arrows less visually “present” */
+.quick-nav--fits .quick-nav-arrow--inscroll{
+  opacity: 0.35 !important;
+}
+
+.quick-nav-item a{
+  height: 38px;                 /* fixes the "sitting low" look */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0 0.95rem !important;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.quick-nav-arrow{
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  border: 1px solid rgba(148,163,184,0.22) !important;
+  background: rgba(255,255,255,0.10) !important;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.10) !important;
+
+  transform: none !important;
+}
+
+.quick-nav-arrow--inscroll{
+  position: sticky !important;
+  z-index: 5 !important;
+  flex: 0 0 auto !important;
+
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+
+  /* this makes them look "part of the bar" */
+  background: color-mix(in srgb, var(--panel) 88%, transparent) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10) !important;
+
+  align-self: center;
+  margin: 0;
+}
+
+
+.quick-nav-arrow--left.quick-nav-arrow--inscroll{
+  left: 14px !important;
+}
+
+.quick-nav-arrow--right.quick-nav-arrow--inscroll{
+  right: 14px !important;
+}
+
+[data-theme='dark'] .quick-nav-arrow:not(.quick-nav-arrow--inscroll){
+  background: rgba(15,23,42,0.35) !important;
+}
+[data-theme='light'] .quick-nav-arrow:not(.quick-nav-arrow--inscroll){
+  background: rgba(255,255,255,0.92) !important;
+}
+
+@media (max-width: 900px){
+  .quick-nav-container{
+    padding: 0.5rem !important;
+  }
+  .quick-nav-arrow{ display: none !important; }
+  .quick-nav-scroll{
+    padding: 0.15rem 0.25rem !important;
+    scroll-padding-left: 0.25rem !important;
+    scroll-padding-right: 0.25rem !important;
+  }
+
+  .quick-nav-container--arrows .quick-nav-scroll{
+    padding-left: 0.15rem !important;
+    padding-right: 0.25rem !important;
+    scroll-padding-left: 0.25rem !important;
+    scroll-padding-right: 0.25rem !important;
+  }
+}
+
+/* =========================================================
+   Quick Nav — alignment + centering (DESKTOP/TABLET ONLY)
+   Fixes: chips sitting low + row feels unbalanced
+   ========================================================= */
+@media (min-width: 901px){
+  .quick-nav-scroll{
+    /* keep the scroll area aligned with the sticky arrows */
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    position: relative !important;
+  }
+
+  .quick-nav-list{
+    height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+  }
+
+  .quick-nav-item{
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .quick-nav-item a{
+    /* force the pills to sit dead-center vertically */
+    height: 38px !important;
+    padding: 0 0.95rem !important;
+
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+  }
+
+  .quick-nav-arrow{
+    /* arrows centered in their grid columns */
+    align-self: center !important;
+  }
+}
+
+/* =========================================================
+   QUICK NAV — Sleek Modern Rail (FINAL)
+   Targets: .quick-nav-container / --arrows / .quick-nav-scroll
+   Paste at VERY BOTTOM so it wins
+   ========================================================= */
+
+.quick-nav-container{
+  --qnav-h: 64px;
+  --qnav-radius: 22px;
+  --qnav-inner-radius: 18px;
+  --qnav-pad: 10px;
+  --qnav-gap: 10px;
+
+  min-height: var(--qnav-h) !important;
+  border-radius: var(--qnav-radius) !important;
+  padding: var(--qnav-pad) !important;
+
+  border: 1px solid rgba(148,163,184,0.18) !important;
+  overflow: visible !important;  /* let arrow glow + rounded ends render cleanly */
+  position: relative; /* keeps layering predictable */
+  position: sticky !important;
+
+  /* crisp glass */
+  background: rgba(255,255,255,0.78) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+
+  box-shadow:
+    0 18px 50px rgba(15,23,42,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.65) !important;
+}
+
+/* Symmetrical rail: dedicated arrow slots */
+.quick-nav-container.quick-nav-container--arrows{
+  display: grid !important;
+  grid-template-columns: 56px 1fr 56px !important; /* equal slots */
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+[data-theme="dark"] .quick-nav-container{
+  background: rgba(2,6,23,0.42) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+  box-shadow:
+    0 22px 70px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.07) !important;
+}
+
+/* Inner rail */
+.quick-nav-scroll{
+  width: 100% !important;
+  min-width: 0 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--qnav-gap) !important;
+
+  padding: 8px 12px !important;
+  border-radius: var(--qnav-inner-radius) !important;
+
+  /* subtle inner track so it feels “designed” */
+  background: rgba(15,23,42,0.03) !important;
+  border: 1px solid rgba(148,163,184,0.14) !important;
+
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  white-space: nowrap !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  position: relative !important;
+}
+.quick-nav-scroll::-webkit-scrollbar{ display:none; }
+
+/* Center the scroll lane between arrows */
+.quick-nav-container--arrows .quick-nav-scroll{
+  grid-column: 2 !important;
+  padding: 8px 10px !important; /* normal padding now */
+  justify-content: center !important; /* looks "complete" */
+}
+
+[data-theme="dark"] .quick-nav-scroll{
+  background: rgba(255,255,255,0.045) !important;
+  border-color: rgba(255,255,255,0.10) !important;
+}
+
+/* Pills row */
+.quick-nav-list{
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+
+  flex: 0 0 auto !important; /* prevents odd stretching */
+}
+
+/* Pills */
+.quick-nav-item a{
+  height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  font-weight: 900 !important;
+  font-size: 0.74rem !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  line-height: 1 !important;
+
+  text-decoration: none !important;
+
+  border: 1px solid rgba(148,163,184,0.18) !important;
+  background: rgba(255,255,255,0.65) !important;
+  color: rgba(15,23,42,0.78) !important;
+
+  box-shadow: 0 10px 22px rgba(15,23,42,0.08) !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+[data-theme="dark"] .quick-nav-item a{
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.10) !important;
+  color: rgba(226,232,240,0.86) !important;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.28) !important;
+}
+
+.quick-nav-item a:hover{
+  transform: translateY(-1px) !important;
+  border-color: rgba(190,242,100,0.28) !important;
+  box-shadow: 0 16px 36px rgba(15,23,42,0.14) !important;
+}
+[data-theme="dark"] .quick-nav-item a:hover{
+  box-shadow: 0 18px 44px rgba(0,0,0,0.40) !important;
+}
+
+/* Active pill */
+.quick-nav-item a.active-nav-link{
+  color: #0b1220 !important;
+  border-color: rgba(190,242,100,0.55) !important;
+  background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(190,242,100,0.72)) !important;
+  box-shadow:
+    0 16px 38px rgba(190,242,100,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.65) !important;
+}
+
+/* Arrow buttons in dedicated slots (NOT inside scroller) */
+.quick-nav-arrow--slot{
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  position: static !important;  /* kill sticky positioning */
+  z-index: auto !important;
+  transform: none !important;
+
+  border: 1px solid rgba(148,163,184,0.18) !important;
+  background: rgba(255,255,255,0.82) !important;
+  color: rgba(15,23,42,0.85) !important;
+
+  box-shadow: 0 14px 30px rgba(15,23,42,0.10) !important;
+}
+
+[data-theme="dark"] .quick-nav-arrow--slot{
+  background: rgba(15,23,42,0.55) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+  color: rgba(226,232,240,0.92) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.40) !important;
+}
+
+.quick-nav-arrow--left.quick-nav-arrow--slot{ grid-column: 1 !important; }
+.quick-nav-arrow--right.quick-nav-arrow--slot{ grid-column: 3 !important; }
+
+.quick-nav-arrow--slot:hover:enabled{
+  transform: translateY(-1px) scale(1.02) !important;
+  border-color: rgba(190,242,100,0.35) !important;
+}
+
+.quick-nav-arrow--slot:disabled{
+  opacity: 0.32 !important;
+  box-shadow: none !important;
+}
+
+/* Focus-visible (keyboard accessibility) */
+.quick-nav-item a:focus-visible,
+.quick-nav-arrow--slot:focus-visible{
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.22), 0 14px 34px rgba(15,23,42,0.12) !important;
+}
+
+/* Mobile: slightly tighter rail */
+@media (max-width: 900px){
+  .quick-nav-container.quick-nav-container--arrows{
+    display: block !important;
+  }
+
+  .quick-nav-arrow--slot{
+    display: none !important;
+  }
+
+  .quick-nav-container{
+    --qnav-h: 60px;
+    --qnav-pad: 8px;
+    --qnav-gap: 8px;
+    border-radius: 18px !important;
+  }
+
+  .quick-nav-scroll{
+    padding: 8px 10px !important;
+    justify-content: flex-start !important;
+  }
+
+  .quick-nav-item a{
+    height: 36px !important;
+    padding: 0 12px !important;
+    font-size: 0.70rem !important;
+  }
+}
+
+/* =========================================================
+   QUICK NAV — Modern v2 (symmetrical + premium)
+   Paste at VERY BOTTOM so it wins
+   Targets: .quick-nav-container / --arrows / .quick-nav-scroll
+   ========================================================= */
+
+.quick-nav-container{
+  --qnav-h: 66px;
+  --qnav-slot: 64px;
+  --qnav-radius: 24px;
+  --qnav-track-radius: 18px;
+
+  min-height: var(--qnav-h) !important;
+  border-radius: var(--qnav-radius) !important;
+  padding: 10px 12px !important;
+
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent) !important;
+  overflow: visible !important;  /* let arrow glow + rounded ends render cleanly */
+  position: relative; /* keeps layering predictable */
+  position: sticky !important;
+
+  /* modern glass */
+  background: color-mix(in srgb, var(--panel) 86%, rgba(255,255,255,0.10)) !important;
+  backdrop-filter: blur(18px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
+
+  box-shadow:
+    0 18px 50px rgba(15,23,42,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.55) !important;
+}
+
+[data-theme="dark"] .quick-nav-container{
+  background: color-mix(in srgb, var(--panel) 72%, rgba(0,0,0,0.20)) !important;
+  box-shadow:
+    0 22px 70px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.08) !important;
+}
+
+/* Symmetry: dedicated arrow slots */
+.quick-nav-container.quick-nav-container--arrows{
+  display: grid !important;
+  grid-template-columns: var(--qnav-slot) 1fr var(--qnav-slot) !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+/* Middle lane */
+.quick-nav-container--arrows .quick-nav-scroll{
+  grid-column: 2 !important;
+}
+
+/* Ensure the scroll lane behaves like a scroller (not a centered tray) */
+.quick-nav-container--arrows .quick-nav-scroll{
+  justify-content: flex-start !important;
+}
+
+/* Scroll lane = subtle "track" (NO clipping) */
+.quick-nav-scroll{
+  width: 100% !important;
+  min-width: 0 !important;
+
+  display: flex !important;
+  align-items: center !important;
+
+  overflow-x: auto !important;
+  overflow-y: visible !important; /* key: don't nibble pill edges */
+
+  padding: 8px 16px !important;
+  scroll-padding-left: 16px !important;
+  scroll-padding-right: 16px !important;
+
+  /* IMPORTANT: remove track styling from the scroller itself */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  position: relative !important;
+  isolation: isolate !important;
+
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.quick-nav-scroll::-webkit-scrollbar{ display:none; }
+
+/* Make sure pills sit above the track */
+.quick-nav-scroll .quick-nav-list{
+  position: relative;
+  z-index: 1;
+}
+
+/* Extra end buffers so first/last pill never looks chopped */
+.quick-nav-list::before,
+.quick-nav-list::after{
+  content: "";
+  flex: 0 0 16px;
+}
+
+/* Pills row */
+.quick-nav-list{
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+/* Pills: less "shouty", more product-y */
+.quick-nav-item a{
+  height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  font-weight: 850 !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  line-height: 1 !important;
+
+  border: 1px solid rgba(148,163,184,0.18) !important;
+  background: rgba(255,255,255,0.72) !important;
+  color: color-mix(in srgb, var(--text-primary) 80%, rgba(15,23,42,0.35)) !important;
+
+  box-shadow: 0 10px 22px rgba(15,23,42,0.08) !important;
+  transition: transform 160ms var(--pp-ease, ease), box-shadow 160ms var(--pp-ease, ease), border-color 160ms ease, background-color 160ms ease;
+}
+
+[data-theme="dark"] .quick-nav-item a{
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.10) !important;
+  color: rgba(226,232,240,0.86) !important;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.28) !important;
+}
+
+.quick-nav-item a:hover{
+  transform: translateY(-1px) !important;
+  border-color: rgba(190,242,100,0.28) !important;
+  box-shadow: 0 16px 36px rgba(15,23,42,0.14) !important;
+}
+
+.quick-nav-item a.active-nav-link{
+  color: #0b1220 !important;
+  border-color: rgba(190,242,100,0.55) !important;
+  background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(190,242,100,0.72)) !important;
+  box-shadow: 0 16px 38px rgba(190,242,100,0.16) !important;
+}
+
+/* Arrows in dedicated slots */
+.quick-nav-arrow--slot{
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 999px !important;
+
+  justify-self: center !important;
+  align-self: center !important;
+
+  border: 1px solid rgba(148,163,184,0.18) !important;
+  background: rgba(255,255,255,0.82) !important;
+  color: rgba(15,23,42,0.88) !important;
+
+  box-shadow: 0 14px 30px rgba(15,23,42,0.10) !important;
+  transition: transform 160ms var(--pp-ease, ease), box-shadow 160ms var(--pp-ease, ease), border-color 160ms ease, opacity 160ms ease;
+}
+
+[data-theme="dark"] .quick-nav-arrow--slot{
+  background: rgba(15,23,42,0.55) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+  color: rgba(226,232,240,0.92) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.40) !important;
+}
+
+.quick-nav-arrow--slot:hover:enabled{
+  transform: translateY(-1px) scale(1.02) !important;
+  border-color: rgba(190,242,100,0.35) !important;
+}
+
+.quick-nav-arrow--slot:disabled{
+  opacity: 0.30 !important;
+  box-shadow: none !important;
+}
+
+/* Keyboard focus */
+.quick-nav-item a:focus-visible,
+.quick-nav-arrow--slot:focus-visible{
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.22), 0 14px 34px rgba(15,23,42,0.12) !important;
+}
+
+/* When it fits, center the whole pill set (symmetry feels "complete") */
+.quick-nav--fits .quick-nav-list{
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Mobile: keep the modern rail, hide arrow slots */
+@media (max-width: 900px){
+  .quick-nav-container.quick-nav-container--arrows{
+    display: block !important;
+  }
+  .quick-nav-arrow--slot{
+    display: none !important;
+  }
+  .quick-nav-scroll{
+    padding: 8px 10px !important;
+  }
+}
+
+/* =========================================================
+   QUICK NAV -- Edge space + end clipping fix (FINAL)
+   - tighter arrow slots (less dead space)
+   - tiny flex buffers so first/last pill never looks chopped
+   ========================================================= */
+
+.quick-nav-container{
+  padding: 8px 10px !important;     /* less outer dead space */
+  min-height: 62px !important;
+}
+
+/* smaller dedicated arrow pockets */
+.quick-nav-container.quick-nav-container--arrows{
+  display: grid !important;
+  grid-template-columns: 52px 1fr 52px !important; /* was too wide */
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+/* track padding reduced so content uses the rail */
+.quick-nav-scroll{
+  padding: 8px 12px !important;      /* tighter = less wasted edge */
+  scroll-padding-left: 12px !important;
+  scroll-padding-right: 12px !important;
+  border-radius: 16px !important;
+}
+
+/* IMPORTANT: prevent cut-off look at both ends WITHOUT big padding.
+   These pseudo-elements act like tiny spacers inside the scroll lane. */
+.quick-nav-list::before,
+.quick-nav-list::after{
+  content: "";
+  flex: 0 0 14px;                    /* small buffer for pill rounded edge/shadow */
+}
+
+/* keep pills modern but reduce heavy shadow that exaggerates clipping */
+.quick-nav-item a{
+  box-shadow: 0 8px 18px rgba(15,23,42,0.06) !important;
+}
+
+/* if you have ultra-long labels, stop them kissing the rail edge */
+.quick-nav-item a{
+  scroll-margin-left: 8px;
+  scroll-margin-right: 8px;
+}
+
+/* Mobile stays as-is (arrows hidden). Keep the rail tight. */
+@media (max-width: 900px){
+  .quick-nav-container{
+    padding: 8px 8px !important;
+  }
+  .quick-nav-scroll{
+    padding: 7px 6px !important;
+  }
+  .quick-nav-list::before,
+  .quick-nav-list::after{
+    flex-basis: 10px;
+  }
+}
+
+/* =========================================================
+   QUICK NAV - END CLIP FIX (wins over all older blocks)
+   ========================================================= */
+
+.quick-nav-scroll{
+  width: 100% !important;
+  min-width: 0 !important;
+
+  position: relative !important;
+  isolation: isolate; /* makes z-index layers reliable */
+
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+
+  overflow-x: auto !important;
+  overflow-y: visible !important; /* prevents "nibbled" pill edges/shadows */
+
+  white-space: nowrap !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+
+  /* real breathing room so first/last chip never kisses the track edge */
+  padding: 8px 16px !important;
+  scroll-padding-left: 16px !important;
+  scroll-padding-right: 16px !important;
+
+  /* remove track styling from the scroller itself */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.quick-nav-scroll::-webkit-scrollbar{ display:none; }
+
+/* Ensure chips render above the track */
+.quick-nav-scroll .quick-nav-list{
+  position: relative;
+  z-index: 1;
+}
+
+/* add true end-buffers INSIDE the list so pills never look chopped */
+.quick-nav-list::before,
+.quick-nav-list::after{
+  content: "" !important;
+  flex: 0 0 12px !important;
+}
+
+/* =========================================================
+   QUICK NAV -- NO CLIP SHELL (FINAL)
+   Fixes: pills looking cut off by rounded rail / track
+   ========================================================= */
+
+/* 1) Shell stops clipping */
+.quick-nav-container{
+  position: sticky !important;
+  overflow: visible !important;   /* <-- key change */
+  isolation: isolate !important;  /* stable stacking */
+}
+
+/* 2) Glass rail becomes a background layer (keeps rounded look) */
+.quick-nav-container::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  pointer-events: none;
+  z-index: 0;
+
+  /* match your modern glass look */
+  background: color-mix(in srgb, var(--panel) 86%, rgba(255,255,255,0.10));
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+
+  box-shadow:
+    0 18px 50px rgba(15,23,42,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.55);
+}
+
+[data-theme="dark"] .quick-nav-container::before{
+  background: color-mix(in srgb, var(--panel) 72%, rgba(0,0,0,0.20));
+  border-color: rgba(255,255,255,0.12);
+  box-shadow:
+    0 22px 70px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+/* 3) Ensure real content sits above the background */
+.quick-nav-container > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* =========================
+   Quick Nav -- FINAL "no cut ends"
+   ========================= */
+
+/* Dedicated arrow slots (your JSX has arrows as siblings) */
+.quick-nav-container.quick-nav-container--arrows{
+  display: grid !important;
+  grid-template-columns: 56px 1fr 56px !important;
+  align-items: center !important;
+  gap: 10px !important;
+
+  /* IMPORTANT: don't clip pill edges/shadows */
+  overflow: visible !important;
+}
+
+/* Middle lane */
+.quick-nav-container--arrows .quick-nav-scroll{
+  grid-column: 2 !important;
+}
+
+/* The scroller must NOT clip vertically */
+.quick-nav-scroll{
+  position: relative !important;
+  isolation: isolate !important;
+
+  overflow-x: auto !important;
+  overflow-y: visible !important; /* <- key */
+
+  clip-path: none !important;
+
+  /* comfortable but not "wasteful" */
+  padding: 10px 12px !important;
+  scroll-padding-left: 12px !important;
+  scroll-padding-right: 12px !important;
+
+  /* the track should NOT be the background/border of the scroller */
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Make pills sit above the track */
+.quick-nav-list{
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Real end buffers so first/last pill never looks "shaved" */
+.quick-nav-list::before,
+.quick-nav-list::after{
+  content: "";
+  flex: 0 0 16px;
+}
+
+/* Arrows in slots (not sticky) */
+.quick-nav-arrow--slot{
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+/* Arrow "disabled" styling now driven by aria/data attributes (not the disabled attribute) */
+.quick-nav-arrow[aria-disabled="true"],
+.quick-nav-arrow[data-disabled="1"]{
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* =========================================================
+   QUICK NAV — End cut-off fix (FINAL winner)
+   Targets: .quick-nav-container / --arrows / .quick-nav-scroll
+   ========================================================= */
+
+.quick-nav-container.quick-nav-container--arrows{
+  /* keep your symmetric arrow slots */
+  display: grid !important;
+  grid-template-columns: 56px 1fr 56px !important;
+  align-items: center !important;
+  gap: 10px !important;
+
+  /* don't clip chip edges */
+  overflow: visible !important;
+}
+
+/* The scroller must never fade/clip the ends */
+.quick-nav-scroll{
+  /* kill any remaining edge fades/masks from older attempts */
+  clip-path: none !important;
+
+  /* stop vertical clipping of pill shadows/edges */
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+
+  /* real inner gutters so first/last chip never kisses the edge */
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+  scroll-padding-left: 18px !important;
+  scroll-padding-right: 18px !important;
+}
+
+/* true end buffers inside the row (prevents "shaved" look at both ends) */
+.quick-nav-list::before,
+.quick-nav-list::after{
+  content: "" !important;
+  flex: 0 0 18px !important;
+}
+
+/* --- QuickNav: never rest "half-cut" (FINAL snap + padding) --- */
+.quick-nav-scroll{
+  /* snap to whole pills */
+  scroll-snap-type: x mandatory !important;
+  scroll-behavior: smooth !important;
+
+  /* make scrollIntoView land with breathing room */
+  scroll-padding-left: 16px !important;
+  scroll-padding-right: 16px !important;
+}
+
+/* snap points */
+.quick-nav-item{
+  scroll-snap-align: start !important;
+  scroll-snap-stop: always !important;
+}
+
+/* ensure start/end pills don't kiss the edge */
+.quick-nav-list::before,
+.quick-nav-list::after{
+  content: "" !important;
+  flex: 0 0 16px !important;
+}
+
+/* when we scrollIntoView, don't align flush to the very edge */
+.quick-nav-item a{
+  scroll-margin-left: 16px !important;
+  scroll-margin-right: 16px !important;
+}
+
+/* Quick Nav: remove the grey "track" bar behind chips */
+.quick-nav-scroll{
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  scroll-padding-left: 12px !important;
+  scroll-padding-right: 12px !important;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* If any older attempt drew a track as a pseudo-element, nuke it */
+.quick-nav-scroll::before,
+.quick-nav-scroll::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* =========================================================
+   SOLID HEADER (MOBILE TOO) — final override
+   ========================================================= */
+
+/* Top header bar (desktop + mobile) */
+.pp-topnav{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Mobile header row */
+.pp-topnav__mobileRow{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* If you still use the legacy navbar anywhere */
+.navbar{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Theme-opaque backgrounds */
+[data-theme='dark'] .pp-topnav,
+[data-theme='dark'] .pp-topnav__mobileRow,
+[data-theme='dark'] .navbar{
+  background: #0f172a !important; /* solid dark */
+}
+
+[data-theme='light'] .pp-topnav,
+[data-theme='light'] .pp-topnav__mobileRow,
+[data-theme='light'] .navbar{
+  background: #ffffff !important; /* solid light */
+}
+
+/* Optional: also make the order panel header solid on mobile */
+.order-panel-header{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+[data-theme='dark'] .order-panel-header{ background: #0f172a !important; }
+[data-theme='light'] .order-panel-header{ background: #ffffff !important; }
+
+/* =========================================================
+   QUICK NAV — Slot arrows must NOT overlay chips (FINAL)
+   Forces: [arrow slot] [scroll lane] [arrow slot]
+   ========================================================= */
+
+.quick-nav-container.quick-nav-container--arrows{
+  display: grid !important;
+  grid-template-columns: 56px 1fr 56px !important;
+  align-items: center !important;
+  column-gap: 10px !important;
+
+  /* never clip, and don’t let absolute children escape */
+  position: sticky !important;
+}
+
+/* middle lane */
+.quick-nav-container.quick-nav-container--arrows .quick-nav-scroll{
+  grid-column: 2 !important;
+  min-width: 0 !important;
+}
+
+/* left/right arrows are real “slots”, not overlays */
+.quick-nav-container.quick-nav-container--arrows .quick-nav-arrow--slot{
+  position: static !important;   /* KILLS any old absolute/sticky */
+  inset: auto !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+
+  justify-self: center !important;
+  align-self: center !important;
+  z-index: 2 !important;         /* above track, but not over chips */
+}
+
+.quick-nav-container.quick-nav-container--arrows .quick-nav-arrow--left.quick-nav-arrow--slot{
+  grid-column: 1 !important;
+}
+.quick-nav-container.quick-nav-container--arrows .quick-nav-arrow--right.quick-nav-arrow--slot{
+  grid-column: 3 !important;
+}
+
+/* if you still have “inscroll” arrow styles hanging around, neutralize them */
+.quick-nav-arrow--inscroll{
+  position: static !important;
+  left: auto !important;
+  right: auto !important;
+}
+
+/* Quick Nav: remove the grey "track" bar behind chips */
+.quick-nav-scroll{
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* If any older attempt drew a track as a pseudo-element, nuke it */
+.quick-nav-scroll::before,
+.quick-nav-scroll::after{
+  content: none !important;
+  display: none !important;
 }
