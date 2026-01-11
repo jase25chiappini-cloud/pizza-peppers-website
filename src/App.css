@@ -9497,6 +9497,16 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 [data-theme='light'] .order-panel-header{ background: #ffffff !important; }
 
 /* =========================================================
+   MOBILE: remove the order detail panel at bottom (right sidebar)
+   ========================================================= */
+@media (max-width: 1023.98px){
+  /* Only hide the layout sidebar (won't affect modals that reuse order-panel classes) */
+  .app-grid-layout > .right-sidebar{
+    display: none !important;
+  }
+}
+
+/* =========================================================
    QUICK NAV — Slot arrows must NOT overlay chips (FINAL)
    Forces: [arrow slot] [scroll lane] [arrow slot]
    ========================================================= */
