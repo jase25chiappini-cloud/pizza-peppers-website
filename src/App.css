@@ -2156,9 +2156,9 @@ footer,
   background: var(--pp-surface-2);
   border: 1px solid var(--border-color);
   border-radius: 999px;
-  padding: 0.35rem 0.7rem;
+  padding: 0.30rem 0.52rem;
   color: var(--text-primary);
-  font-size: 0.82rem;
+  font-size: 0.80rem;
 }
 
 .pp-topnav__searchInput::placeholder{
@@ -9503,6 +9503,26 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   /* Only hide the layout sidebar (won't affect modals that reuse order-panel classes) */
   .app-grid-layout > .right-sidebar{
     display: none !important;
+  }
+}
+
+/* Desktop: let the header search pills hug their placeholder text */
+@media (min-width: 1024px){
+  .pp-topnav__searchWrap{
+    flex-wrap: nowrap;
+  }
+
+  /* This is the big one: stop forcing full width */
+  .pp-topnav__searchInput{
+    width: auto;
+    box-sizing: content-box; /* so the size=... feels tight */
+  }
+}
+
+@media (min-width: 1024px){
+  .pp-topnav__searchInput{
+    width: 100%;
+    box-sizing: border-box;
   }
 }
 

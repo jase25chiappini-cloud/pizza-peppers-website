@@ -11048,6 +11048,57 @@ function Navbar({
 
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isToppingFocused, setIsToppingFocused] = useState(false);
+  // Desktop search pill "hug" widths (measured from placeholder + real padding)
+  const desktopNameInputRef = useRef(null);
+  const desktopToppingInputRef = useRef(null);
+  const [collapsedNameW, setCollapsedNameW] = useState(108);
+  const [collapsedToppingW, setCollapsedToppingW] = useState(124);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const measureOne = (el) => {
+      if (!el) return null;
+      const cs = window.getComputedStyle(el);
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      // Match the input's rendered font as closely as possible
+      ctx.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily}`;
+
+      const text = el.getAttribute("placeholder") || "";
+      const textW = ctx.measureText(text).width;
+
+      const padL = parseFloat(cs.paddingLeft || "0") || 0;
+      const padR = parseFloat(cs.paddingRight || "0") || 0;
+      const borderL = parseFloat(cs.borderLeftWidth || "0") || 0;
+      const borderR = parseFloat(cs.borderRightWidth || "0") || 0;
+
+      // Tiny safety buffer so it never clips, but still hugs
+      const extra = 2;
+
+      const w = Math.ceil(textW + padL + padR + borderL + borderR + extra);
+      // clamp so it never gets silly
+      return Math.max(92, Math.min(w, 170));
+    };
+
+    const measure = () => {
+      const w1 = measureOne(desktopNameInputRef.current);
+      const w2 = measureOne(desktopToppingInputRef.current);
+      if (typeof w1 === "number") setCollapsedNameW(w1);
+      if (typeof w2 === "number") setCollapsedToppingW(w2);
+    };
+
+    measure();
+    const t = window.setTimeout(measure, 60);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   // Mobile navbar: keep the top bar tight, open search in a dropdown drawer.
   const [isMobile, setIsMobile] = useState(() => {
@@ -11193,8 +11244,9 @@ function Navbar({
                     width:
                       isNameFocused || (searchName && searchName.length > 0)
                         ? "190px"
-                        : "120px",
-                    transition: "width 150ms ease-out",
+                        : `${collapsedNameW}px`,
+                    transition: "width 170ms ease-out",
+                    willChange: "width",
                   }}
                 >
                   <input
@@ -11207,6 +11259,7 @@ function Navbar({
                     onFocus={() => setIsNameFocused(true)}
                     onBlur={() => setIsNameFocused(false)}
                     className="pp-topnav__searchInput"
+                    ref={desktopNameInputRef}
                   />
                 </div>
 
@@ -11217,8 +11270,9 @@ function Navbar({
                       isToppingFocused ||
                       (searchTopping && searchTopping.length > 0)
                         ? "190px"
-                        : "calc(15ch + 1.8rem)",
-                    transition: "width 150ms ease-out",
+                        : `${collapsedToppingW}px`,
+                    transition: "width 170ms ease-out",
+                    willChange: "width",
                   }}
                 >
                   <input
@@ -11232,6 +11286,7 @@ function Navbar({
                     onFocus={() => setIsToppingFocused(true)}
                     onBlur={() => setIsToppingFocused(false)}
                     className="pp-topnav__searchInput"
+                    ref={desktopToppingInputRef}
                   />
                 </div>
               </div>
