@@ -11217,7 +11217,7 @@ function Navbar({
                       isToppingFocused ||
                       (searchTopping && searchTopping.length > 0)
                         ? "190px"
-                        : "120px",
+                        : "calc(15ch + 1.8rem)",
                     transition: "width 150ms ease-out",
                   }}
                 >
