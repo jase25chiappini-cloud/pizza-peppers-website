@@ -3434,16 +3434,43 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 }
 
-/* 2) Quick-nav sticky offset (nav gets taller on mobile) */
+/* 2) Quick-nav — ultra compact on mobile (FINAL override) */
 @media (max-width: 900px) {
-  .quick-nav-container {
-    top: 9.0rem;
-    padding: 0.5rem;
+  .quick-nav-container{
+    top: calc(3.45rem + env(safe-area-inset-top)); /* snug under header */
+    margin: 0 0 0.55rem;
+    padding: 0.14rem;
+    min-height: 38px;
+    border-radius: 14px;
+
+    /* keep it fast */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
-  .quick-nav-item a {
-    padding: 0.44rem 0.8rem;
-    font-size: 0.7rem;
+  .quick-nav-scroll{
+    padding: 2px 6px;
+    gap: 6px;
+  }
+
+  .quick-nav-list{
+    gap: 0.35rem;
+  }
+
+  .quick-nav-item a{
+    height: 26px;              /* smaller pills */
+    padding: 0 0.55rem;
+    font-size: 0.60rem;
+    letter-spacing: 0.085em;
+  }
+}
+
+/* extra tight for tiny phones */
+@media (max-width: 420px){
+  .quick-nav-item a{
+    height: 24px;
+    padding: 0 0.50rem;
+    font-size: 0.58rem;
   }
 }
 
@@ -9535,6 +9562,330 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   display: none !important;
 }
 
+/* =========================================================
+   Login Modal (mobile) - modern friendly sheet
+   ========================================================= */
+@media (max-width: 640px){
+  .modal-overlay.pp-login-overlay{
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+    background: rgba(2,6,23,0.72);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+
+  .modal-content.pp-login-modal{
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: none !important;
+
+    border-radius: 0 !important;
+    padding: 0.95rem 0.95rem calc(0.95rem + env(safe-area-inset-bottom)) !important;
+
+    background:
+      radial-gradient(900px 380px at 50% 0%, rgba(190,242,100,0.12), transparent 60%),
+      radial-gradient(700px 320px at 85% 15%, rgba(251,113,133,0.10), transparent 55%),
+      linear-gradient(180deg, var(--pp-surface, var(--panel)) 0%, rgba(0,0,0,0) 85%);
+    border: 1px solid rgba(148,163,184,0.18) !important;
+    box-shadow: var(--shadow-modal);
+  }
+
+  .pp-login-modal .modal-header{
+    position: sticky;
+    top: 0;
+    z-index: 2;
+
+    padding: calc(0.35rem + env(safe-area-inset-top)) 0 0.75rem;
+    margin: 0 0 0.65rem;
+    border-bottom: 1px solid rgba(148,163,184,0.16);
+
+    background:
+      linear-gradient(180deg, var(--pp-surface, var(--panel)) 0%, rgba(0,0,0,0) 90%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .pp-login-title{
+    margin: 0 !important;
+    font-size: 1.15rem !important;
+    font-weight: 950 !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    color: var(--brand-neon-green);
+  }
+
+  .pp-login-modal .modal-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.2rem 0.15rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* Segmented control tabs */
+  .pp-login-tabs{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+    border-radius: 16px;
+    border: 1px solid rgba(148,163,184,0.18);
+    background: rgba(0,0,0,0.16);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+  }
+
+  [data-theme="light"] .pp-login-tabs{
+    background: rgba(15,23,42,0.03);
+    box-shadow: 0 12px 26px rgba(2,6,23,0.10);
+  }
+
+  .pp-login-tab{
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.18);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-primary);
+
+    font-weight: 900;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+
+    transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .pp-login-tab.is-active{
+    background: linear-gradient(180deg, var(--brand-neon-green), rgba(190,242,100,0.78));
+    color: #0b1220;
+    border-color: rgba(190,242,100,0.55);
+    box-shadow: 0 0 0 3px rgba(190,242,100,0.14), 0 14px 32px rgba(0,0,0,0.18);
+    transform: translateY(-1px);
+  }
+
+  /* Provider buttons */
+  .pp-login-providerBtn{
+    width: 100%;
+    min-height: 54px;
+
+    border-radius: 18px;
+    border: 1px solid rgba(148,163,184,0.22) !important;
+    background: rgba(0,0,0,0.14) !important;
+    color: var(--text-primary) !important;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    box-shadow: 0 16px 36px rgba(0,0,0,0.22);
+
+    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease, border-color 160ms ease;
+  }
+
+  [data-theme="light"] .pp-login-providerBtn{
+    background: rgba(255,255,255,0.92) !important;
+    box-shadow: 0 16px 34px rgba(2,6,23,0.12);
+  }
+
+  .pp-login-providerBtn:active{
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .pp-login-legal{
+    margin-top: auto;
+    padding-top: 0.65rem;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text-medium);
+    opacity: 0.92;
+  }
+}
+
+/* =========================================================
+   LOGIN MODAL (MOBILE) - modern friendly card (FINAL override)
+   ========================================================= */
+@media (max-width: 640px){
+  /* Stop the full-screen sheet behaviour for login only */
+  .modal-overlay.pp-login-overlay{
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.9rem !important;
+    background: rgba(2,6,23,0.78) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+
+  .modal-content.pp-login-modal{
+    width: min(520px, 100%) !important;
+    max-width: 520px !important;
+
+    height: auto !important;
+    max-height: min(78vh, 620px) !important;
+
+    border-radius: 22px !important;
+    padding: 0.95rem !important;
+
+    border: 1px solid rgba(148,163,184,0.22) !important;
+    box-shadow: 0 28px 70px rgba(0,0,0,0.55) !important;
+
+    background:
+      radial-gradient(900px 360px at 50% 0%, rgba(190,242,100,0.14), transparent 60%),
+      radial-gradient(700px 320px at 82% 10%, rgba(251,113,133,0.10), transparent 55%),
+      linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.92)) !important;
+  }
+
+  [data-theme="light"] .modal-content.pp-login-modal{
+    background:
+      radial-gradient(900px 360px at 50% 0%, rgba(22,163,74,0.10), transparent 60%),
+      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,251,0.98)) !important;
+    box-shadow: 0 20px 55px rgba(2,6,23,0.16) !important;
+    border-color: rgba(15,23,42,0.12) !important;
+  }
+
+  .pp-login-modal .modal-header{
+    border-bottom: 1px solid rgba(148,163,184,0.16) !important;
+    padding-bottom: 0.8rem !important;
+    margin-bottom: 0.85rem !important;
+  }
+
+  /* Brand row */
+  .pp-login-brand{
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    min-width: 0;
+  }
+  .pp-login-brand__logo{
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    object-fit: cover;
+    border: 1px solid rgba(148,163,184,0.22);
+    box-shadow: 0 12px 26px rgba(0,0,0,0.20);
+  }
+  .pp-login-brand__text{ min-width: 0; }
+
+  .pp-login-title{
+    margin: 0 !important;
+    font-size: 1.05rem !important;
+    font-weight: 950 !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase !important;
+    color: var(--brand-neon-green) !important;
+  }
+  [data-theme="light"] .pp-login-title{
+    color: rgba(15,23,42,0.92) !important;
+  }
+  .pp-login-subtitle{
+    margin-top: 0.25rem;
+    font-size: 0.88rem;
+    font-weight: 650;
+    color: var(--text-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Body scroll (so no giant empty space) */
+  .pp-login-modal .modal-body{
+    max-height: calc(min(78vh, 620px) - 140px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.15rem 0.1rem 0.25rem !important;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  /* Tabs - less chunky, more "segmented control" */
+  .pp-login-tabs{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+    border-radius: 16px;
+    border: 1px solid rgba(148,163,184,0.18);
+    background: rgba(0,0,0,0.16);
+  }
+  [data-theme="light"] .pp-login-tabs{
+    background: rgba(15,23,42,0.03);
+    border-color: rgba(15,23,42,0.10);
+  }
+
+  .pp-login-tab{
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.16);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-primary);
+    font-weight: 900;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-size: 0.70rem;
+  }
+  .pp-login-tab.is-active{
+    background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(190,242,100,0.72));
+    color: #0b1220;
+    border-color: rgba(190,242,100,0.55);
+    box-shadow: 0 0 0 3px rgba(190,242,100,0.14);
+  }
+
+  /* Provider buttons - modern cards with subtle "go" affordance */
+  .pp-login-providerBtn{
+    width: 100% !important;
+    min-height: 54px;
+    border-radius: 18px !important;
+    border: 1px solid rgba(148,163,184,0.22) !important;
+    background: rgba(0,0,0,0.14) !important;
+    color: var(--text-primary) !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.75rem;
+
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    box-shadow: 0 16px 34px rgba(0,0,0,0.22);
+  }
+  [data-theme="light"] .pp-login-providerBtn{
+    background: rgba(255,255,255,0.92) !important;
+    box-shadow: 0 14px 28px rgba(2,6,23,0.10);
+  }
+  .pp-login-providerBtn:active{
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .pp-login-legal{
+    margin-top: 0.35rem;
+    text-align: center;
+    font-size: 0.80rem;
+    color: var(--text-medium);
+  }
+}
+
+.pp-login-back{
+  width: fit-content;
+  margin: 0 0 0.75rem 0;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.14);
+  color: var(--text-primary);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+[data-theme="light"] .pp-login-back{
+  background: rgba(255,255,255,0.92);
+}
+
 @media (max-width: 900px){
   .quick-nav-container{
     /* blur is expensive while scrolling on mobile */
@@ -9575,6 +9926,61 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
     padding: 0 0.70rem;
     font-size: 0.68rem;
     letter-spacing: 0.09em;
+  }
+}
+
+/* =========================================================
+   Mobile QuickNav — ultra-compact (wins over earlier blocks)
+   ========================================================= */
+@media (max-width: 900px){
+  .quick-nav-container{
+    margin: 0 0 0.55rem;
+    padding: 0.18rem;
+    min-height: 40px;          /* was 60px */
+    border-radius: 14px;
+
+    /* keep it snappy on mobile */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+
+    /* sit closer to header (less wasted space) */
+    top: calc(3.35rem + env(safe-area-inset-top));
+  }
+
+  .quick-nav-scroll{
+    padding: 4px 6px;          /* was much larger */
+    gap: 6px;
+  }
+
+  .quick-nav-list{
+    gap: 0.35rem;
+  }
+
+  .quick-nav-item a{
+    height: 28px;              /* was 38px */
+    padding: 0 0.62rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.085em;
+  }
+}
+
+/* extra-tight on tiny phones */
+@media (max-width: 420px){
+  .quick-nav-container{
+    min-height: 36px;
+    padding: 0.14rem;
+    border-radius: 13px;
+  }
+
+  .quick-nav-scroll{
+    padding: 3px 5px;
+  }
+
+  .quick-nav-item a{
+    height: 26px;
+    padding: 0 0.56rem;
+    font-size: 0.60rem;
+    letter-spacing: 0.08em;
   }
 }
 

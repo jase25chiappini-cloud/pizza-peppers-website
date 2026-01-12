@@ -8887,9 +8887,7 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
   const firebaseDisabled = !FB_READY || !firebaseAuth;
 
   const initialTab = /** @type {LoginTab} */ (
-    tab === "phone" || tab === "email" || tab === "providers"
-      ? tab
-      : "providers"
+    tab === "phone" ? "phone" : "providers"
   );
   /** @type {[LoginTab, React.Dispatch<React.SetStateAction<LoginTab>>]} */
   const [activeTab, setActiveTab] = React.useState(initialTab);
@@ -8913,8 +8911,8 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
   const recaptchaMounted = React.useRef(false);
 
   React.useEffect(() => {
-    if (tab === "phone" || tab === "email" || tab === "providers") {
-      setActiveTab(tab);
+    if (tab === "phone") {
+      setActiveTab("phone");
     } else {
       setActiveTab("providers");
     }
@@ -9156,9 +9154,9 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <div className="modal-overlay pp-login-overlay" onClick={handleClose}>
       <div
-        className="modal-content"
+        className="modal-content pp-login-modal"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -9173,9 +9171,17 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
           className="modal-header"
           style={{ borderBottom: "none", paddingBottom: 0 }}
         >
-          <h3 className="panel-title" style={{ fontSize: "1.6rem" }}>
-            Sign in
-          </h3>
+          <div className="pp-login-brand">
+            <img
+              className="pp-login-brand__logo"
+              src="/pizza-peppers-logo.jpg"
+              alt="Pizza Peppers"
+            />
+            <div className="pp-login-brand__text">
+              <div className="pp-login-title">Sign in</div>
+              <div className="pp-login-subtitle">Quick checkout & saved details</div>
+            </div>
+          </div>
           <button
             type="button"
             className="pp-modal-close"
@@ -9191,37 +9197,6 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
           className="modal-body"
           style={{ overflowX: "hidden", paddingTop: "0.75rem" }}
         >
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            {
-              /** @type {{ key: LoginTab, label: string }[]} */ ([
-                { key: "providers", label: "Providers" },
-                { key: "phone", label: "Phone" },
-                { key: "email", label: "Email" },
-              ]).map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setActiveTab(key)}
-                  style={{
-                    flex: 1,
-                    padding: "0.6rem 0.8rem",
-                    borderRadius: "0.6rem",
-                    border: `1px solid ${activeTab === key ? "var(--brand-neon-green)" : "var(--border-color)"}`,
-                    background:
-                      activeTab === key
-                        ? "var(--background-light)"
-                        : "transparent",
-                    color: "var(--text-light)",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    transition: "border-color 0.2s, background 0.2s",
-                  }}
-                >
-                  {label}
-                </button>
-              ))
-            }
-          </div>
           {activeTab !== "phone" && err && (
             <p style={{ color: "tomato", margin: "0 0 1rem 0" }}>{err}</p>
           )}
@@ -9232,6 +9207,7 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
               >
                 <button
                   type="button"
+                  className="pp-login-providerBtn"
                   style={buttonStyle}
                   onClick={async () => {
                     try {
@@ -9246,26 +9222,9 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
                   <GoogleIcon />
                   Continue with Google
                 </button>
-                {PP_ENABLE_APPLE_LOGIN ? (
-                  <button
-                    type="button"
-                    style={buttonStyle}
-                    onClick={async () => {
-                      try {
-                        await handleProvider(loginWithApple);
-                      } catch (e) {
-                        console.error("[auth] provider failed", e);
-                      }
-                    }}
-                    disabled={firebaseDisabled || loading}
-                    title={firebaseDisabled ? "Temporarily unavailable" : ""}
-                  >
-                    <AppleIcon />
-                    Continue with Apple
-                  </button>
-                ) : null}
                 <button
                   type="button"
+                  className="pp-login-providerBtn"
                   style={buttonStyle}
                   onClick={() => setActiveTab("phone")}
                   title={
@@ -9278,30 +9237,21 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
                   Continue with Phone
                 </button>
               </div>
-              <p
-                style={{
-                  textAlign: "center",
-                  color: "var(--text-medium)",
-                  fontSize: "0.85rem",
-                  marginTop: "0.5rem",
-                }}
-              >
+              <p style={{ margin: "0.8rem 0 0.25rem", color: "var(--text-medium)", textAlign: "center" }}>
                 By continuing, you agree to our Terms and Conditions.
               </p>
             </>
           )}
 
-          {activeTab === "email" && (
-            <div style={{ marginTop: "0.5rem", color: "var(--text-medium)" }}>
-              <p style={{ margin: 0 }}>
-                Email sign-in is coming soon. Please use phone or a provider for
-                now.
-              </p>
-            </div>
-          )}
-
           {activeTab === "phone" && (
             <div style={{ marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                className="pp-login-back"
+                onClick={() => setActiveTab("providers")}
+              >
+                {"\u2190"} Back
+              </button>
               {/* Tabs */}
               <div
                 style={{
@@ -12016,6 +11966,7 @@ function AppLayout({ isMapsLoaded }) {
   const [cartModalOpen, setCartModalOpen] = React.useState(false);
   const showViewOrderFab =
     isMobile &&
+    !authCtx.showLogin &&
     !cartModalOpen &&
     !isProfileOpen &&
     !selectedItem; // hides during item detail + meal deal editor + half&half, etc.
