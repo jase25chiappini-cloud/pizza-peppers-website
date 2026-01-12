@@ -9886,6 +9886,322 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   background: rgba(255,255,255,0.92);
 }
 
+/* ======================================================================
+   PP TEXTURE + GLASS PACK (v1)
+   Paste at the VERY BOTTOM of App.css so it overrides earlier blocks.
+   Goal: kill "plastic" feel with subtle grain + glassy buttons.
+   ====================================================================== */
+
+/* 1) Micro-texture tokens */
+:root{
+  --pp-grain-a: 0.16;          /* overall grain strength */
+  --pp-grain-b: 0.10;          /* secondary grain strength */
+  --pp-glass-blur: 14px;
+  --pp-glass-sat: 145%;
+
+  --pp-glass-border: rgba(255,255,255,0.16);
+  --pp-glass-fill: rgba(255,255,255,0.08);
+  --pp-glass-fill-2: rgba(255,255,255,0.05);
+  --pp-glass-shadow: 0 14px 34px rgba(0,0,0,0.25);
+  --pp-glass-inset: inset 0 1px 0 rgba(255,255,255,0.14);
+
+  /* Specular highlights */
+  --pp-spec-1: rgba(255,255,255,0.38);
+  --pp-spec-2: rgba(255,255,255,0.10);
+
+  --pp-btn-sheen-opacity: 0.18;
+  --pp-panel-sheen-opacity: 0.22;
+}
+
+/* Light theme tuning */
+html[data-theme="light"], body[data-theme="light"]{
+  /* Make "glass" actually translucent in light mode so blur + depth show */
+  --pp-glass-border: rgba(15,23,42,0.18);
+  --pp-glass-fill: rgba(255,255,255,0.58);
+  --pp-glass-fill-2: rgba(255,255,255,0.40);
+
+  /* Stronger shadow so surfaces lift off the page */
+  --pp-glass-shadow: 0 18px 46px rgba(2,6,23,0.14);
+  --pp-glass-inset: inset 0 1px 0 rgba(255,255,255,0.65);
+
+  /* Slightly "wetter" highlight in light mode */
+  --pp-spec-1: rgba(255,255,255,0.78);
+  --pp-spec-2: rgba(15,23,42,0.08);
+
+  /* Light mode glass needs a touch more blur/sat to read as frosted */
+  --pp-glass-blur: 18px;
+  --pp-glass-sat: 160%;
+
+  /* Theme-specific sheen strength */
+  --pp-btn-sheen-opacity: 0.24;
+  --pp-panel-sheen-opacity: 0.28;
+}
+
+/* 2) Background texture (no overlay layer / no z-index games) */
+body[data-theme="dark"]{
+  background-color: var(--background) !important;
+  background-image:
+    radial-gradient(900px 420px at 15% 6%, rgba(190,242,100,0.09), transparent 62%),
+    radial-gradient(720px 420px at 88% 0%, rgba(251,113,133,0.07), transparent 58%),
+    radial-gradient(760px 520px at 50% 110%, rgba(59,130,246,0.06), transparent 60%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,calc(var(--pp-grain-a))) 0px,
+      rgba(255,255,255,calc(var(--pp-grain-a))) 1px,
+      rgba(0,0,0,calc(var(--pp-grain-b))) 1px,
+      rgba(0,0,0,calc(var(--pp-grain-b))) 3px
+    ) !important;
+  background-attachment: fixed;
+}
+
+body[data-theme="light"]{
+  background-color: var(--background) !important;
+  background-image:
+    radial-gradient(900px 420px at 15% 6%, rgba(22,163,74,0.07), transparent 62%),
+    radial-gradient(720px 420px at 88% 0%, rgba(236,72,153,0.06), transparent 58%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.26) 0px,
+      rgba(255,255,255,0.26) 1px,
+      rgba(15,23,42,0.05) 1px,
+      rgba(15,23,42,0.05) 3px
+    ) !important;
+  background-attachment: fixed;
+}
+
+/* 3) "Glassy surface" helper (applied via selectors below) */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
+  .pp-glass-surface{
+    background: linear-gradient(180deg, var(--pp-glass-fill), var(--pp-glass-fill-2)) !important;
+    border: 1px solid var(--pp-glass-border) !important;
+    box-shadow: var(--pp-glass-shadow), var(--pp-glass-inset) !important;
+    backdrop-filter: blur(var(--pp-glass-blur)) saturate(var(--pp-glass-sat));
+    -webkit-backdrop-filter: blur(var(--pp-glass-blur)) saturate(var(--pp-glass-sat));
+  }
+}
+
+/* 4) Apply glass to panels that can look "plastic" */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
+  .menu-category,
+  .menu-item-card,
+  .order-panel-container,
+  .info-box,
+  .about-panel-list-item,
+  .quick-nav-container,
+  .pp-md-head,
+  .pp-md-active,
+  .pp-mdm-head,
+  .pp-mdm-next,
+  .pp-mdm-list,
+  .pp-modal,
+  .modal-content{
+    background: linear-gradient(180deg, var(--pp-glass-fill), var(--pp-glass-fill-2)) !important;
+    border: 1px solid var(--pp-glass-border) !important;
+    box-shadow: var(--pp-glass-shadow) !important;
+  }
+
+  /* subtle "spec highlight" strip on key surfaces */
+  .menu-item-card::before,
+  .order-panel-container::before,
+  .pp-modal::before,
+  .modal-content::before{
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(120deg, var(--pp-spec-1), transparent 45%),
+      linear-gradient(180deg, rgba(255,255,255,0.10), transparent 40%);
+    opacity: var(--pp-panel-sheen-opacity);
+  }
+}
+
+/* 5) Glassy buttons (core request) */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
+  /* Targets: your main buttons + icon buttons + chips that act like buttons */
+  .pp-btn,
+  .simple-button,
+  .pp-mdp-toolBtn,
+  .pp-topnav__iconBtn,
+  .pp-theme-toggle,
+  .quick-nav-arrow,
+  .quantity-btn:not([title="Close"]){
+    position: relative;
+    overflow: hidden;
+
+    border: 1px solid var(--pp-glass-border) !important;
+    background: linear-gradient(180deg, var(--pp-glass-fill), var(--pp-glass-fill-2)) !important;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.20), var(--pp-glass-inset) !important;
+
+    backdrop-filter: blur(var(--pp-glass-blur)) saturate(var(--pp-glass-sat));
+    -webkit-backdrop-filter: blur(var(--pp-glass-blur)) saturate(var(--pp-glass-sat));
+  }
+
+  /* Specular + micro-grain inside buttons */
+  .pp-btn::before,
+  .simple-button::before,
+  .pp-mdp-toolBtn::before,
+  .pp-topnav__iconBtn::before,
+  .pp-theme-toggle::before,
+  .quick-nav-arrow::before,
+  .quantity-btn:not([title="Close"])::before{
+    content:"";
+    position:absolute;
+    inset:-2px;
+    pointer-events:none;
+    background:
+      linear-gradient(120deg, rgba(255,255,255,0.55), transparent 42%),
+      repeating-linear-gradient(
+        135deg,
+        rgba(255,255,255,0.05) 0px,
+        rgba(255,255,255,0.05) 1px,
+        rgba(0,0,0,0.05) 1px,
+        rgba(0,0,0,0.05) 3px
+      );
+    opacity: var(--pp-btn-sheen-opacity);
+    transform: translateY(-12%);
+  }
+
+  /* Hover feels like "glass catching light" */
+  .pp-btn:hover:enabled,
+  .simple-button:hover:enabled,
+  .pp-mdp-toolBtn:hover,
+  .pp-topnav__iconBtn:hover,
+  .pp-theme-toggle:hover,
+  .quick-nav-arrow:hover:enabled,
+  .quantity-btn:not([title="Close"]):hover{
+    filter: brightness(1.04) saturate(1.06);
+    box-shadow: 0 16px 44px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+    transform: translateY(-1px);
+  }
+
+  /* 6) Keep your CTA colourway, but add glass highlight on top */
+  .place-order-button{
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.10) !important;
+  }
+  .place-order-button::before{
+    content:"";
+    position:absolute;
+    inset:-2px;
+    pointer-events:none;
+    background:
+      linear-gradient(120deg, rgba(255,255,255,0.62), transparent 45%),
+      linear-gradient(180deg, rgba(255,255,255,0.22), transparent 55%),
+      repeating-linear-gradient(
+        135deg,
+        rgba(255,255,255,0.06) 0px,
+        rgba(255,255,255,0.06) 1px,
+        rgba(0,0,0,0.05) 1px,
+        rgba(0,0,0,0.05) 3px
+      );
+    opacity: 0.22;
+  }
+}
+
+/* 7) Reduce texture for users who prefer less motion/visual noise */
+@media (prefers-reduced-motion: reduce){
+  body[data-theme="dark"],
+  body[data-theme="light"]{
+    background-attachment: scroll !important;
+  }
+}
+
+/* ======================================================================
+   MENU GLASS PARITY (light + dark)
+   - Makes .menu-content + cards feel equally glassy in BOTH themes
+   - Paste at VERY BOTTOM so it wins
+   ====================================================================== */
+
+.menu-content{
+  position: relative;
+  border-radius: 18px;
+  padding: 0.75rem;
+  isolation: isolate; /* keep pseudo layers sane */
+}
+
+/* Desktop spacing a touch bigger */
+@media (min-width: 1024px){
+  .menu-content{ padding: 0.95rem; }
+}
+
+/* Light: give the menu area its own "slab" like dark mode */
+[data-theme="light"] .menu-content{
+  background:
+    radial-gradient(900px 420px at 18% 8%, rgba(34,197,94,0.10), transparent 62%),
+    radial-gradient(760px 420px at 88% 0%, rgba(251,113,133,0.08), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,0.78), rgba(241,245,251,0.72)) !important;
+  border: 1px solid rgba(15,23,42,0.10) !important;
+  box-shadow: 0 18px 46px rgba(2,6,23,0.10) !important;
+}
+
+/* Dark: keep it consistent (doesn't fight your existing styling) */
+[data-theme="dark"] .menu-content{
+  background:
+    radial-gradient(900px 420px at 18% 8%, rgba(190,242,100,0.10), transparent 62%),
+    radial-gradient(760px 420px at 88% 0%, rgba(251,113,133,0.08), transparent 58%),
+    linear-gradient(180deg, rgba(2,6,23,0.18), rgba(2,6,23,0.04)) !important;
+  border: 1px solid rgba(255,255,255,0.10) !important;
+}
+
+/* Subtle grain over the menu slab (both themes) */
+.menu-content::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: inherit;
+  pointer-events:none;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.06) 0px,
+      rgba(255,255,255,0.06) 1px,
+      rgba(0,0,0,0.05) 1px,
+      rgba(0,0,0,0.05) 3px
+    );
+  opacity: 0.10;
+  mix-blend-mode: overlay;
+}
+
+/* Make the CATEGORY wrapper glassy in LIGHT mode (this is what you're missing) */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
+  [data-theme="light"] .menu-category{
+    background:
+      radial-gradient(760px 240px at 18% 0%, rgba(34,197,94,0.08), transparent 60%),
+      radial-gradient(720px 240px at 82% 0%, rgba(251,113,133,0.06), transparent 58%),
+      linear-gradient(180deg, rgba(255,255,255,0.70), rgba(241,245,251,0.62)) !important;
+    border: 1px solid rgba(15,23,42,0.10) !important;
+    box-shadow: 0 18px 42px rgba(2,6,23,0.10) !important;
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Light: give MENU CARDS the same "soft gradient surface" vibe as dark */
+  [data-theme="light"] .menu-item-card{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.82), rgba(241,245,251,0.74)) !important;
+    border: 1px solid rgba(15,23,42,0.10) !important;
+    box-shadow: 0 14px 32px rgba(2,6,23,0.10) !important;
+    backdrop-filter: blur(14px) saturate(155%);
+    -webkit-backdrop-filter: blur(14px) saturate(155%);
+  }
+
+  /* Specular highlight on light cards so they don't look like flat plastic */
+  [data-theme="light"] .menu-item-card::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    background:
+      linear-gradient(120deg, rgba(255,255,255,0.70), transparent 45%),
+      linear-gradient(180deg, rgba(255,255,255,0.18), transparent 50%);
+    opacity: 0.22;
+  }
+}
+
 @media (max-width: 900px){
   .quick-nav-container{
     /* blur is expensive while scrolling on mobile */
