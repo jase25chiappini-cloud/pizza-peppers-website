@@ -5000,6 +5000,9 @@ const _normalizeBase = (raw) => {
 
 const PP_MENU_BASE_URL = _normalizeBase(import.meta.env.VITE_PP_MENU_BASE_URL);
 const PP_IMAGES_BASE_URL = _normalizeBase(import.meta.env.VITE_PP_IMAGES_BASE_URL);
+const PP_ENABLE_APPLE_LOGIN =
+  String(import.meta?.env?.VITE_PP_ENABLE_APPLE_LOGIN || "").toLowerCase() ===
+  "true";
 
 // Back-compat: if you still set only VITE_PP_POS_BASE_URL, use it as fallback
 const PP_POS_BASE_URL = _normalizeBase(
@@ -5240,28 +5243,46 @@ function useGoogleMaps() {
     try {
       console.log("[maps] env key present?", !!key);
     } catch {}
-    if (window.google?.maps) {
-      setMapsLoaded(true);
-      return;
-    }
-    if (!key) return;
-    const scriptId = "google-maps-script";
+    const scriptId = "pp-google-maps";
     const existing = document.getElementById(scriptId);
+
     const markLoaded = () => setMapsLoaded(true);
-    if (existing) {
-      if (window.google?.maps) {
-        setMapsLoaded(true);
-      } else {
-        existing.addEventListener("load", markLoaded, { once: true });
-      }
+
+    if (!key) {
+      console.warn("[maps] Missing VITE_GOOGLE_MAPS_API_KEY (maps will stay disabled).");
       return;
     }
+
+    const desiredSrc = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+      key,
+    )}&libraries=places&loading=async`;
+
+    if (existing) {
+      const existingSrc = existing.getAttribute("src") || "";
+      // If the script src changed (common during dev), reload it.
+      if (existingSrc !== desiredSrc) {
+        try {
+          existing.parentNode?.removeChild(existing);
+        } catch {}
+      } else {
+        if (window.google?.maps) {
+          setMapsLoaded(true);
+        } else {
+          existing.addEventListener("load", markLoaded, { once: true });
+        }
+        return;
+      }
+    }
+
     const script = document.createElement("script");
     script.id = scriptId;
     script.async = true;
     script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&loading=async`;
+    script.src = desiredSrc;
     script.onload = markLoaded;
+    script.onerror = () => {
+      console.warn("[maps] Failed to load Google Maps JS. Check referrer/API key restrictions.");
+    };
     document.head.appendChild(script);
   }, []);
 
@@ -5392,25 +5413,71 @@ function AuthProvider({ children }) {
         console.warn("Firebase not configured; provider login disabled.");
         throw new Error("Sign-in unavailable");
       }
+
       await ensurePersistence();
+
       const provider = providerFactory();
-      const preferPopup = true;
-      console.log("[PP][AuthDBG] login start, preferPopup=", preferPopup);
+      const providerId = provider?.providerId || "unknown";
+
+      // Helpful: confirm WHICH Firebase project the running app is using
+      try {
+        const opts = firebaseAuth.app?.options || {};
+        console.log("[PP][AuthDBG] firebase project:", {
+          projectId: opts.projectId,
+          authDomain: opts.authDomain,
+          apiKeyTail: String(opts.apiKey || "").slice(-6),
+          providerId,
+        });
+      } catch {}
+
+      const isProbablyMobile = (() => {
+        try {
+          return (
+            window.matchMedia?.("(max-width: 900px)")?.matches ||
+            /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+          );
+        } catch {
+          return false;
+        }
+      })();
+
+      // Apple: prefer redirect (especially on mobile / Safari)
+      const preferPopup = providerId !== "apple.com" && !isProbablyMobile;
+
+      console.log("[PP][AuthDBG] login start, providerId=", providerId, "preferPopup=", preferPopup);
+
       try {
         if (preferPopup) {
-          const res = await signInWithPopup(firebaseAuth, provider);
-          console.log("[PP][AuthDBG] popup user:", labelUser(res?.user));
-        } else {
-          await signInWithRedirect(firebaseAuth, provider);
+          try {
+            const res = await signInWithPopup(firebaseAuth, provider);
+            console.log("[PP][AuthDBG] popup user:", labelUser(res?.user));
+            return;
+          } catch (err) {
+            const code = err?.code || "";
+            const popupBad =
+              code === "auth/popup-blocked" ||
+              code === "auth/popup-closed-by-user" ||
+              code === "auth/cancelled-popup-request" ||
+              code === "auth/operation-not-supported-in-this-environment";
+            if (!popupBad) throw err;
+            console.warn("[PP][AuthDBG] popup failed -> redirect fallback:", code);
+          }
         }
+
+        await signInWithRedirect(firebaseAuth, provider);
       } catch (err) {
-        console.warn(
-          "[PP][AuthDBG] login error:",
-          err?.code || err?.message || err,
-        );
+        const code = err?.code || "";
+        console.warn("[PP][AuthDBG] login error:", code || err?.message || err);
+
+        if (code === "auth/operation-not-allowed") {
+          console.warn(
+            "[PP][AuthDBG] Apple provider appears disabled for THIS Firebase project. " +
+              "Double-check the Firebase projectId/authDomain logged above matches the console you edited."
+          );
+        }
       }
     },
-    [ensurePersistence, firebaseAuth],
+    [ensurePersistence],
   );
 
   // Finish redirect (if any) before subscribing to auth changes
@@ -5520,12 +5587,19 @@ function AuthProvider({ children }) {
     });
   }, [signInWithProvider]);
   const loginWithApple = React.useCallback(async () => {
-    await signInWithProvider(() => {
+    if (!PP_ENABLE_APPLE_LOGIN) {
+      console.warn("[auth] Apple login disabled (feature flag off).");
+      return;
+    }
+    const factory = () => {
       const provider = new OAuthProvider("apple.com");
       provider.addScope("email");
       provider.addScope("name");
       return provider;
-    });
+    };
+    // hint: Apple prefers redirect on mobile
+    factory.__forceRedirect = true;
+    await signInWithProvider(factory);
   }, [signInWithProvider]);
 
   // Called by your password modal on success
@@ -8276,23 +8350,24 @@ function OrderInfoPanel({
   const { cart, totalPrice } = useCart();
   const [voucherCode, setVoucherCode] = React.useState("");
   const addressInputRef = useRef(null);
+  const [addressAutoErr, setAddressAutoErr] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const isPreorder = orderType === "Pickup" && !storeOpenNow;
+  const canUsePlacesWidget =
+    isMapsLoaded &&
+    typeof window !== "undefined" &&
+    typeof window.google?.maps?.importLibrary === "function";
 
   useEffect(() => {
-    const hasWindow = typeof window !== "undefined";
-    const hasMaps = hasWindow && !!window.google?.maps;
-    const hasPlacesImport =
-      hasMaps && typeof window.google.maps.importLibrary === "function";
-
     if (
       orderType !== "Delivery" ||
-      !isMapsLoaded ||
-      !addressInputRef.current ||
-      !hasPlacesImport
+      !canUsePlacesWidget ||
+      !addressInputRef.current
     ) {
       return;
     }
+
+    setAddressAutoErr("");
 
     let disposed = false;
     let widget = null;
@@ -8324,6 +8399,13 @@ function OrderInfoPanel({
         container.innerHTML = "";
         container.appendChild(el);
         widget = el;
+
+        el.addEventListener("gmp-requesterror", (e) => {
+          console.warn("[maps][places] request error", e);
+          setAddressAutoErr(
+            "Address suggestions are unavailable (API key / referrer restriction). You can still type the address manually.",
+          );
+        });
 
         el.addEventListener("gmp-select", async (event) => {
           const prediction = event?.placePrediction;
@@ -8390,7 +8472,10 @@ function OrderInfoPanel({
           }
         });
       } catch (err) {
-        console.error("[delivery-autocomplete] PlaceAutocompleteElement error", err);
+        console.warn("[maps][places] autocomplete init failed:", err);
+        setAddressAutoErr(
+          "Address suggestions are unavailable (API key / referrer restriction). You can still type the address manually.",
+        );
       }
     })();
 
@@ -8408,6 +8493,8 @@ function OrderInfoPanel({
     setOrderAddress,
     setOrderAddressError,
     setOrderDeliveryFee,
+    canUsePlacesWidget,
+    setAddressAutoErr,
   ]);
 
   return (
@@ -8484,7 +8571,7 @@ function OrderInfoPanel({
               Delivery Address
             </label>
 
-            {isMapsLoaded ? (
+            {orderType === "Delivery" && canUsePlacesWidget && !addressAutoErr ? (
               <div id="address" ref={addressInputRef} style={{ width: "100%" }} />
             ) : (
               <input
@@ -8496,10 +8583,15 @@ function OrderInfoPanel({
                   setOrderAddressError("");
                 }}
                 value={orderAddress}
-                placeholder="Enter your delivery address"
-                style={{ width: "calc(100% - 1.5rem)" }}
+                placeholder="Start typing your address\u2026"
               />
             )}
+
+            {orderType === "Delivery" && addressAutoErr ? (
+              <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#fca5a5" }}>
+                {addressAutoErr}
+              </div>
+            ) : null}
 
             {orderAddressError && (
               <p
@@ -9113,22 +9205,24 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
                   <GoogleIcon />
                   Continue with Google
                 </button>
-                <button
-                  type="button"
-                  style={buttonStyle}
-                  onClick={async () => {
-                    try {
-                      await handleProvider(loginWithApple);
-                    } catch (e) {
-                      console.error("[auth] provider failed", e);
-                    }
-                  }}
-                  disabled={firebaseDisabled || loading}
-                  title={firebaseDisabled ? "Temporarily unavailable" : ""}
-                >
-                  <AppleIcon />
-                  Continue with Apple
-                </button>
+                {PP_ENABLE_APPLE_LOGIN ? (
+                  <button
+                    type="button"
+                    style={buttonStyle}
+                    onClick={async () => {
+                      try {
+                        await handleProvider(loginWithApple);
+                      } catch (e) {
+                        console.error("[auth] provider failed", e);
+                      }
+                    }}
+                    disabled={firebaseDisabled || loading}
+                    title={firebaseDisabled ? "Temporarily unavailable" : ""}
+                  >
+                    <AppleIcon />
+                    Continue with Apple
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   style={buttonStyle}

@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
+import { VitePWA } from "vite-plugin-pwa"
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "")
@@ -26,7 +27,46 @@ export default defineConfig(({ mode }) => {
     "http://127.0.0.1:5055"
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: "autoUpdate",
+        includeAssets: ["favicon.ico", "apple-touch-icon.png"],
+        manifest: {
+          name: "Pizza Peppers POS",
+          short_name: "Pizza POS",
+          description: "Pizza Peppers POS",
+          start_url: "/",
+          scope: "/",
+          display: "standalone",
+          background_color: "#0b1220",
+          theme_color: "#0b1220",
+          icons: [
+            {
+              src: "/pwa-192.png",
+              sizes: "192x192",
+              type: "image/png",
+            },
+            {
+              src: "/pwa-512.png",
+              sizes: "512x512",
+              type: "image/png",
+            },
+            {
+              src: "/pwa-512-maskable.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable",
+            },
+          ],
+        },
+        workbox: {
+          // Good default for a POS UI: cache app shell + assets
+          navigateFallback: "/index.html",
+          globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,json,woff2}"],
+        },
+      }),
+    ],
     base: "./",
     server: {
       host: true,
