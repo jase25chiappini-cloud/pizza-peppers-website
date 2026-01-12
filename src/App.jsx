@@ -5946,6 +5946,9 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   const qnavSnappingRef = useRef(false);
   const qnavProgrammaticTimerRef = useRef(null);
   const qnavSuppressFollowUntilRef = useRef(0);
+  const qnavTouchingRef = useRef(false);
+  const qnavTouchTimerRef = useRef(null);
+  const lastArrowStateRef = useRef({ l: false, r: false });
 
   const suppressActiveFollow = React.useCallback((ms = 900) => {
     qnavSuppressFollowUntilRef.current = Date.now() + ms;
@@ -5974,13 +5977,18 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   }, []);
 
   const updateArrowState = React.useCallback(() => {
+    if (isMobileQnav) return; // mobile = free scroll, no state churn
     const el = scrollerRef.current;
     if (!el) return;
     const max = Math.max(0, (el.scrollWidth || 0) - (el.clientWidth || 0));
     const left = el.scrollLeft || 0;
-    setCanScrollLeft(left > 2);
-    setCanScrollRight(left < max - 2);
-  }, []);
+    const l = left > 2;
+    const r = left < max - 2;
+    const prev = lastArrowStateRef.current;
+    if (prev.l !== l) setCanScrollLeft(l);
+    if (prev.r !== r) setCanScrollRight(r);
+    lastArrowStateRef.current = { l, r };
+  }, [isMobileQnav]);
 
   // Lock the "follow active chip" behaviour while arrows are moving.
   // Keep this VERY simple to avoid timer churn + jitter during scroll.
@@ -6089,6 +6097,7 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   React.useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
+    if (isMobileQnav) return; // no scroll handler on mobile
     updateArrowState();
     const onScroll = () => {
       // Any nav-rail movement (user OR programmatic) should suppress "follow active chip".
@@ -6118,7 +6127,39 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
       if (qnavSnapTimerRef.current) clearTimeout(qnavSnapTimerRef.current);
       if (qnavProgrammaticTimerRef.current) clearTimeout(qnavProgrammaticTimerRef.current);
     };
-  }, [lockProgrammaticNavScroll, suppressActiveFollow, updateArrowState, snapQuickNavToWholePills]);
+  }, [isMobileQnav, lockProgrammaticNavScroll, suppressActiveFollow, updateArrowState, snapQuickNavToWholePills]);
+
+  // Mobile: suppress "follow" while the user is actively dragging the nav rail.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    const start = () => {
+      qnavTouchingRef.current = true;
+      suppressActiveFollow(1200);
+      if (qnavTouchTimerRef.current) clearTimeout(qnavTouchTimerRef.current);
+    };
+
+    const end = () => {
+      if (qnavTouchTimerRef.current) clearTimeout(qnavTouchTimerRef.current);
+      qnavTouchTimerRef.current = setTimeout(() => {
+        qnavTouchingRef.current = false;
+      }, 220);
+    };
+
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", start, { passive: true });
+    el.addEventListener("touchend", end, { passive: true });
+    el.addEventListener("touchcancel", end, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", start);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+      if (qnavTouchTimerRef.current) clearTimeout(qnavTouchTimerRef.current);
+    };
+  }, [suppressActiveFollow]);
 
   // Re-check arrow state after layout/content changes (fonts, chip widths, etc.)
   React.useEffect(() => {
@@ -6345,8 +6386,8 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   // When the active category changes (user scrolls), softly keep the active chip visible.
   useEffect(() => {
     if (jumpLockRef.current) return;
-    if (isMobileQnav) return; // free scroll on mobile
     if (qnavSnappingRef.current) return; // don't fight arrow/programmatic rail moves
+    if (qnavTouchingRef.current) return; // don't fight finger drag
     if (Date.now() < qnavSuppressFollowUntilRef.current) return;
 
     const container = scrollerRef.current;
@@ -6360,7 +6401,7 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
     const chipRect = chipEl.getBoundingClientRect();
 
     // If it's already comfortably visible, do nothing.
-    const pad = 10;
+    const pad = isMobileQnav ? 16 : 10;
     const leftOk = chipRect.left >= cRect.left + pad;
     const rightOk = chipRect.right <= cRect.right - pad;
     if (leftOk && rightOk) return;

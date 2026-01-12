@@ -9535,6 +9535,49 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   display: none !important;
 }
 
+@media (max-width: 900px){
+  .quick-nav-container{
+    /* blur is expensive while scrolling on mobile */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+
+    /* keep it looking good without blur */
+    background: color-mix(in srgb, var(--panel) 92%, transparent) !important;
+  }
+}
+
+/* =========================================================
+   Mobile QuickNav - smaller + tighter
+   ========================================================= */
+@media (max-width: 900px){
+  .quick-nav-container{
+    margin: 0 0 0.7rem;
+    padding: 0.28rem;
+    min-height: 48px;
+    border-radius: 16px;
+
+    /* keep it fast on phones */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .quick-nav-scroll{
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .quick-nav-list{
+    gap: 0.4rem;
+  }
+
+  .quick-nav-item a{
+    height: 32px;
+    padding: 0 0.70rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+  }
+}
+
 /* =========================================================
    SOLID HEADER (MOBILE TOO) — final override
    ========================================================= */
