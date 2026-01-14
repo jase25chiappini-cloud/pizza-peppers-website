@@ -5945,10 +5945,29 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   const qnavSnapTimerRef = useRef(null);
   const qnavSnappingRef = useRef(false);
   const qnavProgrammaticTimerRef = useRef(null);
+  const qnavProgrammaticUntilRef = useRef(0);
   const qnavSuppressFollowUntilRef = useRef(0);
   const qnavTouchingRef = useRef(false);
   const qnavTouchTimerRef = useRef(null);
+  const qnavPendingActiveRef = useRef({ id: null, t: 0, timer: null });
+  const qnavVertScrollUntilRef = useRef(0);
+  const qnavVertScrollTimerRef = useRef(null);
+  const [qnavVertSettleTick, setQnavVertSettleTick] = useState(0);
   const lastArrowStateRef = useRef({ l: false, r: false });
+  const qnavInitialSnapRef = useRef(0);
+  const qnavFollowTimerRef = useRef(null);
+  const qnavFollowTargetRef = useRef(null);
+  const qnavLastFollowedRef = useRef(null);
+  const qnavLastActiveRef = useRef(null);
+  const qnavFollowCooldownRef = useRef(0);
+  const [liveActive, setLiveActive] = React.useState(() => {
+    const first = (menuData?.categories || [])[0];
+    return first ? formatId(first.name) : null;
+  });
+  const liveRafRef = React.useRef(null);
+  const activeScrollerRef = React.useRef(null);
+  const lastScrollTargetRef = React.useRef(null);
+  const effectiveActive = liveActive || activeCategory || null;
 
   const suppressActiveFollow = React.useCallback((ms = 900) => {
     qnavSuppressFollowUntilRef.current = Date.now() + ms;
@@ -5994,16 +6013,24 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   // Keep this VERY simple to avoid timer churn + jitter during scroll.
   const lockProgrammaticNavScroll = React.useCallback(
     (ms = 420) => {
+      const until = Date.now() + ms;
+      qnavProgrammaticUntilRef.current = Math.max(
+        qnavProgrammaticUntilRef.current || 0,
+        until,
+      );
       qnavSnappingRef.current = true;
 
       if (qnavProgrammaticTimerRef.current) {
         clearTimeout(qnavProgrammaticTimerRef.current);
       }
 
+      // Safety unlock (real unlock happens in onScroll when movement ends)
       qnavProgrammaticTimerRef.current = setTimeout(() => {
-        qnavSnappingRef.current = false;
-        updateArrowState();
-      }, ms);
+        if (Date.now() >= (qnavProgrammaticUntilRef.current || 0)) {
+          qnavSnappingRef.current = false;
+          updateArrowState();
+        }
+      }, ms + 80);
     },
     [updateArrowState],
   );
@@ -6022,8 +6049,8 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
         return;
       }
 
-      // Lock long enough for the browser smooth scroll to finish.
-      lockProgrammaticNavScroll(460);
+      const distance = Math.abs((el.scrollLeft || 0) - clamped);
+      lockProgrammaticNavScroll(Math.max(600, Math.min(2000, 520 + distance * 0.9)));
 
       try {
         el.scrollTo({ left: clamped, behavior: "smooth" });
@@ -6045,10 +6072,12 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
     if (isMobileQnav) return; // keep mobile free scroll
     if (qnavSnappingRef.current) return;
 
-    const pad = 18; // "safe" inner edge
     const cRect = el.getBoundingClientRect();
-    const leftEdge = cRect.left + pad;
-    const rightEdge = cRect.right - pad;
+    const cs = window.getComputedStyle(el);
+    const padL = (parseFloat(cs.paddingLeft) || 0) + 6;
+    const padR = (parseFloat(cs.paddingRight) || 0) + 6;
+    const leftEdge = cRect.left + padL;
+    const rightEdge = cRect.right - padR;
 
     const links = Array.from(el.querySelectorAll('a[data-qnav-link="1"]'));
     if (!links.length) return;
@@ -6094,30 +6123,147 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
     }, 220);
   }, [isMobileQnav, updateArrowState]);
 
+  // After refresh/layout settle, snap the rail and ensure the active chip is visible.
+  React.useEffect(() => {
+    if (isMobileQnav) return;
+    const menuCount = menuData?.categories?.length || 0;
+    if (!menuCount) return;
+    if (qnavInitialSnapRef.current === menuCount) return;
+    qnavInitialSnapRef.current = menuCount;
+
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    const activeId = effectiveActive;
+
+    const run = () => {
+      const rail = scrollerRef.current;
+      if (!rail) return;
+
+      // If the page loaded at top (or no hash), force rail to true start before snapping.
+      try {
+        const atTop = (document.scrollingElement?.scrollTop || 0) < 2;
+        const hasHash = !!(window.location.hash && window.location.hash.length > 1);
+        if (atTop && !hasHash) {
+          rail.scrollLeft = 0;
+        }
+      } catch {}
+
+      // Allow snap to run (it bails if "programmatic lock" is active)
+      qnavSnappingRef.current = false;
+
+      // 1) Snap the rail so no chip is half-cut
+      try {
+        snapQuickNavToWholePills();
+      } catch {}
+
+      // 2) If we already know an active chip, ensure it's comfortably visible
+      try {
+        if (activeId) {
+          const chipEl = chipRefs.current[activeId];
+          if (chipEl) {
+            const cRect = rail.getBoundingClientRect();
+            const chipRect = chipEl.getBoundingClientRect();
+
+            // Treat the sticky arrow buttons as "unsafe areas"
+            const leftBtn = rail.querySelector(".quick-nav-arrow--left");
+            const rightBtn = rail.querySelector(".quick-nav-arrow--right");
+
+            const leftEdge = leftBtn
+              ? leftBtn.getBoundingClientRect().right + 10
+              : cRect.left + 18;
+
+            const rightEdge = rightBtn
+              ? rightBtn.getBoundingClientRect().left - 10
+              : cRect.right - 18;
+
+            const leftOk = chipRect.left >= leftEdge;
+            const rightOk = chipRect.right <= rightEdge;
+
+            if (!leftOk || !rightOk) {
+              const safeCenter = leftEdge + (rightEdge - leftEdge) / 2;
+              const chipCenter = chipRect.left + chipRect.width / 2;
+              const delta = chipCenter - safeCenter;
+
+              const max = Math.max(0, (rail.scrollWidth || 0) - (rail.clientWidth || 0));
+              const target = Math.max(0, Math.min(max, (rail.scrollLeft || 0) + delta));
+
+              // instant correction (no animation on load)
+              rail.scrollLeft = target;
+            }
+          }
+        }
+      } catch {}
+
+      // 3) refresh arrow enabled/disabled state
+      try {
+        updateArrowState();
+      } catch {}
+    };
+
+    const r1 = requestAnimationFrame(run);
+    const r2 = requestAnimationFrame(() => requestAnimationFrame(run));
+    const t1 = window.setTimeout(run, 80);
+    const t2 = window.setTimeout(run, 220);
+
+    return () => {
+      try { cancelAnimationFrame(r1); } catch {}
+      try { cancelAnimationFrame(r2); } catch {}
+      try { window.clearTimeout(t1); } catch {}
+      try { window.clearTimeout(t2); } catch {}
+    };
+  }, [isMobileQnav, menuData?.categories?.length, snapQuickNavToWholePills, updateArrowState]);
+
   React.useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
     if (isMobileQnav) return; // no scroll handler on mobile
     updateArrowState();
     const onScroll = () => {
-      // Any nav-rail movement (user OR programmatic) should suppress "follow active chip".
+      // Any nav-rail movement (user OR programmatic) should suppress follow briefly
       suppressActiveFollow(900);
 
-      // If we're in programmatic scroll (arrows), keep it "locked" until scrolling stops.
-      if (qnavSnappingRef.current) {
-        return; // IMPORTANT: don't schedule settle-snap while arrows are moving
-      }
-
-      // USER scroll only: update arrows + optional settle snap
+      // Always update arrows on desktop
       updateArrowState();
 
-      // Only "settle snap" after USER scrolls (not arrow/programmatic smooth scroll)
-      if (!qnavSnappingRef.current) {
+      // If we're still in programmatic movement window, keep it locked.
+      if (Date.now() < (qnavProgrammaticUntilRef.current || 0)) {
+        qnavSnappingRef.current = true;
+
+        // Extend lock slightly each tick so smooth scroll can't "fall out" mid-animation
+        qnavProgrammaticUntilRef.current = Date.now() + 220;
+
+        // Ensure we actually unlock after the last programmatic tick
+        if (qnavProgrammaticTimerRef.current) {
+          clearTimeout(qnavProgrammaticTimerRef.current);
+        }
+        const wait = Math.max(
+          120,
+          (qnavProgrammaticUntilRef.current || 0) - Date.now() + 80,
+        );
+        qnavProgrammaticTimerRef.current = setTimeout(() => {
+          if (Date.now() >= (qnavProgrammaticUntilRef.current || 0)) {
+            qnavSnappingRef.current = false;
+            updateArrowState();
+          }
+        }, wait);
+
+        // Never schedule settle-snap during programmatic movement
         if (qnavSnapTimerRef.current) clearTimeout(qnavSnapTimerRef.current);
-        qnavSnapTimerRef.current = setTimeout(() => {
-          snapQuickNavToWholePills();
-        }, 120);
+        return;
       }
+
+      // Programmatic movement is over
+      qnavSnappingRef.current = false;
+
+      // Desktop: do NOT "settle snap" (this is what causes the wiggle).
+      // Only keep settle snap for touch/mobile-style interactions.
+      if (!isMobileQnav && !qnavTouchingRef.current) return;
+
+      if (qnavSnapTimerRef.current) clearTimeout(qnavSnapTimerRef.current);
+      qnavSnapTimerRef.current = setTimeout(() => {
+        snapQuickNavToWholePills();
+      }, 120);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
@@ -6128,6 +6274,54 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
       if (qnavProgrammaticTimerRef.current) clearTimeout(qnavProgrammaticTimerRef.current);
     };
   }, [isMobileQnav, lockProgrammaticNavScroll, suppressActiveFollow, updateArrowState, snapQuickNavToWholePills]);
+
+  // Detect vertical scrolling in the *actual* scroll container and fire a "settled" tick.
+  useEffect(() => {
+    const onAnyScroll = () => {
+      qnavVertScrollUntilRef.current = Date.now() + 320;
+
+      if (qnavVertScrollTimerRef.current) {
+        clearTimeout(qnavVertScrollTimerRef.current);
+      }
+      qnavVertScrollTimerRef.current = setTimeout(() => {
+        setQnavVertSettleTick((v) => v + 1);
+      }, 360);
+    };
+
+    const getDocScroller = () =>
+      document.scrollingElement || document.documentElement;
+
+    const getScrollParent = (el) => {
+      let p = el?.parentElement;
+      while (p) {
+        const s = window.getComputedStyle(p);
+        const oy = s.overflowY;
+        if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight + 2) {
+          return p;
+        }
+        p = p.parentElement;
+      }
+      return getDocScroller();
+    };
+
+    const menuRoot = pickMainMenuRoot();
+    const parent = menuRoot ? getScrollParent(menuRoot) : getDocScroller();
+
+    const isDocParent =
+      parent === document.scrollingElement ||
+      parent === document.documentElement ||
+      parent === document.body;
+
+    const target = isDocParent ? window : parent;
+    target.addEventListener("scroll", onAnyScroll, { passive: true });
+    window.addEventListener("resize", onAnyScroll);
+
+    return () => {
+      target.removeEventListener("scroll", onAnyScroll);
+      window.removeEventListener("resize", onAnyScroll);
+      if (qnavVertScrollTimerRef.current) clearTimeout(qnavVertScrollTimerRef.current);
+    };
+  }, [menuData?.categories?.length]);
 
   // Mobile: suppress "follow" while the user is actively dragging the nav rail.
   useEffect(() => {
@@ -6167,6 +6361,190 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
     const raf = requestAnimationFrame(() => updateArrowState());
     return () => cancelAnimationFrame(raf);
   }, [isMobileQnav, menuData?.categories?.length, updateArrowState]);
+
+  const pickMainMenuRoot = () => {
+    const candidates = Array.from(document.querySelectorAll(".menu-content"));
+    if (!candidates.length) return null;
+
+    const mainArea = document.querySelector(".main-content-area") || document.body;
+
+    const scored = candidates
+      .map((el) => {
+        const rect = el.getBoundingClientRect();
+        const visible = rect.width > 200 && rect.height > 200 && rect.bottom > 0;
+
+        // prefer the one inside the real page content (not overlays)
+        const inMain = mainArea.contains(el);
+
+        // avoid modal/overlay menus
+        const inOverlay = !!el.closest(
+          ".pp-hh-mealPickBody, .pp-mealpick, .pp-halfhalf-modal, .pp-mealdeal-modal__panel, .pp-hh-editorModal, .modal-overlay, .pp-modal-backdrop",
+        );
+
+        const catCount = el.querySelectorAll(".menu-category[id]").length;
+
+        const score =
+          (inMain ? 1000 : 0) +
+          (inOverlay ? -500 : 0) +
+          (visible ? 100 : 0) +
+          catCount * 10;
+        return { el, score };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    return scored[0]?.el || null;
+  };
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let io = null;
+    let raf = null;
+
+    const build = () => {
+      const menuRoot = pickMainMenuRoot();
+      if (!menuRoot) return;
+
+      const sections = Array.from(menuRoot.querySelectorAll(".menu-category[id]"))
+        .filter((el) => (el.offsetHeight || 0) > 8);
+
+      if (!sections.length) return;
+
+      // Sticky "active line" (in viewport coords)
+      const headerH =
+        document.querySelector(".pp-topnav")?.getBoundingClientRect().height || 0;
+      const navH = shellRef.current?.getBoundingClientRect().height || 0;
+      const gap = 14;
+      const lineY = headerH + navH + gap;
+
+      const pickBest = () => {
+        const EDGE = 12;
+
+        const first = sections[0];
+        const last = sections[sections.length - 1];
+
+        const firstR = first.getBoundingClientRect();
+        const lastR = last.getBoundingClientRect();
+
+        // Sticky "active line" in viewport coords
+        const viewH = window.innerHeight || 0;
+
+        // Top lock: if we're near the top and the first section hasn't moved above the line much
+        if (firstR.top >= lineY - EDGE) {
+          setLiveActive(first.id);
+          return;
+        }
+
+        // Bottom lock: if the last section is visible at the bottom of the viewport
+        if (lastR.bottom <= viewH - EDGE) {
+          setLiveActive(last.id);
+          return;
+        }
+
+        // Main rule: pick the last section whose top is at/above the line (or not too far below)
+        // Smaller window prevents switching to the next category too early.
+        const BELOW_ALLOW = 160;
+
+        let bestId = first.id;
+        let bestTop = -Infinity;
+
+        for (const el of sections) {
+          const r = el.getBoundingClientRect();
+
+          // ignore sections that are fully above viewport by a lot
+          if (r.bottom < 30) continue;
+
+          // candidate if top is not too far below the line
+          if (r.top <= lineY + BELOW_ALLOW && r.top > bestTop) {
+            bestTop = r.top;
+            bestId = el.id;
+          }
+        }
+
+        // Debounce active changes to prevent boundary flip-flop
+        const now = performance.now();
+        const pending = qnavPendingActiveRef.current;
+
+        // If we’re already pending this id, let it settle
+        if (pending.id === bestId) return;
+
+        // New candidate: start a short settle timer
+        pending.id = bestId;
+        pending.t = now;
+
+        if (pending.timer) clearTimeout(pending.timer);
+
+        pending.timer = setTimeout(() => {
+          qnavPendingActiveRef.current.id = null;
+          qnavPendingActiveRef.current.timer = null;
+          setLiveActive(bestId);
+        }, 180);
+      };
+
+      // Root margin shifts the "viewport" down below sticky UI so edges behave.
+      const topMargin = Math.round(lineY);
+      const rootMargin = `-${topMargin}px 0px -10% 0px`;
+
+      io = new IntersectionObserver(
+        () => {
+          // We don't need ratios; any intersection change is just a "tick" to recompute
+          if (raf) return;
+          raf = requestAnimationFrame(() => {
+            raf = null;
+            pickBest();
+          });
+        },
+        {
+          root: null, // viewport
+          rootMargin,
+          threshold: [0, 0.05, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 1],
+        },
+      );
+
+      // Seed so first category is correct on initial render
+      setLiveActive((prev) => prev || sections[0].id);
+
+      for (const el of sections) io.observe(el);
+
+      // Run once immediately
+      pickBest();
+    };
+
+    const rebuild = () => {
+      try {
+        if (io) io.disconnect();
+      } catch {}
+      io = null;
+
+      if (raf) {
+        try {
+          cancelAnimationFrame(raf);
+        } catch {}
+        raf = null;
+      }
+      build();
+    };
+
+    build();
+    window.addEventListener("resize", rebuild);
+
+      return () => {
+        window.removeEventListener("resize", rebuild);
+        try {
+          if (io) io.disconnect();
+        } catch {}
+        if (raf) {
+          try {
+            cancelAnimationFrame(raf);
+          } catch {}
+        }
+        try {
+          const p = qnavPendingActiveRef.current;
+          if (p?.timer) clearTimeout(p.timer);
+        } catch {}
+        qnavPendingActiveRef.current = { id: null, t: 0, timer: null };
+      };
+    }, [menuData]);
 
   const nudgeNav = React.useCallback((dir) => {
     const el = scrollerRef.current;
@@ -6235,6 +6613,71 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
       animateNavScrollTo(targetLeft);
     },
     [animateNavScrollTo],
+  );
+
+  const adjustNavForCategory = React.useCallback(
+    (categoryId, behavior = "smooth") => {
+      const container = scrollerRef.current;
+      if (!container) return;
+
+      const chipEl = chipRefs.current[categoryId];
+      if (!chipEl) return;
+
+      const ids = (menuData?.categories || [])
+        .map((c) => formatId(c?.name || ""))
+        .filter(Boolean);
+      const firstId = ids[0];
+      const lastId = ids[ids.length - 1];
+      const isEdge = categoryId === firstId || categoryId === lastId;
+
+      const max = Math.max(0, (container.scrollWidth || 0) - (container.clientWidth || 0));
+      const cur = container.scrollLeft || 0;
+
+      const cRect = container.getBoundingClientRect();
+      const chipRect = chipEl.getBoundingClientRect();
+
+      let targetLeft = cur;
+
+      if (isMobileQnav && !isEdge) {
+        // Mobile: center the active chip within the safe padded area.
+        const cs = window.getComputedStyle(container);
+        const padL = (parseFloat(cs.paddingLeft) || 0) + 6;
+        const padR = (parseFloat(cs.paddingRight) || 0) + 6;
+        const leftEdge = cRect.left + padL;
+        const rightEdge = cRect.right - padR;
+        const safeCenter = leftEdge + (rightEdge - leftEdge) / 2;
+        const chipCenter = chipRect.left + chipRect.width / 2;
+        const delta = chipCenter - safeCenter;
+        targetLeft = Math.max(0, Math.min(max, cur + delta));
+      } else {
+        // Desktop (and mobile edges): ensure the chip is fully visible.
+        const cs = window.getComputedStyle(container);
+        const padL = (parseFloat(cs.paddingLeft) || 0) + 6;
+        const padR = (parseFloat(cs.paddingRight) || 0) + 6;
+        const leftOk = chipRect.left >= cRect.left + padL;
+        const rightOk = chipRect.right <= cRect.right - padR;
+        if (leftOk && rightOk) return;
+
+        const chipCenter = chipRect.left + chipRect.width / 2;
+        const containerCenter = cRect.left + cRect.width / 2;
+        const delta = chipCenter - containerCenter;
+        targetLeft = Math.max(0, Math.min(max, cur + delta));
+      }
+
+      const distance = Math.abs(targetLeft - cur);
+      if (distance < 1) return;
+
+      lockProgrammaticNavScroll(Math.max(500, Math.min(1400, 420 + distance * 0.9)));
+
+      try {
+        container.scrollTo({ left: targetLeft, behavior });
+      } catch {
+        container.scrollLeft = targetLeft;
+      }
+
+      requestAnimationFrame(updateArrowState);
+    },
+    [isMobileQnav, lockProgrammaticNavScroll, menuData?.categories, updateArrowState],
   );
 
   const focusChipByIndex = React.useCallback((index) => {
@@ -6383,40 +6826,107 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
     }
   };
 
-  // When the active category changes (user scrolls), softly keep the active chip visible.
+  // Keep the active chip visible. During vertical scroll, follow with a light throttle.
   useEffect(() => {
+    if (qnavFollowTimerRef.current) {
+      clearTimeout(qnavFollowTimerRef.current);
+      qnavFollowTimerRef.current = null;
+    }
+
     if (jumpLockRef.current) return;
-    if (qnavSnappingRef.current) return; // don't fight arrow/programmatic rail moves
-    if (qnavTouchingRef.current) return; // don't fight finger drag
+    if (qnavSnappingRef.current) return;
+    if (qnavTouchingRef.current) return;
     if (Date.now() < qnavSuppressFollowUntilRef.current) return;
 
     const container = scrollerRef.current;
     if (!container) return;
-    if (!activeCategory) return;
+    if (!effectiveActive) return;
 
-    const chipEl = chipRefs.current[activeCategory];
-    if (!chipEl) return;
+    const now = Date.now();
+    const scrollingVert = now < qnavVertScrollUntilRef.current;
+    const activeChanged = qnavLastActiveRef.current !== effectiveActive;
 
-    const cRect = container.getBoundingClientRect();
-    const chipRect = chipEl.getBoundingClientRect();
+    // During vertical scrolling, only follow on actual category changes
+    // and throttle updates to prevent jitter.
+    if (scrollingVert && !activeChanged) return;
+    if (scrollingVert && now < qnavFollowCooldownRef.current) return;
+    if (scrollingVert) qnavFollowCooldownRef.current = now + 220;
 
-    // If it's already comfortably visible, do nothing.
-    const pad = isMobileQnav ? 16 : 10;
-    const leftOk = chipRect.left >= cRect.left + pad;
-    const rightOk = chipRect.right <= cRect.right - pad;
-    if (leftOk && rightOk) return;
+    const targetId = effectiveActive;
+    qnavFollowTargetRef.current = targetId;
+    qnavLastActiveRef.current = targetId;
 
-    // Center the chip smoothly.
-    const chipCenter = chipRect.left + chipRect.width / 2;
-    const containerCenter = cRect.left + cRect.width / 2;
-    const delta = chipCenter - containerCenter;
+    qnavFollowTimerRef.current = setTimeout(() => {
+      if (qnavFollowTargetRef.current !== targetId) return;
 
-    try {
-      container.scrollBy({ left: delta, behavior: "smooth" });
-    } catch {
-      container.scrollLeft = container.scrollLeft + delta;
-    }
-  }, [activeCategory, isMobileQnav]);
+      const chipEl = chipRefs.current[targetId];
+      if (!chipEl) return;
+
+      const cRect = container.getBoundingClientRect();
+      const chipRect = chipEl.getBoundingClientRect();
+
+      const ids = (menuData?.categories || [])
+        .map((c) => formatId(c?.name || ""))
+        .filter(Boolean);
+      const firstId = ids[0];
+      const lastId = ids[ids.length - 1];
+      const isEdge = targetId === firstId || targetId === lastId;
+
+      const max = Math.max(0, (container.scrollWidth || 0) - (container.clientWidth || 0));
+      const cur = container.scrollLeft || 0;
+
+      let targetLeft = null;
+
+      if (isMobileQnav && !isEdge) {
+        // Mobile: keep the active chip centered (except first/last).
+        const cs = window.getComputedStyle(container);
+        const padL = (parseFloat(cs.paddingLeft) || 0) + 6;
+        const padR = (parseFloat(cs.paddingRight) || 0) + 6;
+        const leftEdge = cRect.left + padL;
+        const rightEdge = cRect.right - padR;
+        const safeCenter = leftEdge + (rightEdge - leftEdge) / 2;
+        const chipCenter = chipRect.left + chipRect.width / 2;
+        const delta = chipCenter - safeCenter;
+        targetLeft = Math.max(0, Math.min(max, cur + delta));
+      } else {
+        // Desktop (and mobile edges): just ensure the chip is fully visible.
+        const cs = window.getComputedStyle(container);
+        const padL = (parseFloat(cs.paddingLeft) || 0) + 6;
+        const padR = (parseFloat(cs.paddingRight) || 0) + 6;
+        const leftOk = chipRect.left >= cRect.left + padL;
+        const rightOk = chipRect.right <= cRect.right - padR;
+
+        if (leftOk && rightOk) {
+          qnavLastFollowedRef.current = targetId;
+          return;
+        }
+
+        const chipCenter = chipRect.left + chipRect.width / 2;
+        const containerCenter = cRect.left + cRect.width / 2;
+        const delta = chipCenter - containerCenter;
+        targetLeft = Math.max(0, Math.min(max, cur + delta));
+      }
+
+      const distance = Math.abs((targetLeft ?? cur) - cur);
+      if (distance < 18) return;
+      const behavior = scrollingVert || distance < 28 ? "auto" : "smooth";
+      try {
+        container.scrollTo({ left: targetLeft, behavior });
+      } catch {
+        container.scrollLeft = targetLeft ?? cur;
+      }
+
+      qnavLastFollowedRef.current = targetId;
+      requestAnimationFrame(updateArrowState);
+    }, scrollingVert ? 80 : 200);
+
+    return () => {
+      if (qnavFollowTimerRef.current) {
+        clearTimeout(qnavFollowTimerRef.current);
+        qnavFollowTimerRef.current = null;
+      }
+    };
+  }, [effectiveActive, qnavVertSettleTick, isMobileQnav, updateArrowState]);
 
   const nav = (
     <nav
@@ -6430,34 +6940,34 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
       ref={shellRef}
       aria-label="Menu categories"
     >
-      {!isMobileQnav ? (
-        <button
-          type="button"
-          className="quick-nav-arrow quick-nav-arrow--left quick-nav-arrow--slot"
-          aria-label="Scroll categories left"
-          aria-disabled={!canScrollLeft}
-          data-disabled={!canScrollLeft ? "1" : "0"}
-          onClick={() => {
-            const el = scrollerRef.current;
-            if (!el || (el.scrollLeft || 0) <= 2) return;
-            suppressActiveFollow(2600);
-            jumpNavByChip("left");
-          }}
-        >
-          ‹
-        </button>
-      ) : null}
-
       <div
         id={scrollId}
         className="quick-nav-scroll"
         ref={scrollerRef}
         onKeyDown={onQuickNavKeyDown}
       >
+        {!isMobileQnav ? (
+          <button
+            type="button"
+            className="quick-nav-arrow quick-nav-arrow--left quick-nav-arrow--inscroll"
+            aria-label="Scroll categories left"
+            aria-disabled={!canScrollLeft}
+            data-disabled={!canScrollLeft ? "1" : "0"}
+            onClick={() => {
+              const el = scrollerRef.current;
+              if (!el || (el.scrollLeft || 0) <= 2) return;
+              suppressActiveFollow(2600);
+              jumpNavByChip("left");
+            }}
+          >
+            {"\u2039"}
+          </button>
+        ) : null}
+
         <ul className="quick-nav-list" role="list">
           {(menuData?.categories || []).map((category) => {
             const categoryId = formatId(category.name);
-            const isActive = activeCategory === categoryId;
+            const isActive = effectiveActive === categoryId;
 
             return (
               <li key={category.name} className="quick-nav-item">
@@ -6469,13 +6979,18 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
                   ref={(el) => {
                     if (el) chipRefs.current[categoryId] = el;
                   }}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    scrollToCategory(categoryId);
-                    try {
-                      window.history.replaceState(null, "", `#${categoryId}`);
-                    } catch {}
-                  }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToCategory(categoryId);
+                  try {
+                    requestAnimationFrame(() => {
+                      adjustNavForCategory(categoryId);
+                    });
+                  } catch {}
+                  try {
+                    window.history.replaceState(null, "", `#${categoryId}`);
+                  } catch {}
+                }}
                 >
                   {category.name}
                 </a>
@@ -6483,26 +6998,27 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
             );
           })}
         </ul>
-      </div>
 
-      {!isMobileQnav ? (
-        <button
-          type="button"
-          className="quick-nav-arrow quick-nav-arrow--right quick-nav-arrow--slot"
-          aria-label="Scroll categories right"
-          aria-disabled={!canScrollRight}
-          data-disabled={!canScrollRight ? "1" : "0"}
-          onClick={() => {
-            if (!canScrollRight) return;
-            suppressActiveFollow(2600);
-            jumpNavByChip("right");
-          }}
-        >
-          ›
-        </button>
-      ) : null}
+        {!isMobileQnav ? (
+          <button
+            type="button"
+            className="quick-nav-arrow quick-nav-arrow--right quick-nav-arrow--inscroll"
+            aria-label="Scroll categories right"
+            aria-disabled={!canScrollRight}
+            data-disabled={!canScrollRight ? "1" : "0"}
+            onClick={() => {
+              if (!canScrollRight) return;
+              suppressActiveFollow(2600);
+              jumpNavByChip("right");
+            }}
+          >
+            {"\u203A"}
+          </button>
+        ) : null}
+      </div>
     </nav>
   );
+
 
   if (!usePortal || typeof document === "undefined") {
     return nav;
@@ -8412,6 +8928,7 @@ function OrderInfoPanel({
 
     let disposed = false;
     let widget = null;
+    let themeObs = null;
 
     (async () => {
       try {
@@ -8435,6 +8952,31 @@ function OrderInfoPanel({
 
         el.style.display = "block";
         el.style.width = "100%";
+
+        const applyPlacesTheme = () => {
+          const theme =
+            document.documentElement.getAttribute("data-theme") || "dark";
+          const isLight = theme === "light";
+
+          // These are supported styling hooks on the element itself
+          el.style.colorScheme = isLight ? "light" : "dark";
+          el.style.backgroundColor = isLight ? "#ffffff" : "rgba(15, 23, 42, 0.35)";
+          el.style.border = isLight
+            ? "1px solid rgba(15, 23, 42, 0.12)"
+            : "1px solid rgba(148, 163, 184, 0.22)";
+          el.style.borderRadius = "14px";
+        };
+
+        applyPlacesTheme();
+
+        // Keep it in sync when you toggle LIGHT/DARK
+        if (typeof MutationObserver !== "undefined") {
+          themeObs = new MutationObserver(applyPlacesTheme);
+          themeObs.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["data-theme"],
+          });
+        }
 
         const container = addressInputRef.current;
         container.innerHTML = "";
@@ -8527,6 +9069,9 @@ function OrderInfoPanel({
           widget.parentNode.removeChild(widget);
         }
       } catch (_) {}
+      try {
+        themeObs?.disconnect?.();
+      } catch {}
     };
   }, [
     isMapsLoaded,
@@ -8613,7 +9158,12 @@ function OrderInfoPanel({
             </label>
 
             {orderType === "Delivery" && canUsePlacesWidget && !addressAutoErr ? (
-              <div id="address" ref={addressInputRef} style={{ width: "100%" }} />
+              <div
+                id="address"
+                ref={addressInputRef}
+                className="pp-delivery-autocomplete"
+                style={{ width: "100%" }}
+              />
             ) : (
               <input
                 type="text"
@@ -9156,7 +9706,7 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
   return (
     <div className="modal-overlay pp-login-overlay" onClick={handleClose}>
       <div
-        className="modal-content pp-login-modal"
+        className="modal-content pp-login-modal pp-login-solid"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -11960,6 +12510,31 @@ function AppLayout({ isMapsLoaded }) {
     return () => {
       if (mql.removeEventListener) mql.removeEventListener("change", onChange);
       else mql.removeListener(onChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const update = () => {
+      const topnav = document.querySelector(".pp-topnav");
+      if (!topnav) return;
+
+      const h = Math.ceil(topnav.getBoundingClientRect().height || 0);
+      const gap = 10; // breathing room between header + quick-nav
+
+      document.documentElement.style.setProperty("--pp-qnav-top", `${h + gap}px`);
+    };
+
+    const rafUpdate = () => requestAnimationFrame(update);
+
+    rafUpdate();
+    window.addEventListener("resize", rafUpdate);
+    window.addEventListener("orientationchange", rafUpdate);
+
+    return () => {
+      window.removeEventListener("resize", rafUpdate);
+      window.removeEventListener("orientationchange", rafUpdate);
     };
   }, []);
 
