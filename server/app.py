@@ -4,6 +4,12 @@ import os
 import re
 import requests
 from pathlib import Path
+from datetime import datetime, timedelta
+import secrets
+from functools import wraps
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+import firebase_admin
+from firebase_admin import credentials, auth as fb_admin_auth
 try:
     # Load .env when running via `python app.py` (flask run does this automatically)
     from dotenv import load_dotenv  # type: ignore
@@ -16,6 +22,95 @@ from flask_cors import CORS
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
+
+app.config["SECRET_KEY"] = os.getenv("POS_SECRET_KEY", "dev-change-me-now")
+TOKEN_SALT = "pp_auth_v1"
+TOKEN_MAX_AGE_SECONDS = int(os.getenv("POS_TOKEN_MAX_AGE", "1209600"))  # 14 days
+
+def _serializer():
+    return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt=TOKEN_SALT)
+
+def make_token(payload: dict) -> str:
+    return _serializer().dumps(payload)
+
+def read_token(token: str) -> dict | None:
+    try:
+        return _serializer().loads(token, max_age=TOKEN_MAX_AGE_SECONDS)
+    except (BadSignature, SignatureExpired):
+        return None
+
+def get_bearer_token() -> str | None:
+    auth = request.headers.get("Authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    return None
+
+def auth_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        tok = get_bearer_token()
+        data = read_token(tok) if tok else None
+        if not data or not data.get("uid"):
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
+        u = User.query.get(int(data["uid"]))
+        if not u or not u.is_active:
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
+        request.pp_user = u
+        return fn(*args, **kwargs)
+    return wrapper
+
+def staff_required(fn):
+    @wraps(fn)
+    @auth_required
+    def wrapper(*args, **kwargs):
+        u = request.pp_user
+        if u.role not in ("staff", "admin"):
+            return jsonify({"ok": False, "error": "Forbidden"}), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+def _parse_emails(env_name: str) -> set[str]:
+    raw = (os.getenv(env_name) or "").strip()
+    if not raw:
+        return set()
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+ADMIN_EMAILS = _parse_emails("POS_ADMIN_EMAILS")
+STAFF_EMAILS = _parse_emails("POS_STAFF_EMAILS")
+
+def role_for_email(email: str) -> str:
+    e = (email or "").strip().lower()
+    if e in ADMIN_EMAILS:
+        return "admin"
+    if e in STAFF_EMAILS:
+        return "staff"
+    return "customer"
+
+def init_firebase_admin():
+    """
+    Set env FIREBASE_ADMIN_CREDENTIALS to either:
+      1) a JSON string, OR
+      2) a filesystem path to the serviceAccountKey.json
+    """
+    cred_raw = (os.getenv("FIREBASE_ADMIN_CREDENTIALS") or "").strip()
+    if not cred_raw:
+        print("[auth] FIREBASE_ADMIN_CREDENTIALS not set -> /auth/firebase will fail")
+        return
+
+    try:
+        if cred_raw.startswith("{"):
+            cred_obj = json.loads(cred_raw)
+            cred = credentials.Certificate(cred_obj)
+        else:
+            cred = credentials.Certificate(cred_raw)
+        firebase_admin.initialize_app(cred)
+        print("[auth] firebase-admin initialized")
+    except Exception as e:
+        print("[auth] firebase-admin init failed:", e)
+
+# init once
+if not firebase_admin._apps:
+    init_firebase_admin()
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 db = SQLAlchemy(app)
@@ -61,14 +156,44 @@ UPLOAD_DIRS = [PERSIST_UPLOAD_DIR, UPLOAD_DIR]
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    phone = db.Column(db.String(20), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+
+    # Local customer identity (optional)
+    phone = db.Column(db.String(32), unique=True, nullable=True)
+    password_hash = db.Column(db.String(256), nullable=True)
+
+    # Google identity (optional)
+    email = db.Column(db.String(255), unique=True, nullable=True)
+    firebase_uid = db.Column(db.String(128), unique=True, nullable=True)
+
+    display_name = db.Column(db.String(80), default="", nullable=False)
+    role = db.Column(db.String(16), default="customer", nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+
+    reset_code_hash = db.Column(db.String(256), nullable=True)
+    reset_expires_at = db.Column(db.DateTime, nullable=True)
 
     def set_password(self, pw):
         self.password_hash = generate_password_hash(pw)
 
     def check_password(self, pw):
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, pw)
+
+    def set_reset_code(self, code: str, minutes: int = 10):
+        self.reset_code_hash = generate_password_hash(code)
+        self.reset_expires_at = datetime.utcnow() + timedelta(minutes=minutes)
+
+    def check_reset_code(self, code: str) -> bool:
+        if not self.reset_code_hash or not self.reset_expires_at:
+            return False
+        if datetime.utcnow() > self.reset_expires_at:
+            return False
+        return check_password_hash(self.reset_code_hash, code)
 
 
 with app.app_context():
@@ -77,27 +202,256 @@ with app.app_context():
 
 @app.post("/register")
 def register():
-    data = request.get_json()
-    phone, password = data.get("phone"), data.get("password")
+    data = request.get_json() or {}
+    phone = (data.get("phone") or "").strip()
+    password = data.get("password") or ""
+    display_name = (data.get("displayName") or "").strip()
+
     if not phone or not password:
-        return jsonify({"error": "Missing phone or password"}), 400
+        return jsonify({"ok": False, "error": "Missing phone or password"}), 400
     if User.query.filter_by(phone=phone).first():
-        return jsonify({"error": "User already exists"}), 400
-    u = User(phone=phone)
+        return jsonify({"ok": False, "error": "User already exists"}), 400
+    u = User(phone=phone, display_name=display_name, role="customer")
     u.set_password(password)
     db.session.add(u)
     db.session.commit()
-    return jsonify({"message": "Registered successfully"}), 200
+    token = make_token({"uid": u.id, "role": u.role})
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "user": {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role},
+    }), 200
 
 
 @app.post("/login")
 def login():
-    data = request.get_json()
-    phone, password = data.get("phone"), data.get("password")
-    user = User.query.filter_by(phone=phone).first()
-    if user and user.check_password(password):
-        return jsonify({"logged_in": True, "user": {"phone": user.phone}})
-    return jsonify({"logged_in": False, "error": "Invalid credentials"}), 401
+    data = request.get_json() or {}
+    phone = (data.get("phone") or "").strip()
+    password = data.get("password") or ""
+
+    u = User.query.filter_by(phone=phone).first()
+    if not u or not u.is_active or not u.check_password(password):
+        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+
+    u.last_login_at = datetime.utcnow()
+    u.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    token = make_token({"uid": u.id, "role": u.role})
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "user": {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role},
+    }), 200
+
+
+@app.post("/auth/firebase")
+def auth_firebase():
+    if not firebase_admin._apps:
+        return jsonify({"ok": False, "error": "firebase-admin not configured"}), 500
+
+    data = request.get_json() or {}
+    id_token = data.get("idToken") or ""
+    if not id_token:
+        return jsonify({"ok": False, "error": "Missing idToken"}), 400
+
+    try:
+        decoded = fb_admin_auth.verify_id_token(id_token, check_revoked=True)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid token"}), 401
+
+    fb_uid = decoded.get("uid")
+    email = (decoded.get("email") or "").strip().lower()
+    name = (decoded.get("name") or decoded.get("displayName") or "").strip()
+
+    if not fb_uid:
+        return jsonify({"ok": False, "error": "Token missing uid"}), 400
+
+    # Role based on allowlist env vars
+    role = role_for_email(email)
+
+    # Upsert user
+    u = None
+    if email:
+        u = User.query.filter_by(email=email).first()
+    if not u:
+        u = User.query.filter_by(firebase_uid=fb_uid).first()
+
+    if not u:
+        u = User(email=email or None, firebase_uid=fb_uid, display_name=name or "", role=role)
+        db.session.add(u)
+    else:
+        u.firebase_uid = fb_uid
+        if email:
+            u.email = email
+        if name and not u.display_name:
+            u.display_name = name
+        # If this login is allowlisted staff/admin, bump role upwards
+        if role in ("staff", "admin") and u.role == "customer":
+            u.role = role
+        if role == "admin" and u.role != "admin":
+            u.role = "admin"
+
+    u.last_login_at = datetime.utcnow()
+    u.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    token = make_token({"uid": u.id, "role": u.role})
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "user": {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role},
+    }), 200
+
+
+@app.get("/me")
+@auth_required
+def me():
+    u = request.pp_user
+    return jsonify({"ok": True, "user": {
+        "id": u.id, "phone": u.phone, "displayName": u.display_name, "role": u.role
+    }})
+
+
+@app.put("/me")
+@auth_required
+def update_me():
+    u = request.pp_user
+    data = request.get_json() or {}
+    if "displayName" in data:
+        dn = (data.get("displayName") or "").strip()
+        u.display_name = dn
+    u.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True, "user": {
+        "id": u.id, "phone": u.phone, "displayName": u.display_name, "role": u.role
+    }})
+
+
+@app.post("/auth/request-reset")
+def request_reset():
+    data = request.get_json() or {}
+    phone = (data.get("phone") or "").strip()
+    if not phone:
+        return jsonify({"error": "Missing phone"}), 400
+
+    u = User.query.filter_by(phone=phone).first()
+    if not u or not u.is_active:
+        return jsonify({"ok": True}), 200
+
+    code = f"{secrets.randbelow(1000000):06d}"
+    u.set_reset_code(code, minutes=10)
+    u.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    if os.getenv("POS_RETURN_RESET_CODE", "1") == "1":
+        return jsonify({"ok": True, "devCode": code}), 200
+
+    return jsonify({"ok": True}), 200
+
+
+@app.post("/auth/reset")
+def reset_password():
+    data = request.get_json() or {}
+    phone = (data.get("phone") or "").strip()
+    code = (data.get("code") or "").strip()
+    new_pw = data.get("newPassword") or ""
+
+    if not phone or not code or not new_pw:
+        return jsonify({"error": "Missing fields"}), 400
+    if len(new_pw) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    u = User.query.filter_by(phone=phone).first()
+    if not u or not u.is_active or not u.check_reset_code(code):
+        return jsonify({"error": "Invalid code"}), 400
+
+    u.set_password(new_pw)
+    u.reset_code_hash = None
+    u.reset_expires_at = None
+    u.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({"ok": True}), 200
+
+
+@app.get("/admin/users")
+@staff_required
+def admin_users():
+    users = User.query.order_by(User.created_at.desc()).limit(500).all()
+    return jsonify({"ok": True, "users": [
+        {"id": u.id, "phone": u.phone, "displayName": u.display_name, "role": u.role, "isActive": u.is_active}
+        for u in users
+    ]})
+
+
+@app.patch("/admin/users/<int:user_id>")
+@staff_required
+def admin_update_user(user_id: int):
+    actor = request.pp_user
+    u = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+
+    if "displayName" in data:
+        u.display_name = (data.get("displayName") or "").strip()
+
+    if "isActive" in data:
+        u.is_active = bool(data.get("isActive"))
+
+    if "role" in data:
+        if actor.role != "admin":
+            return jsonify({"ok": False, "error": "Forbidden"}), 403
+        role = (data.get("role") or "").strip()
+        if role not in ("customer", "staff", "admin"):
+            return jsonify({"ok": False, "error": "Invalid role"}), 400
+        u.role = role
+
+    u.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.post("/admin/users/<int:user_id>/set-password")
+@staff_required
+def admin_set_password(user_id: int):
+    u = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    pw = data.get("newPassword") or ""
+    if len(pw) < 6:
+        return jsonify({"ok": False, "error": "Password must be at least 6 characters"}), 400
+    u.set_password(pw)
+    u.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@app.post("/admin/bootstrap")
+def admin_bootstrap():
+    setup_key = os.getenv("POS_ADMIN_SETUP_KEY", "")
+    data = request.get_json() or {}
+    if not setup_key or data.get("setupKey") != setup_key:
+        return jsonify({"error": "Forbidden"}), 403
+
+    phone = (data.get("phone") or "").strip()
+    pw = data.get("password") or ""
+    if not phone or len(pw) < 6:
+        return jsonify({"error": "Invalid fields"}), 400
+
+    existing_admin = User.query.filter(User.role.in_(["admin", "staff"])).first()
+    if existing_admin:
+        return jsonify({"error": "Already bootstrapped"}), 400
+
+    u = User.query.filter_by(phone=phone).first()
+    if u:
+        u.role = "admin"
+        u.set_password(pw)
+    else:
+        u = User(phone=phone, display_name="Admin", role="admin")
+        u.set_password(pw)
+        db.session.add(u)
+
+    db.session.commit()
+    return jsonify({"ok": True}), 200
 
 
 def _load_menu_json():

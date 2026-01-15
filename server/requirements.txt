@@ -5,3 +5,5 @@ requests
 python-dotenv
 werkzeug
 gunicorn
+firebase-admin>=6.5.0
+itsdangerous>=2.2.0

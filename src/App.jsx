@@ -70,6 +70,7 @@ import {
   normalizeSizeRef as normalizeMenuSizeRef,
   defaultSize,
 } from "./utils/size";
+import AdminPanelPage from "./AdminPanel";
 const HALF_HALF_FORCED_ITEM = {
   id: "half_half",
   name: "The Half & Half Pizza",
@@ -5313,8 +5314,8 @@ if (typeof window !== "undefined") {
  * @property {any} currentUser
  * @property {() => Promise<void>} loginWithGoogle
  * @property {() => Promise<void>} loginWithApple
- * @property {(phone: string, displayName?: string) => any} loginLocal
- * @property {(args: { phone: string, displayName?: string }) => any} signupLocal
+ * @property {(phone: string, displayName?: string, token?: string | null, userOverride?: any) => any} loginLocal
+ * @property {(args: { phone: string, displayName?: string, token?: string | null, user?: any }) => any} signupLocal
  * @property {() => Promise<void>} logout
  * @property {boolean} loading
  * @property {boolean} showLogin
@@ -5336,9 +5337,14 @@ const AuthContext = createContext(
     loginWithGoogle: async () => {},
     loginWithApple: async () => {},
     // Accept proper args in the default stubs so consumers see correct signatures:
-    loginLocal: (_phone, _displayName) => null,
+    loginLocal: (_phone, _displayName, _token, _user) => null,
     signupLocal: (
-      { phone: _p = "", displayName: _d = "" } = { phone: "", displayName: "" },
+      {
+        phone: _p = "",
+        displayName: _d = "",
+        token: _t = null,
+        user: _u = null,
+      } = { phone: "", displayName: "" },
     ) => null,
     logout: async () => {},
     loading: true,
@@ -5388,16 +5394,28 @@ function AuthProvider({ children }) {
   );
 
   const [firebaseUser, setFirebaseUser] = useState(null);
-  const [localUser, setLocalUser] = useState(() => {
+  const [localSession, setLocalSession] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
+      const raw = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
+      if (!raw) return null;
+      if (raw && typeof raw === "object" && raw.user) {
+        return { token: raw.token || null, user: raw.user || null };
+      }
+      if (raw && typeof raw === "object") {
+        return { token: null, user: raw };
+      }
+      return null;
     } catch {
       return null;
     }
   });
+  const localUser = localSession?.user || null;
   const [loading, setLoading] = useState(true);
   const initDoneRef = useRef(false);
   const handledRedirectRef = useRef(false);
+  const saveSession = (token, user) => {
+    localStorage.setItem("pp_session_v1", JSON.stringify({ token, user }));
+  };
 
   const ensurePersistence = React.useCallback(async () => {
     try {
@@ -5565,6 +5583,35 @@ function AuthProvider({ children }) {
     };
   }, [firebaseAuth]);
 
+  useEffect(() => {
+    const run = async () => {
+      if (!FB_READY || !firebaseUser) return;
+
+      // MENU_BASE exists in this file; if empty, call same-origin "/auth/firebase"
+      const base = (MENU_BASE || "").replace(/\/+$/, "");
+      const url = `${base}/auth/firebase`;
+
+      try {
+        const idToken = await firebaseUser.getIdToken(true);
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.ok) {
+          console.warn("[auth] /auth/firebase failed:", data?.error || res.status);
+          return;
+        }
+        saveSession(data.token, data.user);
+      } catch (e) {
+        console.warn("[auth] /auth/firebase exception:", e?.message || e);
+      }
+    };
+
+    run();
+  }, [firebaseUser]);
+
   // Dev-only: clear bad photoURL if using legacy firebasestorage.app links
   useEffect(() => {
     if (FB_READY && firebaseUser) {
@@ -5572,11 +5619,14 @@ function AuthProvider({ children }) {
     }
   }, [firebaseUser]);
 
-  // Persist local user when it changes
+  // Persist local session when it changes
   useEffect(() => {
-    if (localUser) localStorage.setItem(LOCAL_KEY, JSON.stringify(localUser));
-    else localStorage.removeItem(LOCAL_KEY);
-  }, [localUser]);
+    if (localSession && localSession.user) {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(localSession));
+    } else {
+      localStorage.removeItem(LOCAL_KEY);
+    }
+  }, [localSession]);
 
   // ---- public auth actions ----
   const loginWithGoogle = React.useCallback(async () => {
@@ -5604,26 +5654,40 @@ function AuthProvider({ children }) {
 
   // Called by your password modal on success
   const loginLocal = React.useCallback(
-    (phone, displayName = "") => {
-      const u = {
-        uid: `local:${phone}`,
-        phoneNumber: phone,
-        displayName: displayName || phone,
-        providerId: "local",
-      };
-      setLocalUser(u);
-      return u;
+    (phone, displayName = "", token = null, userOverride = null) => {
+      const baseUser =
+        userOverride && typeof userOverride === "object"
+          ? { ...userOverride }
+          : {
+              uid: `local:${phone}`,
+              phoneNumber: phone,
+              displayName: displayName || phone,
+              providerId: "local",
+            };
+
+      const phoneValue =
+        baseUser.phoneNumber || baseUser.phone || phone || "";
+      if (!baseUser.providerId) baseUser.providerId = "local";
+      if (!baseUser.uid) baseUser.uid = `local:${phoneValue || baseUser.id || ""}`;
+      if (!baseUser.phoneNumber && phoneValue) baseUser.phoneNumber = phoneValue;
+      if (!baseUser.phone && phoneValue) baseUser.phone = phoneValue;
+      if (!baseUser.displayName)
+        baseUser.displayName = displayName || phoneValue;
+
+      setLocalSession({ token: token || null, user: baseUser });
+      return baseUser;
     },
-    [setLocalUser],
+    [setLocalSession],
   );
   const signupLocal = React.useCallback(
-    ({ phone, displayName }) => loginLocal(phone, displayName),
+    ({ phone, displayName, token = null, user = null } = {}) =>
+      loginLocal(phone, displayName, token, user),
     [loginLocal],
   );
 
   const logoutLocal = React.useCallback(
-    () => setLocalUser(null),
-    [setLocalUser],
+    () => setLocalSession(null),
+    [setLocalSession],
   );
 
   const logout = React.useCallback(async () => {
@@ -5634,6 +5698,7 @@ function AuthProvider({ children }) {
     } catch (err) {
       console.error("Logout failed:", err);
     } finally {
+      localStorage.removeItem("pp_session_v1");
       logoutLocal();
     }
   }, [logoutLocal]);
@@ -9509,8 +9574,7 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     onClose?.();
   }, [onClose]);
 
-  // ---- tiny "account store" in localStorage (prototype only) ----
-  const STORAGE_KEY = "pp_users_v1";
+  // ---- phone normalization ----
   const normalizePhone = (s) => {
     if (!s) return "";
     let x = s.replace(/\s+/g, "");
@@ -9518,15 +9582,6 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     if (!x.startsWith("+") && /^\d+$/.test(x)) x = "+" + x; // allow raw digits
     return x;
   };
-  const getUsers = () => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    } catch {
-      return {};
-    }
-  };
-  const saveUsers = (obj) =>
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
 
   // ---- optional: OTP via Firebase phone (not required to log in) ----
   React.useEffect(() => {
@@ -9625,27 +9680,58 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     }
   };
 
+  const API_BASE =
+    (import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(/\/+$/, "") || "";
+
+  const saveSession = (token, user) => {
+    localStorage.setItem("pp_session_v1", JSON.stringify({ token, user }));
+  };
+
+  const normalizeSessionUser = (user, fallbackPhone) => {
+    const phoneValue = String(user?.phone || user?.phoneNumber || fallbackPhone || "").trim();
+    const idValue = user?.id ?? user?.uid ?? phoneValue;
+    return {
+      id: user?.id ?? null,
+      uid: user?.uid ? String(user.uid) : `local:${idValue}`,
+      phone: phoneValue,
+      phoneNumber: phoneValue,
+      displayName: user?.displayName || user?.display_name || phoneValue,
+      role: user?.role || "customer",
+      providerId: user?.providerId || "local",
+    };
+  };
+
   // ---- auth submit (password-first, OTP optional) ----
-  const submitLogin = (e) => {
+  const submitLogin = async (e) => {
     e.preventDefault();
     setErr("");
     setOk("");
     const ph = normalizePhone(phone);
     if (!ph) return setErr("Please enter your phone.");
     if (!password) return setErr("Please enter your password.");
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: ph, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Login failed");
 
-    const users = getUsers();
-    const entry = users[ph];
-    if (!entry)
-      return setErr("No account found for that number. Please sign up.");
-    if (entry.pw !== password) return setErr("Incorrect password.");
-
-    loginLocal(ph);
-    setOk("Welcome back!");
-    setTimeout(handleClose, 300);
+      const sessionUser = normalizeSessionUser(data.user, ph);
+      saveSession(data.token, sessionUser);
+      loginLocal(sessionUser.phoneNumber || ph, sessionUser.displayName || "", data.token, sessionUser);
+      setOk("Welcome back!");
+      setTimeout(handleClose, 300);
+    } catch (error) {
+      setErr(error?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const submitSignup = (e) => {
+  const submitSignup = async (e) => {
     e.preventDefault();
     setErr("");
     setOk("");
@@ -9660,18 +9746,26 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     if (password.length < 6)
       return setErr("Password must be at least 6 characters.");
 
-    const users = getUsers();
-    if (users[ph1])
-      return setErr(
-        "An account with this number already exists. Try logging in.",
-      );
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: ph1, password, displayName: "" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Sign up failed");
 
-    users[ph1] = { pw: password, createdAt: Date.now() };
-    saveUsers(users);
-
-    loginLocal(ph1);
-    setOk("Account created - you're all set.");
-    setTimeout(handleClose, 400);
+      const sessionUser = normalizeSessionUser(data.user, ph1);
+      saveSession(data.token, sessionUser);
+      loginLocal(sessionUser.phoneNumber || ph1, sessionUser.displayName || "", data.token, sessionUser);
+      setOk("Account created - you're all set.");
+      setTimeout(handleClose, 400);
+    } catch (error) {
+      setErr(error?.message || "Sign up failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ---- visuals ----
@@ -13834,6 +13928,7 @@ function AppLayout({ isMapsLoaded }) {
                 }
               />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/admin" element={<AdminPanelPage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route
                 path="*"
