@@ -8,14 +8,7 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Link,
-  useNavigate,
-  useLocation,
-} from "react-router-dom";
+import { Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 
 import {
   FB_READY,
@@ -9577,9 +9570,26 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
   // ---- phone normalization ----
   const normalizePhone = (s) => {
     if (!s) return "";
-    let x = s.replace(/\s+/g, "");
+    let x = String(s).trim();
+
+    // remove spaces/dashes/brackets etc, keep digits and leading +
+    x = x.replace(/[^\d+]/g, "");
+
+    // 00.. -> +..
     if (x.startsWith("00")) x = "+" + x.slice(2);
-    if (!x.startsWith("+") && /^\d+$/.test(x)) x = "+" + x; // allow raw digits
+
+    // AU mobile: 04xxxxxxxx -> +614xxxxxxxx
+    if (/^04\d{8}$/.test(x)) x = "+61" + x.slice(1);
+
+    // AU mobile: 4xxxxxxxx -> +614xxxxxxxx (sometimes people omit leading 0)
+    if (/^4\d{8}$/.test(x)) x = "+61" + x;
+
+    // 61xxxxxxxxx -> +61xxxxxxxxx
+    if (/^61\d+$/.test(x)) x = "+" + x;
+
+    // raw digits -> +digits
+    if (!x.startsWith("+") && /^\d+$/.test(x)) x = "+" + x;
+
     return x;
   };
 
@@ -9680,8 +9690,17 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     }
   };
 
-  const API_BASE =
-    (import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(/\/+$/, "") || "";
+  // Use the same backend base as the rest of the app
+  const API_BASE = (() => {
+    const base = (MENU_BASE || "").replace(/\/+$/, "");
+    if (import.meta.env.DEV) {
+      // In local dev, default to the local Flask server if MENU_BASE isn't set correctly
+      if (!base || /onrender\.com/i.test(base)) return "http://127.0.0.1:5055";
+    }
+    return base;
+  })();
+
+  console.log("[auth] API_BASE =", API_BASE);
 
   const saveSession = (token, user) => {
     localStorage.setItem("pp_session_v1", JSON.stringify({ token, user }));
@@ -9701,6 +9720,15 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     };
   };
 
+  const readJsonSafe = async (res) => {
+    const txt = await res.text();
+    try {
+      return JSON.parse(txt);
+    } catch {
+      return { ok: false, error: txt ? txt.slice(0, 180) : `HTTP ${res.status}` };
+    }
+  };
+
   // ---- auth submit (password-first, OTP optional) ----
   const submitLogin = async (e) => {
     e.preventDefault();
@@ -9716,8 +9744,9 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: ph, password }),
       });
-      const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error || "Login failed");
+      const data = await readJsonSafe(res);
+      if (!res.ok || !data?.ok)
+        throw new Error(data?.error || `Login failed (HTTP ${res.status})`);
 
       const sessionUser = normalizeSessionUser(data.user, ph);
       saveSession(data.token, sessionUser);
@@ -9753,8 +9782,9 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: ph1, password, displayName: "" }),
       });
-      const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error || "Sign up failed");
+      const data = await readJsonSafe(res);
+      if (!res.ok || !data?.ok)
+        throw new Error(data?.error || `Sign up failed (HTTP ${res.status})`);
 
       const sessionUser = normalizeSessionUser(data.user, ph1);
       saveSession(data.token, sessionUser);
@@ -12514,6 +12544,9 @@ function AppLayout({ isMapsLoaded }) {
     console.log("[PP][diag] AppLayout mount mark =", w.__PP_DIAG_MARK);
   }
 
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith("/admin");
+
   const authCtx = useAuth();
   const authUser = authCtx.currentUser;
   const authLoadingFlag = authCtx.loading;
@@ -13892,21 +13925,23 @@ function AppLayout({ isMapsLoaded }) {
 
       <div className="app-grid-layout">
         <div className="left-pane">
-          <Navbar
-            onAboutClick={showAboutPanel}
-            onMenuClick={showOrderPanel}
-            onCartClick={showCartPanel}
-            onLoginClick={(tab) => authCtx.openLogin(tab)}
-            onProfileClick={handleProfileOpen}
-            searchName={searchName}
-            searchTopping={searchTopping}
-            onSearchNameChange={setSearchName}
-            onSearchToppingChange={setSearchTopping}
-          />
+          {!isAdminRoute ? (
+            <Navbar
+              onAboutClick={showAboutPanel}
+              onMenuClick={showOrderPanel}
+              onCartClick={showCartPanel}
+              onLoginClick={(tab) => authCtx.openLogin(tab)}
+              onProfileClick={handleProfileOpen}
+              searchName={searchName}
+              searchTopping={searchTopping}
+              onSearchNameChange={setSearchName}
+              onSearchToppingChange={setSearchTopping}
+            />
+          ) : null}
 
           <main className="main-content-area">
             {/* <DebugMenuFetch /> */} {/* TEMP widget hidden */}
-            {menuError ? (
+            {!isAdminRoute && menuError ? (
               <div className="mb-4 text-center text-xs text-red-300 opacity-80">
                 Menu error: {String(menuError?.message || menuError)}
               </div>
@@ -13928,23 +13963,22 @@ function AppLayout({ isMapsLoaded }) {
                 }
               />
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/admin" element={<AdminPanelPage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route
                 path="*"
                 element={<div style={{ padding: 16 }}>Route fallback OK</div>}
               />
             </Routes>
-            <Footer />
+            {!isAdminRoute ? <Footer /> : null}
           </main>
         </div>
         {/* Desktop only: keep the right sidebar */}
-        {!isMobileScreen && (
+        {!isAdminRoute && !isMobileScreen && (
           <div className={rightSidebarClassName}>
             <div className={orderPanelClassName}>{rightPanelBody}</div>
           </div>
         )}
-        {showViewOrderFab && (
+        {!isAdminRoute && showViewOrderFab && (
           <button
             type="button"
             className={["pp-cart-fab", cartFabBump ? "is-bump" : ""].join(" ")}
@@ -13967,7 +14001,7 @@ function AppLayout({ isMapsLoaded }) {
             )}
           </button>
         )}
-        {isMobile && cartModalOpen && (
+        {!isAdminRoute && isMobile && cartModalOpen && (
           <div className="pp-cart-modal" role="dialog" aria-modal="true">
             <div
               className="pp-cart-modal__backdrop"
@@ -13988,7 +14022,7 @@ function AppLayout({ isMapsLoaded }) {
             </div>
           </div>
         )}
-        {isMobile && (
+        {!isAdminRoute && isMobile && (
           <MobileBottomNav
             elevated={!!cartModalOpen || !!isProfileOpen}
             activeKey={
@@ -14010,8 +14044,8 @@ function AppLayout({ isMapsLoaded }) {
         )}
       </div>
       {/* Mobile: render selected item modals outside the grid (so they can't be hidden) */}
-      {isMobileScreen && !!selectedItem ? rightPanelBody : null}
-      {isMobile && isMealDealSelected && (
+      {!isAdminRoute && isMobileScreen && !!selectedItem ? rightPanelBody : null}
+      {!isAdminRoute && isMobile && isMealDealSelected && (
         <div className="pp-mealdeal-modal" role="dialog" aria-modal="true">
           <div
             className="pp-mealdeal-modal__backdrop"
@@ -14036,26 +14070,39 @@ function App() {
     getProductImageUrl({ name: "Italian", image: "italian.jpg" }),
   );
   const isMapsLoaded = useGoogleMaps();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith("/admin");
 
-  return (
+  const wrapProviders = (children) => (
     <AppProvider>
       <AuthProvider>
-        <Router>
-          <ThemeProvider>
-            <CartProvider>
-              <FirebaseBanner />
-              <ErrorBoundary>
-                <AppLayout isMapsLoaded={isMapsLoaded} />
-              </ErrorBoundary>
-              <div
-                id="recaptcha-container-root"
-                style={{ position: "fixed", bottom: 0, right: 0, zIndex: 1 }}
-              />
-            </CartProvider>
-          </ThemeProvider>
-        </Router>
+        <ThemeProvider>{children}</ThemeProvider>
       </AuthProvider>
     </AppProvider>
+  );
+
+  if (isAdminRoute) {
+    // Admin must NOT render inside the POS grid layout
+    return wrapProviders(
+      <div className="pp-admin-standalone">
+        <Routes>
+          <Route path="/admin/*" element={<AdminPanelPage />} />
+        </Routes>
+      </div>,
+    );
+  }
+
+  return wrapProviders(
+    <CartProvider>
+      <FirebaseBanner />
+      <ErrorBoundary>
+        <AppLayout isMapsLoaded={isMapsLoaded} />
+      </ErrorBoundary>
+      <div
+        id="recaptcha-container-root"
+        style={{ position: "fixed", bottom: 0, right: 0, zIndex: 1 }}
+      />
+    </CartProvider>,
   );
 }
 

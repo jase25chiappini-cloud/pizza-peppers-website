@@ -9619,6 +9619,15 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   display: none !important;
 }
 
+.pp-admin-standalone{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: auto;
+  /* keep your existing background visuals visible */
+  background: transparent;
+}
+
 /* =========================================================
    FIX: random tone shift while scrolling
    Cause: .main-content-area uses a top radial gradient that fades out.

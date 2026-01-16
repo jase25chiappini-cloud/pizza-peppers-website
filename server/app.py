@@ -13,7 +13,9 @@ from firebase_admin import credentials, auth as fb_admin_auth
 try:
     # Load .env when running via `python app.py` (flask run does this automatically)
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv()
+    _env_dir = Path(__file__).resolve().parent
+    load_dotenv(_env_dir / ".env")
+    load_dotenv(_env_dir / ".env.local")
 except Exception:
     pass
 from flask_sqlalchemy import SQLAlchemy
@@ -115,6 +117,34 @@ if not firebase_admin._apps:
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 db = SQLAlchemy(app)
 
+def normalize_phone(s: str) -> str:
+    if not s:
+        return ""
+    x = re.sub(r"[^\d+]", "", s.strip())
+    if x.startswith("00"):
+        x = "+" + x[2:]
+
+    # AU: 04xxxxxxxx -> +614xxxxxxxx
+    if re.fullmatch(r"04\d{8}", x):
+        x = "+61" + x[1:]
+
+    # AU: 4xxxxxxxx -> +614xxxxxxxx
+    if re.fullmatch(r"4\d{8}", x):
+        x = "+61" + x
+
+    # 61xxxxxxxxx -> +61xxxxxxxxx
+    if re.fullmatch(r"61\d+", x):
+        x = "+" + x
+
+    # raw digits -> +digits
+    if not x.startswith("+") and re.fullmatch(r"\d+", x):
+        x = "+" + x
+
+    return x
+
+BOOTSTRAP_ADMIN_PHONE_RAW = (os.getenv("POS_BOOTSTRAP_ADMIN_PHONE") or "").strip()
+BOOTSTRAP_ADMIN_PHONE = normalize_phone(BOOTSTRAP_ADMIN_PHONE_RAW)
+
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "static" / "uploads"
 
@@ -196,6 +226,15 @@ class User(db.Model):
         return check_password_hash(self.reset_code_hash, code)
 
 
+def should_bootstrap_admin(phone_raw: str, phone_normalized: str) -> bool:
+    if not BOOTSTRAP_ADMIN_PHONE_RAW and not BOOTSTRAP_ADMIN_PHONE:
+        return False
+    if phone_normalized != BOOTSTRAP_ADMIN_PHONE and phone_raw != BOOTSTRAP_ADMIN_PHONE_RAW:
+        return False
+    existing_admin = User.query.filter(User.role.in_(["admin", "staff"])).first()
+    return existing_admin is None
+
+
 with app.app_context():
     db.create_all()
 
@@ -203,7 +242,8 @@ with app.app_context():
 @app.post("/register")
 def register():
     data = request.get_json() or {}
-    phone = (data.get("phone") or "").strip()
+    phone_raw = (data.get("phone") or "").strip()
+    phone = normalize_phone(phone_raw)
     password = data.get("password") or ""
     display_name = (data.get("displayName") or "").strip()
 
@@ -211,7 +251,12 @@ def register():
         return jsonify({"ok": False, "error": "Missing phone or password"}), 400
     if User.query.filter_by(phone=phone).first():
         return jsonify({"ok": False, "error": "User already exists"}), 400
-    u = User(phone=phone, display_name=display_name, role="customer")
+    role = "customer"
+    if should_bootstrap_admin(phone_raw, phone):
+        role = "admin"
+        if not display_name:
+            display_name = "Admin"
+    u = User(phone=phone, display_name=display_name, role=role)
     u.set_password(password)
     db.session.add(u)
     db.session.commit()
@@ -226,12 +271,21 @@ def register():
 @app.post("/login")
 def login():
     data = request.get_json() or {}
-    phone = (data.get("phone") or "").strip()
+    phone_raw = (data.get("phone") or "").strip()
+    phone = normalize_phone(phone_raw)
     password = data.get("password") or ""
 
-    u = User.query.filter_by(phone=phone).first()
+    candidates = [phone]
+    if phone_raw and phone_raw not in candidates:
+        candidates.append(phone_raw)
+    u = User.query.filter(User.phone.in_(candidates)).first()
     if not u or not u.is_active or not u.check_password(password):
         return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+
+    if u.role == "customer" and should_bootstrap_admin(phone_raw, phone):
+        u.role = "admin"
+        if not u.display_name:
+            u.display_name = "Admin"
 
     u.last_login_at = datetime.utcnow()
     u.updated_at = datetime.utcnow()
@@ -380,7 +434,7 @@ def reset_password():
 def admin_users():
     users = User.query.order_by(User.created_at.desc()).limit(500).all()
     return jsonify({"ok": True, "users": [
-        {"id": u.id, "phone": u.phone, "displayName": u.display_name, "role": u.role, "isActive": u.is_active}
+        {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role, "isActive": u.is_active}
         for u in users
     ]})
 

@@ -1,20 +1,12 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import "./AdminPanel.css";
 
-/**
- * Admin Panel Page
- * Requires backend endpoints:
- *  - GET    /admin/users
- *  - PATCH  /admin/users/:id
- *  - POST   /admin/users/:id/set-password
- *
- * Auth:
- *  - Authorization: Bearer <token>
- *
- * Token lookup (supports future + fallback):
- *  - localStorage.pp_session_v1 as { token, user }
- *  - localStorage.pp_auth_token_v1 as string
- */
+const PAGE_SIZES = [10, 25, 50, 100];
+const ROLE_FILTERS = ["all", "customer", "staff", "admin"];
+const STATUS_FILTERS = ["all", "active", "inactive"];
+
 export default function AdminPanelPage() {
   const normalizeBase = (raw) => {
     const s = String(raw || "").trim().replace(/\/+$/, "");
@@ -27,38 +19,41 @@ export default function AdminPanelPage() {
     import.meta.env.VITE_PP_POS_BASE_URL || import.meta.env.VITE_PP_RENDER_BASE_URL,
   );
 
-  // In dev, allow relative calls (so Vite proxy / same-origin can work)
-  const API_BASE = import.meta.env.DEV ? "" : (PP_MENU_BASE_URL || PP_POS_BASE_URL);
+  const API_BASE = (() => {
+    const base = (PP_MENU_BASE_URL || PP_POS_BASE_URL || "").replace(/\/+$/, "");
+    if (import.meta.env.DEV) {
+      if (!base || /onrender\.com/i.test(base)) return "http://127.0.0.1:5055";
+    }
+    return base;
+  })();
 
   const [session, setSession] = useState(() => readSession());
   const token = session?.token || readAuthTokenFallback();
   const actorRole = session?.user?.role || "customer";
+  const canEditRole = actorRole === "admin";
+  const canManageUsers = actorRole === "admin" || actorRole === "staff";
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
+  const [lastLoadedAt, setLastLoadedAt] = useState(null);
 
   const [users, setUsers] = useState([]);
   const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortKey, setSortKey] = useState("id");
+  const [sortDir, setSortDir] = useState("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkAction, setBulkAction] = useState("");
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
-
-  const filtered = useMemo(() => {
-    const q = (query || "").trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => {
-      const phone = String(u.phone || "").toLowerCase();
-      const name = String(u.displayName || "").toLowerCase();
-      const role = String(u.role || "").toLowerCase();
-      return (
-        phone.includes(q) ||
-        name.includes(q) ||
-        role.includes(q) ||
-        String(u.id).includes(q)
-      );
-    });
-  }, [users, query]);
 
   const refresh = async () => {
     setErr("");
@@ -66,8 +61,9 @@ export default function AdminPanelPage() {
 
     if (!API_BASE && !import.meta.env.DEV) {
       setErr(
-        "Missing API base env var (set VITE_PP_MENU_BASE_URL or VITE_PP_POS_BASE_URL). Requests will try same-origin and likely fail.",
+        "Missing API base env var. Set VITE_PP_MENU_BASE_URL or VITE_PP_POS_BASE_URL.",
       );
+      return;
     }
     if (!token) {
       setErr("No admin session token found. Log in as staff/admin first.");
@@ -81,7 +77,7 @@ export default function AdminPanelPage() {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await readJsonSafe(res);
 
       if (res.status === 401)
         throw new Error("Unauthorized (token invalid/expired).");
@@ -90,8 +86,18 @@ export default function AdminPanelPage() {
       if (!res.ok || !data?.ok)
         throw new Error(data?.error || "Failed to load users.");
 
-      setUsers(Array.isArray(data.users) ? data.users : []);
-      setOk(`Loaded ${Array.isArray(data.users) ? data.users.length : 0} users.`);
+      const nextUsers = Array.isArray(data.users) ? data.users : [];
+      setUsers(nextUsers);
+      setLastLoadedAt(new Date());
+      setOk(`Loaded ${nextUsers.length} users.`);
+      setSelectedIds((prev) => {
+        const allowed = new Set(nextUsers.map((u) => u.id));
+        const next = new Set();
+        prev.forEach((id) => {
+          if (allowed.has(id)) next.add(id);
+        });
+        return next;
+      });
     } catch (e) {
       setErr(String(e?.message || e));
     } finally {
@@ -101,11 +107,127 @@ export default function AdminPanelPage() {
 
   useEffect(() => {
     refresh();
-    // keep session fresh if something else updates localStorage
     const t = setInterval(() => setSession(readSession()), 1500);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (token) refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, roleFilter, statusFilter, pageSize]);
+
+  const stats = useMemo(() => {
+    const total = users.length;
+    const active = users.filter((u) => u.isActive).length;
+    const inactive = total - active;
+    const admin = users.filter((u) => u.role === "admin").length;
+    const staff = users.filter((u) => u.role === "staff").length;
+    const customer = users.filter((u) => u.role === "customer").length;
+    return { total, active, inactive, admin, staff, customer };
+  }, [users]);
+
+  const filtered = useMemo(() => {
+    const q = (query || "").trim().toLowerCase();
+    return users.filter((u) => {
+      if (roleFilter !== "all" && String(u.role) !== roleFilter) return false;
+      if (statusFilter !== "all") {
+        const isActive = !!u.isActive;
+        if (statusFilter === "active" && !isActive) return false;
+        if (statusFilter === "inactive" && isActive) return false;
+      }
+      if (!q) return true;
+      const phone = String(u.phone || "").toLowerCase();
+      const name = String(u.displayName || "").toLowerCase();
+      const role = String(u.role || "").toLowerCase();
+      const email = String(u.email || "").toLowerCase();
+      return (
+        phone.includes(q) ||
+        name.includes(q) ||
+        role.includes(q) ||
+        email.includes(q) ||
+        String(u.id).includes(q)
+      );
+    });
+  }, [users, query, roleFilter, statusFilter]);
+
+  const sorted = useMemo(() => {
+    const pick = (u) => {
+      if (sortKey === "name") return String(u.displayName || "").toLowerCase();
+      if (sortKey === "phone") return String(u.phone || "");
+      if (sortKey === "role") return String(u.role || "");
+      if (sortKey === "active") return u.isActive ? 1 : 0;
+      if (sortKey === "email") return String(u.email || "");
+      return Number(u.id || 0);
+    };
+
+    const list = [...filtered];
+    list.sort((a, b) => {
+      const av = pick(a);
+      const bv = pick(b);
+      if (av === bv) return 0;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return sortDir === "asc" ? -1 : 1;
+    });
+    return list;
+  }, [filtered, sortKey, sortDir]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const startIdx = (currentPage - 1) * pageSize;
+  const paged = sorted.slice(startIdx, startIdx + pageSize);
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount);
+  }, [page, pageCount]);
+
+  const selectedCount = selectedIds.size;
+  const isAllSelected =
+    paged.length > 0 && paged.every((u) => selectedIds.has(u.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (isAllSelected) {
+        paged.forEach((u) => next.delete(u.id));
+      } else {
+        paged.forEach((u) => next.add(u.id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir("asc");
+  };
 
   const openEdit = (u) => {
     setEditUser(u);
@@ -122,104 +244,441 @@ export default function AdminPanelPage() {
     closeEdit();
   };
 
+  const updateUser = async (userId, body) => {
+    const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await readJsonSafe(res);
+    if (res.status === 401) throw new Error("Unauthorized (token invalid/expired).");
+    if (res.status === 403) throw new Error("Forbidden (not permitted).");
+    if (!res.ok || !data?.ok)
+      throw new Error(data?.error || "Save failed.");
+    return data;
+  };
+
+  const toggleActive = async (u) => {
+    setErr("");
+    setOk("");
+    try {
+      await updateUser(u.id, { isActive: !u.isActive });
+      setOk(`${u.isActive ? "Deactivated" : "Activated"} ${labelUser(u)}.`);
+      await refresh();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
+  };
+
+  const applyBulkAction = async () => {
+    setErr("");
+    setOk("");
+
+    if (!selectedIds.size) {
+      setErr("Select at least one user.");
+      return;
+    }
+    if (!bulkAction) {
+      setErr("Select a bulk action first.");
+      return;
+    }
+
+    const body = {};
+    if (bulkAction === "activate") body.isActive = true;
+    if (bulkAction === "deactivate") body.isActive = false;
+    if (bulkAction === "role_customer") body.role = "customer";
+    if (bulkAction === "role_staff") body.role = "staff";
+    if (bulkAction === "role_admin") body.role = "admin";
+
+    const ids = Array.from(selectedIds);
+    try {
+      setBulkLoading(true);
+      let okCount = 0;
+      for (const id of ids) {
+        await updateUser(id, body);
+        okCount += 1;
+      }
+      setOk(`Updated ${okCount} users.`);
+      clearSelection();
+      await refresh();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const exportCsv = () => {
+    const rows = users.map((u) => ({
+      id: u.id,
+      phone: u.phone || "",
+      email: u.email || "",
+      displayName: u.displayName || "",
+      role: u.role || "",
+      isActive: u.isActive ? "true" : "false",
+    }));
+    const header = ["id", "phone", "email", "displayName", "role", "isActive"];
+    const csv = [header.join(",")]
+      .concat(rows.map((r) => header.map((h) => csvEscape(String(r[h] || ""))).join(",")))
+      .join("\n");
+    downloadCsv(csv, "pp-users.csv");
+  };
+
   return (
-    <div style={{ padding: 16 }}>
-      <div className="card" style={{ padding: 16 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Admin Panel</div>
-            <div style={{ opacity: 0.8, fontSize: 12 }}>
-              Staff tools - users, roles, profile edits, password reset
+    <div className="admin-root">
+      <div className="admin-shell">
+        <header className="admin-topbar">
+          <div className="admin-topbar-left">
+            <div className="admin-adminpill">Admin</div>
+            <div>
+              <div className="admin-topbar-title">User management</div>
+              <div className="admin-topbar-sub">
+                Roles, access, passwords, and status
+              </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              className="input"
-              placeholder="Search phone / name / role / id"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              style={{ minWidth: 260 }}
-            />
-            <button className="btn" onClick={refresh} disabled={loading}>
+          <div className="admin-topbar-right">
+            <div className="admin-whoami">
+              <div className="admin-whoami-main">
+                <div className="admin-whoami-name">
+                  {session?.user?.displayName || session?.user?.phone || "User"}
+                </div>
+                <div className="admin-whoami-role">
+                  Signed in as <b>{actorRole}</b>
+                </div>
+              </div>
+              <div className={`admin-role-badge role-${actorRole}`}>{actorRole}</div>
+            </div>
+
+            <button
+              className="admin-btn admin-btn-ghost"
+              onClick={() => (window.location.href = "/")}
+              title="Back to POS"
+            >
+              Back to POS
+            </button>
+
+            <button className="admin-btn admin-btn-ghost" onClick={exportCsv}>
+              Export CSV
+            </button>
+
+            <button className="admin-btn" onClick={refresh} disabled={loading}>
               {loading ? "Loading..." : "Refresh"}
             </button>
+
+            <button
+              className="admin-btn admin-btn-primary"
+              onClick={() => setCreateOpen(true)}
+              disabled={!canManageUsers}
+            >
+              New user
+            </button>
+
+            <button
+              className="admin-btn admin-btn-danger"
+              onClick={() => {
+                localStorage.removeItem("pp_session_v1");
+                localStorage.removeItem("pp_auth_token_v1");
+                window.location.href = "/";
+              }}
+              title="Sign out of admin"
+            >
+              Sign out
+            </button>
           </div>
-        </div>
+        </header>
 
-        {err ? (
-          <div className="mb-3" style={{ marginTop: 12, color: "var(--danger)" }}>
-            {err}
-          </div>
-        ) : null}
+        <section className="admin-workspace">
+          {/* Controls row (full width) */}
+          <section className="admin-card admin-panel-card">
+            <div className="admin-panel-left">
+              <div className="admin-side-title">Overview</div>
+              <div className="admin-stats admin-stats-inline">
+                <StatCard label="Total" value={stats.total} />
+                <StatCard label="Active" value={stats.active} accent="good" />
+                <StatCard label="Inactive" value={stats.inactive} accent="warn" />
+                <StatCard label="Admins" value={stats.admin} accent="accent" />
+                <StatCard label="Staff" value={stats.staff} accent="accent" />
+                <StatCard label="Customers" value={stats.customer} />
+              </div>
 
-        {ok ? (
-          <div
-            className="mb-3"
-            style={{ marginTop: 12, color: "rgba(190,242,100,0.95)" }}
-          >
-            {ok}
-          </div>
-        ) : null}
-
-        {!token ? (
-          <div style={{ marginTop: 12, opacity: 0.85 }}>
-            No token found. Once you implement server login, store it in{" "}
-            <code>pp_session_v1</code> as <code>{"{ token, user }"}</code>.
-          </div>
-        ) : null}
-
-        <div style={{ marginTop: 12, overflowX: "auto" }}>
-          <table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left", opacity: 0.9 }}>
-                <th style={th}>ID</th>
-                <th style={th}>Phone</th>
-                <th style={th}>Name</th>
-                <th style={th}>Role</th>
-                <th style={th}>Active</th>
-                <th style={th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((u) => (
-                <tr
-                  key={u.id}
-                  style={{ borderTop: "1px solid rgba(148,163,184,0.18)" }}
-                >
-                  <td style={tdMono}>{u.id}</td>
-                  <td style={tdMono}>{u.phone}</td>
-                  <td style={td}>{u.displayName || ""}</td>
-                  <td style={tdMono}>{u.role}</td>
-                  <td style={tdMono}>{u.isActive ? "Yes" : "No"}</td>
-                  <td style={td}>
-                    <button className="btn" onClick={() => openEdit(u)}>
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 14, opacity: 0.75 }}>
-                    No users match your search.
-                  </td>
-                </tr>
+              {selectedCount > 0 ? (
+                <div className="admin-bulk-bar" style={{ marginTop: 12 }}>
+                  <div className="admin-bulk-info">{selectedCount} selected</div>
+                  <select
+                    className="admin-select"
+                    value={bulkAction}
+                    onChange={(e) => setBulkAction(e.target.value)}
+                  >
+                    <option value="">Bulk actions</option>
+                    <option value="activate">Set active</option>
+                    <option value="deactivate">Set inactive</option>
+                    {canEditRole ? (
+                      <>
+                        <option value="role_customer">Set role: customer</option>
+                        <option value="role_staff">Set role: staff</option>
+                        <option value="role_admin">Set role: admin</option>
+                      </>
+                    ) : null}
+                  </select>
+                  <button
+                    className="admin-btn admin-btn-primary"
+                    onClick={applyBulkAction}
+                    disabled={bulkLoading}
+                  >
+                    {bulkLoading ? "Applying..." : "Apply"}
+                  </button>
+                  <button className="admin-btn admin-btn-ghost" onClick={clearSelection}>
+                    Clear
+                  </button>
+                </div>
               ) : null}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            <div className="admin-panel-right">
+              <div className="admin-side-title">Filters</div>
+
+              <div className="admin-control-group">
+                <label className="admin-label">Search</label>
+                <input
+                  className="admin-input"
+                  placeholder="Search phone, name, email, role, or id"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+
+              <div className="admin-panel-row">
+                <div className="admin-control-group">
+                  <label className="admin-label">Role</label>
+                  <div className="admin-chip-row">
+                    {ROLE_FILTERS.map((role) => (
+                      <button
+                        key={role}
+                        className={roleFilter === role ? "admin-chip is-active" : "admin-chip"}
+                        onClick={() => setRoleFilter(role)}
+                      >
+                        {role}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="admin-control-group">
+                  <label className="admin-label">Status</label>
+                  <div className="admin-chip-row">
+                    {STATUS_FILTERS.map((status) => (
+                      <button
+                        key={status}
+                        className={statusFilter === status ? "admin-chip is-active" : "admin-chip"}
+                        onClick={() => setStatusFilter(status)}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-panel-row">
+                <div className="admin-control-group" style={{ minWidth: 180 }}>
+                  <label className="admin-label">Page size</label>
+                  <select
+                    className="admin-select"
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                  >
+                    {PAGE_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size} per page
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="admin-control-group" style={{ minWidth: 180 }}>
+                  <label className="admin-label">Last refresh</label>
+                  <div className="admin-muted">
+                    {lastLoadedAt ? lastLoadedAt.toLocaleTimeString() : "Not loaded"}
+                  </div>
+                </div>
+
+                <div className="admin-control-group" style={{ minWidth: 220 }}>
+                  <label className="admin-label">Sort</label>
+                  <div className="admin-sort-row">
+                    <button className={sortKey === "id" ? "admin-chip is-active" : "admin-chip"} onClick={() => toggleSort("id")}>id</button>
+                    <button className={sortKey === "name" ? "admin-chip is-active" : "admin-chip"} onClick={() => toggleSort("name")}>name</button>
+                    <button className={sortKey === "role" ? "admin-chip is-active" : "admin-chip"} onClick={() => toggleSort("role")}>role</button>
+                    <button className={sortKey === "active" ? "admin-chip is-active" : "admin-chip"} onClick={() => toggleSort("active")}>active</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Users table (full width) */}
+          <section className="admin-table-card">
+            <div className="admin-table-header">
+              <div className="admin-table-title">Users</div>
+              <div className="admin-table-meta">
+                {loading ? (
+                  "Loading..."
+                ) : (
+                  <>
+                    Showing {sorted.length ? startIdx + 1 : 0}-
+                    {Math.min(startIdx + pageSize, sorted.length)} of {sorted.length}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {err ? (
+              <div className="admin-banner error" style={{ margin: "12px 14px 0" }}>
+                {err}
+              </div>
+            ) : null}
+            {ok ? (
+              <div className="admin-banner ok" style={{ margin: "10px 14px 0" }}>
+                {ok}
+              </div>
+            ) : null}
+
+            <div className="admin-table-wrap" style={{ marginTop: 10 }}>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th className="admin-th admin-check">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th className="admin-th" onClick={() => toggleSort("id")}>
+                      ID
+                    </th>
+                    <th className="admin-th" onClick={() => toggleSort("phone")}>
+                      Phone
+                    </th>
+                    <th className="admin-th" onClick={() => toggleSort("name")}>
+                      Name
+                    </th>
+                    <th className="admin-th col-email" onClick={() => toggleSort("email")}>
+                      Email
+                    </th>
+                    <th className="admin-th" onClick={() => toggleSort("role")}>
+                      Role
+                    </th>
+                    <th className="admin-th" onClick={() => toggleSort("active")}>
+                      Status
+                    </th>
+                    <th className="admin-th admin-actions" style={{ cursor: "default" }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.map((u) => (
+                    <tr key={u.id} className="admin-tr">
+                      <td className="admin-td admin-check">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(u.id)}
+                          onChange={() => toggleSelect(u.id)}
+                        />
+                      </td>
+                      <td className="admin-td admin-mono">{u.id}</td>
+                      <td className="admin-td admin-mono">
+                        {u.phone || "-"}
+                      </td>
+                      <td className="admin-td">
+                        <div className="admin-user">
+                          <div className="admin-user-name">
+                            {u.displayName || "Unnamed"}
+                          </div>
+                          {session?.user?.id === u.id ? (
+                            <div className="admin-user-tag">You</div>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="admin-td col-email">{u.email || "-"}</td>
+                      <td className="admin-td">
+                        <RoleBadge role={u.role} />
+                      </td>
+                      <td className="admin-td">
+                        <StatusBadge active={!!u.isActive} />
+                      </td>
+                      <td className="admin-td admin-actions">
+                        <button
+                          className="admin-btn admin-btn-ghost"
+                          onClick={() => openEdit(u)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className={
+                            u.isActive
+                              ? "admin-btn admin-btn-danger"
+                              : "admin-btn admin-btn-good"
+                          }
+                          onClick={() => toggleActive(u)}
+                        >
+                          {u.isActive ? "Disable" : "Enable"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {paged.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="admin-empty">
+                        No users match your filters.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="admin-pagination">
+              <button
+                className="admin-btn admin-btn-ghost"
+                onClick={() => setPage(1)}
+                disabled={currentPage === 1}
+              >
+                First
+              </button>
+              <button
+                className="admin-btn admin-btn-ghost"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Prev
+              </button>
+              <div className="admin-page-indicator">
+                Page {currentPage} of {pageCount}
+              </div>
+              <button
+                className="admin-btn admin-btn-ghost"
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={currentPage === pageCount}
+              >
+                Next
+              </button>
+              <button
+                className="admin-btn admin-btn-ghost"
+                onClick={() => setPage(pageCount)}
+                disabled={currentPage === pageCount}
+              >
+                Last
+              </button>
+            </div>
+          </section>
+        </section>
       </div>
 
       {editOpen && editUser ? (
@@ -232,7 +691,42 @@ export default function AdminPanelPage() {
           onSaved={onSaved}
         />
       ) : null}
+
+      {createOpen ? (
+        <CreateUserModal
+          apiBase={API_BASE}
+          token={token}
+          canEditRole={canEditRole}
+          onClose={() => setCreateOpen(false)}
+          onCreated={async () => {
+            setCreateOpen(false);
+            await refresh();
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function StatCard({ label, value, accent = "default" }) {
+  return (
+    <div className={`admin-stat admin-stat-${accent}`}>
+      <div className="admin-stat-label">{label}</div>
+      <div className="admin-stat-value">{value}</div>
+    </div>
+  );
+}
+
+function RoleBadge({ role }) {
+  const safe = role || "customer";
+  return <span className={`admin-role-badge role-${safe}`}>{safe}</span>;
+}
+
+function StatusBadge({ active }) {
+  return (
+    <span className={active ? "admin-status active" : "admin-status inactive"}>
+      {active ? "Active" : "Inactive"}
+    </span>
   );
 }
 
@@ -244,12 +738,20 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
   const [displayName, setDisplayName] = useState(user.displayName || "");
   const [isActive, setIsActive] = useState(!!user.isActive);
   const [role, setRole] = useState(user.role || "customer");
-
   const [newPassword, setNewPassword] = useState("");
 
   const canEditRole = actorRole === "admin";
 
-  const saveProfile = async () => {
+  useEffect(() => {
+    setDisplayName(user.displayName || "");
+    setIsActive(!!user.isActive);
+    setRole(user.role || "customer");
+    setNewPassword("");
+    setErr("");
+    setOk("");
+  }, [user]);
+
+  const saveProfile = async (overrides = {}) => {
     setErr("");
     setOk("");
 
@@ -259,7 +761,7 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
         displayName,
         isActive,
       };
-      if (canEditRole) body.role = role;
+      if (canEditRole) body.role = overrides.role ?? role;
 
       const res = await fetch(`${apiBase}/admin/users/${user.id}`, {
         method: "PATCH",
@@ -269,7 +771,7 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
         },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await readJsonSafe(res);
       if (res.status === 401)
         throw new Error("Unauthorized (token invalid/expired).");
       if (res.status === 403) throw new Error("Forbidden (not permitted).");
@@ -296,15 +798,18 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
 
     try {
       setSaving(true);
-      const res = await fetch(`${apiBase}/admin/users/${user.id}/set-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${apiBase}/admin/users/${user.id}/set-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ newPassword }),
         },
-        body: JSON.stringify({ newPassword }),
-      });
-      const data = await res.json().catch(() => ({}));
+      );
+      const data = await readJsonSafe(res);
       if (res.status === 401)
         throw new Error("Unauthorized (token invalid/expired).");
       if (res.status === 403) throw new Error("Forbidden (not permitted).");
@@ -321,139 +826,280 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
   };
 
   return createPortal(
-    <div className="modal-overlay" onMouseDown={onClose}>
+    <div className="admin-modal-backdrop" onMouseDown={onClose}>
       <div
-        className="modal-content"
+        className="admin-modal"
         onMouseDown={(e) => e.stopPropagation()}
-        style={{ maxWidth: 720, padding: 18 }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "center",
-          }}
-        >
+        <div className="admin-drawer-header">
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>Edit User</div>
-            <div style={{ opacity: 0.8, fontSize: 12 }}>
-              #{user.id} - {user.phone}
+            <div className="admin-drawer-title">Edit user</div>
+            <div className="admin-drawer-sub">
+              #{user.id} - {user.phone || "no phone"}
             </div>
           </div>
-          <button className="btn" onClick={onClose} disabled={saving}>
+          <button className="admin-btn admin-btn-ghost" onClick={onClose}>
             Close
           </button>
         </div>
 
-        {err ? (
-          <div style={{ marginTop: 12, color: "var(--danger)" }}>{err}</div>
-        ) : null}
-        {ok ? (
-          <div style={{ marginTop: 12, color: "rgba(190,242,100,0.95)" }}>
-            {ok}
-          </div>
-        ) : null}
+        {err ? <div className="admin-banner error">{err}</div> : null}
+        {ok ? <div className="admin-banner ok">{ok}</div> : null}
 
-        <div
-          style={{
-            marginTop: 14,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-          }}
-        >
-          <div>
-            <div style={label}>Display name</div>
+        <div className="admin-drawer-section">
+          <div className="admin-section-title">Profile</div>
+          <div className="admin-form-grid">
+            <div>
+              <label className="admin-label">Display name</label>
+              <input
+                className="admin-input"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="admin-label">Status</label>
+              <select
+                className="admin-select"
+                value={isActive ? "active" : "inactive"}
+                onChange={(e) => setIsActive(e.target.value === "active")}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div>
+              <label className="admin-label">Role</label>
+              <select
+                className="admin-select"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={!canEditRole}
+                title={!canEditRole ? "Only admin can change roles" : ""}
+              >
+                <option value="customer">customer</option>
+                <option value="staff">staff</option>
+                <option value="admin">admin</option>
+              </select>
+              {!canEditRole ? (
+                <div className="admin-muted">
+                  Only admin can change roles.
+                </div>
+              ) : null}
+            </div>
+            <div>
+              <label className="admin-label">Email</label>
+              <div className="admin-readonly">{user.email || "-"}</div>
+            </div>
+          </div>
+
+          <div className="admin-action-row">
+            <button
+              className="admin-btn admin-btn-primary"
+              onClick={() => saveProfile()}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+            {canEditRole ? (
+              <>
+                <button
+                  className="admin-btn"
+                  onClick={() => saveProfile({ role: "staff" })}
+                  disabled={saving || role === "staff"}
+                >
+                  Make staff
+                </button>
+                <button
+                  className="admin-btn"
+                  onClick={() => saveProfile({ role: "admin" })}
+                  disabled={saving || role === "admin"}
+                >
+                  Make admin
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="admin-drawer-section">
+          <div className="admin-section-title">Reset password</div>
+          <div className="admin-inline">
             <input
-              className="input"
+              className="admin-input"
+              type="password"
+              placeholder="New password (min 6 chars)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+            <button
+              className="admin-btn admin-btn-ghost"
+              onClick={setPassword}
+              disabled={saving}
+            >
+              Set password
+            </button>
+          </div>
+          <div className="admin-muted">
+            This updates the server-side hash (customers can log in immediately).
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function CreateUserModal({ apiBase, token, canEditRole, onClose, onCreated }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+
+  const [phone, setPhone] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("customer");
+  const [isActive, setIsActive] = useState(true);
+
+  const createUser = async () => {
+    setErr("");
+    setOk("");
+
+    const normalized = normalizePhone(phone);
+    if (!normalized) {
+      setErr("Enter a valid phone.");
+      return;
+    }
+    if (!password || password.length < 6) {
+      setErr("Password must be at least 6 characters.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const res = await fetch(`${apiBase}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: normalized,
+          password,
+          displayName: displayName || "",
+        }),
+      });
+      const data = await readJsonSafe(res);
+      if (!res.ok || !data?.ok)
+        throw new Error(data?.error || "Create user failed.");
+
+      const created = data.user;
+      const patch = {};
+      if (!isActive) patch.isActive = false;
+      if (canEditRole && role) patch.role = role;
+
+      if (Object.keys(patch).length) {
+        const resPatch = await fetch(`${apiBase}/admin/users/${created.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(patch),
+        });
+        const patchData = await readJsonSafe(resPatch);
+        if (!resPatch.ok || !patchData?.ok)
+          throw new Error(patchData?.error || "Role update failed.");
+      }
+
+      setOk("User created.");
+      await onCreated();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return createPortal(
+    <div className="admin-modal-backdrop" onMouseDown={onClose}>
+      <div className="admin-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="admin-modal-header">
+          <div>
+            <div className="admin-drawer-title">Create user</div>
+            <div className="admin-drawer-sub">
+              Phone login account with optional role.
+            </div>
+          </div>
+          <button className="admin-btn admin-btn-ghost" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        {err ? <div className="admin-banner error">{err}</div> : null}
+        {ok ? <div className="admin-banner ok">{ok}</div> : null}
+
+        <div className="admin-form-grid">
+          <div>
+            <label className="admin-label">Phone</label>
+            <input
+              className="admin-input"
+              placeholder="e.g. 04xxxxxxxx or +614xxxxxxxx"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="admin-label">Display name</label>
+            <input
+              className="admin-input"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
             />
           </div>
-
           <div>
-            <div style={label}>Active</div>
+            <label className="admin-label">Password</label>
+            <input
+              className="admin-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="admin-label">Status</label>
             <select
-              className="input"
-              value={isActive ? "yes" : "no"}
-              onChange={(e) => setIsActive(e.target.value === "yes")}
+              className="admin-select"
+              value={isActive ? "active" : "inactive"}
+              onChange={(e) => setIsActive(e.target.value === "active")}
             >
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
             </select>
           </div>
-
           <div>
-            <div style={label}>Role</div>
+            <label className="admin-label">Role</label>
             <select
-              className="input"
+              className="admin-select"
               value={role}
               onChange={(e) => setRole(e.target.value)}
               disabled={!canEditRole}
-              title={!canEditRole ? "Only admin can change roles" : ""}
             >
               <option value="customer">customer</option>
               <option value="staff">staff</option>
               <option value="admin">admin</option>
             </select>
             {!canEditRole ? (
-              <div style={{ opacity: 0.7, fontSize: 12, marginTop: 4 }}>
-                Only <b>admin</b> can change roles.
-              </div>
+              <div className="admin-muted">Only admin can assign roles.</div>
             ) : null}
           </div>
-
-          <div />
         </div>
 
-        <div
-          style={{
-            marginTop: 14,
-            display: "flex",
-            gap: 10,
-            justifyContent: "flex-end",
-            flexWrap: "wrap",
-          }}
-        >
-          <button className="btn primary" onClick={saveProfile} disabled={saving}>
-            {saving ? "Saving..." : "Save changes"}
-          </button>
-        </div>
-
-        <div
-          style={{
-            marginTop: 16,
-            paddingTop: 14,
-            borderTop: "1px solid rgba(148,163,184,0.18)",
-          }}
-        >
-          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>
-            Reset password
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
+        <div className="admin-action-row">
+          <button
+            className="admin-btn admin-btn-primary"
+            onClick={createUser}
+            disabled={saving}
           >
-            <input
-              className="input"
-              type="password"
-              placeholder="New password (min 6 chars)"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              style={{ flex: 1, minWidth: 240 }}
-            />
-            <button className="btn" onClick={setPassword} disabled={saving}>
-              Set password
-            </button>
-          </div>
-          <div style={{ opacity: 0.75, fontSize: 12, marginTop: 6 }}>
-            This updates the server-side hash (customers can log in immediately).
-          </div>
+            {saving ? "Creating..." : "Create user"}
+          </button>
         </div>
       </div>
     </div>,
@@ -466,11 +1112,8 @@ function readSession() {
     const raw = localStorage.getItem("pp_session_v1");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-
-    // supports future format: { token, user }
     if (parsed && typeof parsed === "object" && (parsed.token || parsed.user))
       return parsed;
-
     return null;
   } catch {
     return null;
@@ -487,10 +1130,45 @@ function readAuthTokenFallback() {
   }
 }
 
-const th = { padding: "10px 8px" };
-const td = { padding: "10px 8px", verticalAlign: "top" };
-const tdMono = {
-  ...td,
-  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-};
-const label = { opacity: 0.85, fontSize: 12, marginBottom: 6 };
+async function readJsonSafe(res) {
+  const txt = await res.text();
+  try {
+    return JSON.parse(txt);
+  } catch {
+    return { ok: false, error: txt ? txt.slice(0, 180) : `HTTP ${res.status}` };
+  }
+}
+
+function normalizePhone(s) {
+  if (!s) return "";
+  let x = String(s).trim();
+  x = x.replace(/[^\d+]/g, "");
+  if (x.startsWith("00")) x = "+" + x.slice(2);
+  if (/^04\d{8}$/.test(x)) x = "+61" + x.slice(1);
+  if (/^4\d{8}$/.test(x)) x = "+61" + x;
+  if (/^61\d+$/.test(x)) x = "+" + x;
+  if (!x.startsWith("+") && /^\d+$/.test(x)) x = "+" + x;
+  return x;
+}
+
+function csvEscape(v) {
+  if (v.includes("\"") || v.includes(",") || v.includes("\n")) {
+    return `"${v.replace(/\"/g, "\"\"")}"`;
+  }
+  return v;
+}
+
+function downloadCsv(content, filename) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+}
+
+function labelUser(u) {
+  return u.displayName || u.phone || `User ${u.id}`;
+}
