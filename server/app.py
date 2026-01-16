@@ -114,7 +114,16 @@ def init_firebase_admin():
 if not firebase_admin._apps:
     init_firebase_admin()
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+# --- DB path (Render persistent disk friendly) ---
+DB_PATH = os.getenv("POS_DB_PATH", "").strip()
+if DB_PATH:
+    # e.g. /var/data/users.db
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
+else:
+    # local/dev fallback
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 def normalize_phone(s: str) -> str:
