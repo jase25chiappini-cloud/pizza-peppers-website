@@ -148,7 +148,14 @@ if not firebase_admin._apps:
 # --- DB path (Render persistent disk friendly) ---
 DB_PATH = os.getenv("POS_DB_PATH", "").strip()
 if DB_PATH:
-    # e.g. /var/data/users.db
+    # Ensure parent directory exists (Render disk mount, etc.)
+    try:
+        parent = os.path.dirname(DB_PATH)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+    except Exception as e:
+        print("[db] failed to create DB dir:", e)
+
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 else:
     # local/dev fallback
