@@ -34,7 +34,12 @@ ALLOWED_ORIGINS = [
 if not ALLOWED_ORIGINS:
     ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=False)
+CORS(
+    app,
+    resources={r"/*": {"origins": ALLOWED_ORIGINS}},
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
 
 app.config["SECRET_KEY"] = os.getenv("POS_SECRET_KEY", "dev-change-me-now")
 TOKEN_SALT = "pp_auth_v1"
