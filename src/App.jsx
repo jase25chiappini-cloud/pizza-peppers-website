@@ -9745,12 +9745,14 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
         body: JSON.stringify({ phone: ph, password }),
       });
       const data = await readJsonSafe(res);
-      if (!res.ok || !data?.ok)
+      const token = data?.token || data?.accessToken || data?.access_token || "";
+      if (!res.ok || !(data?.ok === true || !!token)) {
         throw new Error(data?.error || `Login failed (HTTP ${res.status})`);
+      }
 
-      const sessionUser = normalizeSessionUser(data.user, ph);
-      saveSession(data.token, sessionUser);
-      loginLocal(sessionUser.phoneNumber || ph, sessionUser.displayName || "", data.token, sessionUser);
+      const sessionUser = normalizeSessionUser(data?.user || data?.profile || {}, ph);
+      saveSession(token, sessionUser);
+      loginLocal(sessionUser.phoneNumber || ph, sessionUser.displayName || "", token, sessionUser);
       setOk("Welcome back!");
       setTimeout(handleClose, 300);
     } catch (error) {
@@ -9783,12 +9785,14 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
         body: JSON.stringify({ phone: ph1, password, displayName: "" }),
       });
       const data = await readJsonSafe(res);
-      if (!res.ok || !data?.ok)
+      const token = data?.token || data?.accessToken || data?.access_token || "";
+      if (!res.ok || !(data?.ok === true || !!token)) {
         throw new Error(data?.error || `Sign up failed (HTTP ${res.status})`);
+      }
 
-      const sessionUser = normalizeSessionUser(data.user, ph1);
-      saveSession(data.token, sessionUser);
-      loginLocal(sessionUser.phoneNumber || ph1, sessionUser.displayName || "", data.token, sessionUser);
+      const sessionUser = normalizeSessionUser(data?.user || data?.profile || {}, ph1);
+      saveSession(token, sessionUser);
+      loginLocal(sessionUser.phoneNumber || ph1, sessionUser.displayName || "", token, sessionUser);
       setOk("Account created - you're all set.");
       setTimeout(handleClose, 400);
     } catch (error) {
