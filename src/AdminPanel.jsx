@@ -8,24 +8,8 @@ const ROLE_FILTERS = ["all", "customer", "staff", "admin"];
 const STATUS_FILTERS = ["all", "active", "inactive"];
 
 export default function AdminPanelPage() {
-  const normalizeBase = (raw) => {
-    const s = String(raw || "").trim().replace(/\/+$/, "");
-    if (!s) return "";
-    return /^https?:\/\//i.test(s) ? s : `https://${s}`;
-  };
-
-  const PP_MENU_BASE_URL = normalizeBase(import.meta.env.VITE_PP_MENU_BASE_URL);
-  const PP_POS_BASE_URL = normalizeBase(
-    import.meta.env.VITE_PP_POS_BASE_URL || import.meta.env.VITE_PP_RENDER_BASE_URL,
-  );
-
-  const API_BASE = (() => {
-    const base = (PP_MENU_BASE_URL || PP_POS_BASE_URL || "").replace(/\/+$/, "");
-    if (import.meta.env.DEV) {
-      if (!base || /onrender\.com/i.test(base)) return "http://127.0.0.1:5055";
-    }
-    return base;
-  })();
+  const MENU_BASE = (import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(/\/+$/, "");
+  const API_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(/\/+$/, "");
 
   const [session, setSession] = useState(() => readSession());
   const token = session?.token || readAuthTokenFallback();
@@ -61,7 +45,7 @@ export default function AdminPanelPage() {
 
     if (!API_BASE && !import.meta.env.DEV) {
       setErr(
-        "Missing API base env var. Set VITE_PP_MENU_BASE_URL or VITE_PP_POS_BASE_URL.",
+        "Missing API base env var. Set VITE_PP_AUTH_BASE_URL (or VITE_PP_MENU_BASE_URL).",
       );
       return;
     }

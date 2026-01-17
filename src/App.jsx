@@ -9690,17 +9690,10 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     }
   };
 
-  // Use the same backend base as the rest of the app
-  const API_BASE = (() => {
-    const base = (MENU_BASE || "").replace(/\/+$/, "");
-    if (import.meta.env.DEV) {
-      // In local dev, default to the local Flask server if MENU_BASE isn't set correctly
-      if (!base || /onrender\.com/i.test(base)) return "http://127.0.0.1:5055";
-    }
-    return base;
-  })();
+  const MENU_BASE = (import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(/\/+$/, "");
+  const AUTH_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(/\/+$/, "");
 
-  console.log("[auth] API_BASE =", API_BASE);
+  console.log("[auth] AUTH_BASE =", AUTH_BASE);
 
   const saveSession = (token, user) => {
     localStorage.setItem("pp_session_v1", JSON.stringify({ token, user }));
@@ -9739,7 +9732,7 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
     if (!password) return setErr("Please enter your password.");
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/login`, {
+      const res = await fetch(`${AUTH_BASE}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: ph, password }),
@@ -9779,7 +9772,7 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/register`, {
+      const res = await fetch(`${AUTH_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: ph1, password, displayName: "" }),
