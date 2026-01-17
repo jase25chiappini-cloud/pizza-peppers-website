@@ -6,6 +6,8 @@ import requests
 from pathlib import Path
 from datetime import datetime, timedelta
 import secrets
+import time
+from collections import defaultdict, deque
 from functools import wraps
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import firebase_admin
@@ -23,11 +25,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder=None)
-CORS(app)
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in (os.getenv("POS_ALLOWED_ORIGINS") or "").split(",")
+    if o.strip()
+]
+# If no allowlist provided, default to local dev only
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=False)
 
 app.config["SECRET_KEY"] = os.getenv("POS_SECRET_KEY", "dev-change-me-now")
 TOKEN_SALT = "pp_auth_v1"
-TOKEN_MAX_AGE_SECONDS = int(os.getenv("POS_TOKEN_MAX_AGE", "1209600"))  # 14 days
+TOKEN_MAX_AGE_SECONDS = int(os.getenv("POS_TOKEN_MAX_AGE", "259200"))  # 3 days
+IS_PROD = (os.getenv("FLASK_ENV") or "").lower() == "production" or (os.getenv("RENDER") == "true")
 
 def _serializer():
     return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt=TOKEN_SALT)
@@ -46,6 +58,25 @@ def get_bearer_token() -> str | None:
     if auth.lower().startswith("bearer "):
         return auth.split(" ", 1)[1].strip()
     return None
+
+_rate = defaultdict(lambda: deque())
+
+def rate_limit(key: str, limit: int, window_sec: int) -> bool:
+    now = time.time()
+    q = _rate[key]
+    while q and (now - q[0]) > window_sec:
+        q.popleft()
+    if len(q) >= limit:
+        return False
+    q.append(now)
+    return True
+
+def client_ip():
+    # Render sets X-Forwarded-For
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
 
 def auth_required(fn):
     @wraps(fn)
@@ -235,6 +266,28 @@ class User(db.Model):
         return check_password_hash(self.reset_code_hash, code)
 
 
+class AdminAudit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    actor_user_id = db.Column(db.Integer, nullable=False)
+    target_user_id = db.Column(db.Integer, nullable=True)
+    action = db.Column(db.String(64), nullable=False)
+    detail = db.Column(db.String(512), nullable=True)
+    ip = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+def audit(actor_id: int, action: str, target_id: int | None = None, detail: str = ""):
+    a = AdminAudit(
+        actor_user_id=actor_id,
+        target_user_id=target_id,
+        action=action,
+        detail=detail[:512],
+        ip=client_ip(),
+    )
+    db.session.add(a)
+    db.session.commit()
+
+
 def should_bootstrap_admin(phone_raw: str, phone_normalized: str) -> bool:
     if not BOOTSTRAP_ADMIN_PHONE_RAW and not BOOTSTRAP_ADMIN_PHONE:
         return False
@@ -251,6 +304,9 @@ with app.app_context():
 @app.post("/register")
 def register():
     data = request.get_json() or {}
+    ip = client_ip()
+    if not rate_limit(f"auth:{ip}", limit=20, window_sec=60):
+        return jsonify({"ok": False, "error": "Too many requests"}), 429
     phone_raw = (data.get("phone") or "").strip()
     phone = normalize_phone(phone_raw)
     password = data.get("password") or ""
@@ -283,6 +339,12 @@ def login():
     phone_raw = (data.get("phone") or "").strip()
     phone = normalize_phone(phone_raw)
     password = data.get("password") or ""
+
+    ip = client_ip()
+    if not rate_limit(f"auth:{ip}", limit=20, window_sec=60):
+        return jsonify({"ok": False, "error": "Too many requests"}), 429
+    if phone and not rate_limit(f"login:{phone}", limit=8, window_sec=300):
+        return jsonify({"ok": False, "error": "Too many login attempts"}), 429
 
     candidates = [phone]
     if phone_raw and phone_raw not in candidates:
@@ -394,6 +456,9 @@ def update_me():
 @app.post("/auth/request-reset")
 def request_reset():
     data = request.get_json() or {}
+    ip = client_ip()
+    if not rate_limit(f"auth:{ip}", limit=20, window_sec=60):
+        return jsonify({"ok": False, "error": "Too many requests"}), 429
     phone = (data.get("phone") or "").strip()
     if not phone:
         return jsonify({"error": "Missing phone"}), 400
@@ -454,12 +519,19 @@ def admin_update_user(user_id: int):
     actor = request.pp_user
     u = User.query.get_or_404(user_id)
     data = request.get_json() or {}
+    changes = []
 
     if "displayName" in data:
-        u.display_name = (data.get("displayName") or "").strip()
+        new_display_name = (data.get("displayName") or "").strip()
+        if new_display_name != u.display_name:
+            changes.append(f"displayName:{u.display_name}->{new_display_name}")
+        u.display_name = new_display_name
 
     if "isActive" in data:
-        u.is_active = bool(data.get("isActive"))
+        new_is_active = bool(data.get("isActive"))
+        if new_is_active != u.is_active:
+            changes.append(f"isActive:{u.is_active}->{new_is_active}")
+        u.is_active = new_is_active
 
     if "role" in data:
         if actor.role != "admin":
@@ -467,10 +539,14 @@ def admin_update_user(user_id: int):
         role = (data.get("role") or "").strip()
         if role not in ("customer", "staff", "admin"):
             return jsonify({"ok": False, "error": "Invalid role"}), 400
+        if role != u.role:
+            changes.append(f"role:{u.role}->{role}")
         u.role = role
 
     u.updated_at = datetime.utcnow()
     db.session.commit()
+    if changes:
+        audit(actor.id, "update_user", target_id=u.id, detail="; ".join(changes))
     return jsonify({"ok": True})
 
 
@@ -485,15 +561,18 @@ def admin_set_password(user_id: int):
     u.set_password(pw)
     u.updated_at = datetime.utcnow()
     db.session.commit()
+    audit(request.pp_user.id, "set_password", target_id=user_id)
     return jsonify({"ok": True})
 
 
 @app.post("/admin/bootstrap")
 def admin_bootstrap():
+    if IS_PROD and os.getenv("POS_ALLOW_BOOTSTRAP_IN_PROD", "0") != "1":
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
     setup_key = os.getenv("POS_ADMIN_SETUP_KEY", "")
     data = request.get_json() or {}
     if not setup_key or data.get("setupKey") != setup_key:
-        return jsonify({"error": "Forbidden"}), 403
+        return jsonify({"ok": False, "error": "Forbidden"}), 403
 
     phone = (data.get("phone") or "").strip()
     pw = data.get("password") or ""
