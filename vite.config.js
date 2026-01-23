@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => {
           // Good default for a POS UI: cache app shell + assets
           navigateFallback: "/index.html",
           globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,json,woff2}"],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         },
       }),
     ],

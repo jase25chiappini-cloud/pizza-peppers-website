@@ -1749,7 +1749,6 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   background-color: #ffffff;
   box-shadow: 0 24px 60px rgba(15,23,42,0.16);
 }
-body:has(.modal-overlay) { overflow: hidden; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem; }
 .modal-body { overflow-y: auto; padding: 0.25rem 0.5rem 0.5rem; }
 .modal-footer { padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem; }
@@ -2097,7 +2096,7 @@ footer,
   backdrop-filter: blur(18px) saturate(165%);
   -webkit-backdrop-filter: blur(18px) saturate(165%);
 
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
 }
 
@@ -2158,16 +2157,334 @@ footer,
 }
 
 .pp-topnav__row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 1.25rem;
+  position: relative;
+}
+
+@media (min-width: 901px){
+  :root{
+    --pp-hdr-h: clamp(96px, 4.4vw, 112px);
+    --pp-right-h: clamp(108px, 4.8vw, 124px);
+    --pp-gap: clamp(10px, 1.1vw, 16px);
+
+    --pp-left-w: clamp(260px, 22vw, 360px);
+    --pp-brand-w: clamp(520px, 34vw, 700px);
+    --pp-right-w: clamp(280px, 22vw, 380px);
+
+    --pp-btn-h: clamp(34px, 2.2vw, 38px);
+    --pp-input-h: clamp(38px, 2.6vw, 44px);
+    --pp-radius: clamp(14px, 1.2vw, 18px);
+    --pp-btn-pad-x: clamp(0.44rem, 0.9vw, 0.70rem);
+    --pp-btn-font: clamp(0.78rem, 0.85vw, 0.90rem);
+    --pp-sub-row-h: clamp(104px, 6.0vw, 120px);
+  }
+
+  /* Symmetric layout: keeps banner perfectly centered while resizing */
+  .pp-topnav__row{
+    display: grid;
+    grid-template-columns: 1fr minmax(0, var(--pp-brand-w)) 1fr;
+    align-items: center;
+    gap: var(--pp-gap);
+    grid-auto-rows: var(--pp-hdr-h);
+  }
+
+  .pp-topnav__left{
+    grid-column: 1;
+    justify-self: start;
+    width: 100%;
+    max-width: var(--pp-left-w);
+    height: var(--pp-hdr-h);
+    display: flex;
+    align-items: center;
+  }
+
+  /* Right column: mirror the left (two stacked rows inside a tall card) */
+  .pp-topnav__right{
+    grid-column: 3;
+    justify-self: end;
+
+    width: 100%;
+    max-width: var(--pp-right-w);
+    height: var(--pp-hdr-h);
+
+    display: flex;
+    align-items: center;
+  }
+
+  /* The card that holds the two rows */
+  .pp-topnav__rightStack{
+    width: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+
+    padding: 10px;
+    border-radius: var(--pp-radius);
+    border: 1px solid rgba(148,163,184,0.18);
+    background: rgba(255,255,255,0.02);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  /* Row 1: About + Cart */
+  .pp-topnav__rightActions{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* Make the two buttons fill their cells cleanly */
+  .pp-topnav__rightActions .pp-topnav__linkBtn{
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Buttons: flat toolbar style (no nested pills) */
+  .pp-topnav__right .pp-topnav__link,
+  .pp-topnav__right .pp-topnav__linkBtn{
+    height: 34px;
+    padding: 0 0.65rem;
+    border-radius: 12px;
+
+    border: 1px solid rgba(148,163,184,0.14);
+    background: rgba(255,255,255,0.02);
+    box-shadow: none;
+
+    font-weight: 850;
+    letter-spacing: 0.01em;
+  }
+
+  /* Calm hover */
+  .pp-topnav__right .pp-topnav__link:hover,
+  .pp-topnav__right .pp-topnav__linkBtn:hover{
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(190,242,100,0.18);
+    color: var(--text-primary);
+  }
+
+  /* Account dropdown (native, clean) */
+  .pp-topnav__acct{
+    position: relative;
+    width: 100%;
+    align-self: center;
+  }
+
+  .pp-topnav__acctScrim{
+    position: fixed;
+    inset: 0;
+    z-index: 4990;
+    background: rgba(2,6,23,0.28);
+  }
+
+  .pp-topnav__acct > summary{
+    list-style: none;
+  }
+
+  .pp-topnav__acct > summary::-webkit-details-marker{
+    display: none;
+  }
+
+  .pp-topnav__acctBtn{
+    width: 100%;
+    height: 34px;
+    padding: 0 0.8rem;
+    border-radius: 12px;
+    border: 1px solid rgba(148,163,184,0.14);
+    background: rgba(255,255,255,0.02);
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    font-weight: 850;
+    letter-spacing: 0.01em;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .pp-topnav__acctBtn:hover{
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(190,242,100,0.18);
+  }
+
+  .pp-topnav__acctDot{
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(190,242,100,0.85);
+    box-shadow: 0 0 10px rgba(190,242,100,0.16);
+  }
+
+  .pp-topnav__acctText{
+    font-size: 0.78rem;
+    color: var(--text-medium);
+    font-weight: 850;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pp-topnav__acctCaret{
+    opacity: 0.75;
+    font-size: 0.85rem;
+  }
+
+  .pp-topnav__acctMenu{
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    width: 200px;
+
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid rgba(190,242,100,0.18);
+    background:
+      radial-gradient(520px 220px at 20% 0%, rgba(190,242,100,0.10), transparent 62%),
+      linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.82));
+    box-shadow:
+      0 20px 54px rgba(0,0,0,0.34),
+      0 0 0 3px rgba(190,242,100,0.10),
+      inset 0 1px 0 rgba(255,255,255,0.10);
+
+    display: grid;
+    gap: 6px;
+    z-index: 5001;
+  }
+
+  .pp-topnav__acctMenu::before{
+    content:"";
+    position: absolute;
+    top: -7px;
+    right: 18px;
+    width: 14px;
+    height: 14px;
+    transform: rotate(45deg);
+
+    background: linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.82));
+    border-left: 1px solid rgba(190,242,100,0.18);
+    border-top: 1px solid rgba(190,242,100,0.18);
+  }
+
+  .pp-topnav__acctItem{
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid rgba(148,163,184,0.16);
+    background: rgba(255,255,255,0.05);
+    color: var(--text-primary);
+    font-weight: 850;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+  }
+
+  .pp-topnav__acctItem:hover{
+    background: rgba(190,242,100,0.10);
+    border-color: rgba(190,242,100,0.26);
+  }
+
+  .pp-topnav__acctItem--danger:hover{
+    border-color: rgba(248,113,113,0.35);
+    background: rgba(248,113,113,0.10);
+  }
+
+  [data-theme="light"] .pp-topnav__acctMenu{
+    border-color: rgba(15,23,42,0.12);
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,251,0.92));
+    box-shadow:
+      0 26px 70px rgba(2,6,23,0.16),
+      inset 0 1px 0 rgba(255,255,255,0.65);
+  }
+
+  [data-theme="light"] .pp-topnav__acctItem{
+    background: rgba(15,23,42,0.03);
+    border-color: rgba(15,23,42,0.10);
+  }
+
+  [data-theme="light"] .pp-topnav__acctItem:hover{
+    background: rgba(22,163,74,0.08);
+    border-color: rgba(22,163,74,0.18);
+  }
+
+  /* THIS is the actual banner container sizing (wide + responsive) */
+  .pp-topnav__row > .pp-topnav__logo.pp-topnav__brandCard{
+    grid-column: 2;
+    justify-self: center;
+
+    width: 100%;
+    height: var(--pp-hdr-h);
+
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+    border-radius: var(--pp-radius);
+  }
+
+  /* Keep the searches tidy */
+  .pp-topnav__searchWrap{
+    width: 210px;
+    max-width: 210px;
+    margin: 0;
+    align-content: center;
+  }
+}
+
+/* =========================================================
+   DESKTOP NO-OVERLAP MODE (enterprise)
+   - Banner gets its own row
+   - Left + Right sit beneath it
+   ========================================================= */
+@media (min-width: 901px) and (max-width: 1400px){
+  .pp-topnav__row{
+    /* 2 columns, 2 rows */
+    grid-template-columns: var(--pp-left-w) 1fr;
+    grid-template-rows: var(--pp-hdr-h) var(--pp-sub-row-h);
+    grid-auto-rows: unset;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  /* Banner row (spans full width) */
+  .pp-topnav__logo.pp-topnav__brandCard{
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: min(100%, var(--pp-brand-w));
+    max-width: var(--pp-brand-w);
+    justify-self: center;
+    height: var(--pp-hdr-h);
+  }
+
+  /* Left controls under banner */
+  .pp-topnav__left{
+    grid-column: 1;
+    grid-row: 2;
+    height: var(--pp-sub-row-h);
+    align-self: stretch;
+  }
+
+  /* Right panel under banner (no crowding) */
+  .pp-topnav__right{
+    grid-column: 2;
+    grid-row: 2;
+    height: var(--pp-sub-row-h);
+    justify-self: end;
+    align-self: stretch;
+  }
+
+}
+
+@media (min-width: 901px) and (max-width: 1220px){
+  .pp-topnav__right{
+    max-width: 360px;
+  }
 }
 
 .pp-topnav__left{
   display:flex;
   align-items:center;
-  gap: 1rem;
+  gap: 0.75rem;
   min-width: 0;
 }
 
@@ -2177,28 +2494,49 @@ footer,
   text-decoration:none;
 }
 
-.pp-topnav__logoImg{
+.pp-topnav__brandCard{
+  border-radius: 22px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(255,255,255,0.04);
+  box-shadow: 0 18px 56px rgba(0,0,0,0.22);
+  overflow: hidden;
+  position: relative;
+}
+
+.pp-topnav__logoImg:not(.pp-topnav__logoImg--banner){
   height: 3.25rem;
-  width:auto;
-  display:block;
+  width: auto;
+  display: block;
+}
+
+.pp-topnav__logoImg--banner{
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  object-position: center 56%;
+  transform: scale(3.28);
+  transform-origin: center;
+  filter: drop-shadow(0 16px 34px rgba(0,0,0,0.35));
 }
 
 .pp-topnav__searchWrap{
-  display:flex;
-  align-items:center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  width: 220px;
+  max-width: 220px;
   min-width: 0;
 }
 
 .pp-topnav__searchInput{
-  width: 100%;
   background: var(--pp-surface-2);
   border: 1px solid var(--border-color);
-  border-radius: 999px;
-  padding: 0.30rem 0.52rem;
+  border-radius: 14px;
+  min-height: 40px;
+  padding: 0.45rem 0.75rem;
   color: var(--text-primary);
-  font-size: 0.80rem;
+  font-size: 0.88rem;
 }
 
 .pp-topnav__searchInput::placeholder{
@@ -2226,29 +2564,132 @@ footer,
   }
 }
 
-.pp-topnav__right{
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap: 1.1rem;
-  flex-wrap: wrap;
+@media (max-width: 900px){
+  .pp-topnav__right{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+    row-gap: 10px;
+    max-width: 100%;
+    overflow: visible;
+    align-content: center;
+  }
+}
+
+/* =========================================================
+   MOBILE HEADER — minimal pill (<=900px)
+   ========================================================= */
+@media (max-width: 900px){
+
+  /* hide any desktop-only header pieces on mobile */
+  .pp-topnav__right,
+  .pp-topnav__rightPrimary,
+  .pp-topnav__rightSecondary,
+  .pp-topnav__greetingRow,
+  .pp-topnav__searchWrap{
+    display: none !important;
+  }
+
+  /* one row only */
+  .pp-topnav__row--mobileMinimal{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    padding: 12px 16px !important;
+  }
+
+  /* the pill bar look (like your screenshot) */
+  .pp-topnav__row--mobileMinimal{
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.18);
+    background: rgba(255,255,255,0.04);
+    box-shadow: 0 14px 38px rgba(0,0,0,0.18);
+    backdrop-filter: blur(10px) saturate(120%);
+    -webkit-backdrop-filter: blur(10px) saturate(120%);
+  }
+
+  /* icon buttons (left + right) */
+  .pp-topnav__mIconBtn{
+    width: 48px;
+    height: 48px;
+    border-radius: 999px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid rgba(148,163,184,0.16);
+    background: rgba(255,255,255,0.03);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  .pp-topnav__mIconBtn:active{
+    background: rgba(255,255,255,0.06);
+  }
+
+  .pp-topnav__mIcon{
+    font-size: 18px;
+    line-height: 1;
+    opacity: 0.95;
+  }
+
+  /* center logo container */
+  .pp-topnav__mLogo{
+    flex: 1 1 auto;
+    height: 56px;
+    max-width: clamp(240px, 60vw, 420px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* IMPORTANT: mobile must not use your desktop banner scaling */
+  .pp-topnav__logoImg--banner{
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center 54% !important;
+    transform: scale(2.69) !important;
+    transform-origin: center !important;
+  }
 }
 
 .pp-topnav__link,
 .pp-topnav__linkBtn{
   color: var(--text-primary);
   text-decoration:none;
-  font-weight: 650;
-  font-size: 0.95rem;
+  font-weight: 700;
+  height: 38px;
+  padding: 0 0.70rem;
+  font-size: 0.90rem;
+  border-radius: 14px;
   background:none;
-  border:none;
+  border: 1px solid transparent;
   cursor:pointer;
-  padding: 0.25rem 0.2rem;
 }
 
 .pp-topnav__link:hover,
 .pp-topnav__linkBtn:hover{
   color: var(--brand-green);
+}
+
+/* Right toolbar: keep text stable (enterprise) */
+.pp-topnav__right .pp-topnav__link:hover,
+.pp-topnav__right .pp-topnav__linkBtn:hover{
+  color: var(--text-primary);
+}
+
+.pp-topnav__link::after,
+.pp-topnav__linkBtn::after{
+  content: none !important;
+  display: none !important;
 }
 
 /* =========================================================
@@ -2354,7 +2795,13 @@ footer,
 
 .pp-topnav__greeting{
   color: var(--text-medium);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+
+@media (min-width: 901px){
+  .pp-topnav__right .pp-topnav__greeting{
+    font-size: 0.74rem;
+  }
 }
 
 .pp-topnav__action{
@@ -3446,48 +3893,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 }
 
-/* 1) Top navbar (pp-topnav) stacking */
-@media (max-width: 900px) {
-  .pp-topnav {
-    padding: 0.6rem 0.85rem;
-  }
-
-  .pp-topnav__row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.65rem;
-  }
-
-  .pp-topnav__left,
-  .pp-topnav__right {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .pp-topnav__logoImg {
-    height: 2.7rem;
-  }
-
-  /* make searches usable */
-  .pp-topnav__searchWrap {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
-
-  .pp-topnav__searchInput {
-    min-height: 40px;
-    font-size: 0.9rem;
-  }
-}
-
-@media (max-width: 460px) {
-  .pp-topnav__searchWrap {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* 2) Quick-nav — ultra compact on mobile (FINAL override) */
 @media (max-width: 900px) {
   .quick-nav-container{
@@ -3696,50 +4101,10 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 
   /* Navbar: compact top bar + dropdown search */
-  .pp-topnav {
-    padding: 0.5rem 0.75rem;
-    overflow: visible;
-    z-index: 30;
-  }
-
-  .pp-topnav__row {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.65rem;
-  }
-
-  .pp-topnav__left {
-    flex: 1 1 auto;
-    min-width: 0;
-    gap: 0.55rem;
-    flex-wrap: nowrap;
-  }
-
-  .pp-topnav__logoImg {
-    height: 2.25rem;
-  }
-
-  /* Desktop keeps inline search; mobile uses the dropdown drawer. */
-  .pp-topnav__searchWrap {
-    display: none;
-  }
-
-  .pp-topnav__right {
-    width: auto;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    flex-wrap: nowrap;
-  }
-
-  /* Hide the greeting to keep the header tight */
-  .pp-topnav__greeting {
-    display: none;
-  }
-
   .pp-topnav__iconBtn {
     width: 2.2rem;
     height: 2.2rem;
-    border-radius: 999px;
+    border-radius: 26px;
     border: 1px solid var(--border-color);
     background: rgba(0, 0, 0, 0.14);
     color: var(--text-light);
@@ -3813,14 +4178,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     text-transform: uppercase;
     color: var(--text-medium);
     font-weight: 800;
-  }
-
-  .pp-topnav__searchInput {
-    width: 100%;
-    height: 40px;
-    padding: 0.45rem 0.7rem;
-    border-radius: 0.85rem;
-    box-sizing: border-box;
   }
 
   @media (max-width: 420px) {
@@ -6311,7 +6668,7 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 
   .pp-halfhalf-panel .pp-hh-wizGoal{
     padding: 0.35rem 0.65rem;
-    border-radius: 999px;
+    border-radius: 26px;
     border: 1px solid rgba(190,242,100,0.28);
     background: rgba(190,242,100,0.10);
     font-weight: 950;
@@ -6862,16 +7219,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 }
 
 @media (max-width: 1023.98px){
-  .pp-topnav{
-    padding: 0.45rem 0.7rem;
-  }
-
-  .pp-topnav__logoImg{ height: 2.05rem; }
-
-  .pp-topnav__right{
-    gap: 0.45rem !important;
-  }
-
   .pp-topnav__iconBtn{
     width: 2.15rem;
     height: 2.15rem;
@@ -7504,142 +7851,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   /* keep the cart FAB behaving nicely too */
   .pp-cart-fab{
     z-index: 20010 !important;       /* above nav if needed */
-  }
-}
-
-/* =========================================================
-   Mobile header restyle (desktop unchanged)
-   ========================================================= */
-@media (max-width: 1023.98px){
-  /* Make the sticky wrapper feel cleaner (floating bar inside) */
-  .pp-topnav{
-    padding: calc(0.55rem + env(safe-area-inset-top)) 0.55rem 0.55rem !important;
-    border-bottom: none !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  .pp-topnav__row{
-    border: 1px solid var(--border-color);
-    border-radius: 18px;
-    padding: 0.55rem 0.6rem;
-    background: color-mix(in srgb, var(--panel) 88%, transparent);
-    box-shadow: 0 14px 38px rgba(0,0,0,0.18);
-  }
-
-  .pp-topnav__mobileRow{
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 0.65rem;
-  }
-
-  .pp-topnav__logo--center{
-    justify-self: center;
-  }
-
-  .pp-topnav__logoImg{
-    height: 34px;
-    width: auto;
-    display: block;
-    border-radius: 10px;
-  }
-
-  /* Make the search button match the new header sizing */
-  .pp-topnav__iconBtn--search{
-    width: 2.35rem;
-    height: 2.35rem;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.08);
-  }
-
-  .pp-topnav__iconBtn--search.is-active{
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(120, 255, 120, 0.18);
-  }
-
-  /* Match theme toggle height to icon buttons */
-  .pp-theme-toggle--compact{
-    width: 2.35rem;
-    min-width: 2.35rem;
-    height: 2.35rem;
-  }
-}
-
-/* =========================================================
-   MOBILE HEADER (final) -- centered pill, neat spacing
-   Paste at VERY BOTTOM so it overrides the duplicate mobile blocks
-   ========================================================= */
-@media (max-width: 1023.98px){
-
-  /* Outer sticky bar = neutral (no giant pill) */
-  .pp-topnav{
-    padding: calc(0.45rem + env(safe-area-inset-top)) 0.6rem 0.45rem !important;
-    background: transparent !important;
-    border-bottom: none !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  /* Kill the gradient underline on mobile (cleaner now) */
-  .pp-topnav::after{
-    display: none !important;
-  }
-
-  /* Row should not be the pill */
-  .pp-topnav__row{
-    display: block !important;
-    padding: 0 !important;
-    border: none !important;
-    background: transparent !important;
-    box-shadow: none !important;
-  }
-
-  /* The pill is the mobile row */
-  .pp-topnav__mobileRow{
-    width: 100% !important;
-    max-width: 560px;
-    margin: 0 auto !important;
-
-    display: grid !important;
-    grid-template-columns: 44px 1fr 44px;
-    align-items: center;
-    gap: 0.65rem;
-
-    padding: 0.55rem 0.6rem !important;
-    border-radius: 18px !important;
-
-    border: 1px solid var(--border-color) !important;
-    background: color-mix(in srgb, var(--panel) 90%, transparent) !important;
-    box-shadow: 0 14px 38px rgba(0,0,0,0.18) !important;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-  }
-
-  .pp-topnav__logo--center{
-    justify-self: center !important;
-  }
-
-  .pp-topnav__logoImg{
-    height: 32px !important;
-    border-radius: 10px !important;
-  }
-
-  /* Make the two buttons match + feel premium */
-  .pp-theme-toggle--compact,
-  .pp-topnav__iconBtn--search{
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    border-radius: 999px !important;
-  }
-
-  .pp-topnav__iconBtn--search{
-    background: rgba(255,255,255,0.08) !important;
-    border: 1px solid var(--border-color) !important;
   }
 }
 
@@ -8558,11 +8769,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   overflow: hidden;
 }
 
-.left-pane .pp-topnav{
-  isolation: isolate;
-  overflow: hidden;
-}
-
 .left-pane .quick-nav-container{
   isolation: isolate;
 }
@@ -8574,7 +8780,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* fine micro-diagonal film (very subtle) */
-.left-pane .pp-topnav::before,
 .left-pane .quick-nav-container::before,
 .left-pane .main-content-area::before,
 .left-pane .menu-category::before{
@@ -8597,7 +8802,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* soft highlight vignette (adds depth without "busy" patterns) */
-.left-pane .pp-topnav::after,
 .left-pane .quick-nav-container::after,
 .left-pane .main-content-area::after,
 .left-pane .menu-category::after{
@@ -8615,7 +8819,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* keep real content above texture */
-.left-pane .pp-topnav > *,
 .left-pane .quick-nav-container > *,
 .left-pane .main-content-area > :not(.quick-nav-container),
 .left-pane .menu-category > *{
@@ -8630,26 +8833,12 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
    DESKTOP: keep header sticky + tuck QuickNav under it
    ========================================================= */
 @media (min-width: 1024px){
-  .pp-topnav{
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 30 !important;
-  }
-
   .quick-nav-container{
     top: calc(4.35rem + 8px + env(safe-area-inset-top)) !important;
   }
 }
 
 @media (max-width: 1023.98px){
-  .pp-topnav{
-    padding-bottom: 0 !important;
-  }
-
-  .pp-topnav .quick-nav-container{
-    margin-top: 8px !important;
-  }
-
   .pp-topnav__searchDrawer{
     position: absolute !important;
   }
@@ -10306,65 +10495,6 @@ body{
    Paste at VERY END of App.css
    ========================================================= */
 
-/* ---------- HEADER: add an inner glass rail so it feels "finished" ---------- */
-.pp-topnav__row{
-  position: relative;
-  max-width: 1320px;
-  margin: 0 auto;
-}
-
-/* The inner rail sits BEHIND the header content (ties it together) */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav__row::before{
-    content:"";
-    position:absolute;
-    left: -10px;
-    right: -10px;
-    top: -8px;
-    bottom: -8px;
-    border-radius: 999px;
-
-    background:
-      radial-gradient(900px 240px at 18% 0%, rgba(190,242,100,0.10), transparent 62%),
-      radial-gradient(900px 240px at 82% 0%, rgba(190,242,100,0.08), transparent 62%),
-      rgba(255,255,255,0.04);
-
-    border: 1px solid rgba(148,163,184,0.18);
-    box-shadow: 0 18px 50px rgba(0,0,0,0.28);
-
-    backdrop-filter: blur(12px) saturate(155%);
-    -webkit-backdrop-filter: blur(12px) saturate(155%);
-
-    pointer-events:none;
-    z-index: 0;
-  }
-
-  .pp-topnav__row > *{
-    position: relative;
-    z-index: 1;
-  }
-}
-
-/* Make the header a touch brighter in dark mode (readability + "glass") */
-[data-theme="dark"] .pp-topnav{
-  border-bottom-color: rgba(148,163,184,0.22) !important;
-}
-[data-theme="dark"] .pp-topnav__searchInput{
-  color: rgba(234,242,255,0.95) !important;
-}
-
-/* Slow, subtle sheen drift over the header (NOT flashy) */
-@keyframes ppHdrDrift{
-  0%   { background-position: 0% 0%, 0% 0%, 0% 0%; }
-  100% { background-position: 120% 0%, -120% 0%, 0% 0%; }
-}
-.pp-topnav::before{
-  /* keep your existing texture, add a drift on the highlight layers */
-  background-size: 220% 100%, 220% 100%, auto !important;
-  animation: ppHdrDrift 10.5s linear infinite;
-  opacity: 0.14 !important;
-}
-
 /* ---------- QUICK NAV: remove "shaky" transform shimmer, use background-position sheen ---------- */
 .quick-nav-item a{
   transform: translate3d(0,0,0);          /* stable GPU path */
@@ -10442,7 +10572,6 @@ body{
 
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce){
-  .pp-topnav::before{ animation: none !important; }
   .quick-nav-item a:hover{ transform: none !important; }
   .quick-nav-item a::before{ animation: none !important; }
   .quick-nav-item a.active-nav-link{ animation: none !important; }
@@ -10490,176 +10619,6 @@ html[data-theme="light"]::before{
   opacity: 0.80;
 }
 
-/* Make sure header sits above the glaze */
-.pp-topnav{ position: sticky; z-index: 30; }
-
-/* =========================================================
-   HEADER LINKS: smooth premium hover (NO jitter)
-   Targets: Menu / About Us / Cart / Login
-   ========================================================= */
-
-:root{
-  --pp-hlink-ease: cubic-bezier(.22,1,.36,1);
-  --pp-hlink-dur: 180ms;
-}
-
-/* Baseline: prevent layout shift on hover (border is always present) */
-.pp-topnav__link,
-.pp-topnav__linkBtn{
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  height: 2.25rem;
-  padding: 0 0.9rem;
-  border-radius: 999px;
-
-  border: 1px solid transparent;          /* prevents "jump" */
-  background: transparent;
-
-  transform: translate3d(0,0,0);          /* stable GPU path */
-  backface-visibility: hidden;
-
-  transition:
-    color var(--pp-hlink-dur) ease,
-    background-color var(--pp-hlink-dur) ease,
-    border-color var(--pp-hlink-dur) ease,
-    box-shadow var(--pp-hlink-dur) var(--pp-hlink-ease);
-}
-
-/* Dark mode readability */
-[data-theme="dark"] .pp-topnav__link,
-[data-theme="dark"] .pp-topnav__linkBtn{
-  color: rgba(234,242,255,0.94) !important;
-}
-
-/* Light mode readability */
-[data-theme="light"] .pp-topnav__link,
-[data-theme="light"] .pp-topnav__linkBtn{
-  color: rgba(15,23,42,0.92) !important;
-}
-
-/* Sheen animation using BACKGROUND-POSITION (smooth, no shaky transform) */
-@keyframes ppHdrLinkSheen{
-  0%   { background-position: -140% 0; opacity: 0; }
-  15%  { opacity: 0.18; }
-  60%  { opacity: 0.12; }
-  100% { background-position: 140% 0; opacity: 0; }
-}
-
-.pp-topnav__link::before,
-.pp-topnav__linkBtn::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  border-radius: inherit;
-  pointer-events:none;
-
-  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.70) 50%, transparent 100%);
-  background-size: 220% 100%;
-  background-position: -140% 0;
-  opacity: 0;
-}
-
-/* Hover = premium glass chip + sheen (no translateY bounce) */
-.pp-topnav__link:hover,
-.pp-topnav__linkBtn:hover{
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(148,163,184,0.20);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.18);
-}
-
-/* Run sheen */
-.pp-topnav__link:hover::before,
-.pp-topnav__linkBtn:hover::before,
-.pp-topnav__link:focus-visible::before,
-.pp-topnav__linkBtn:focus-visible::before{
-  animation: ppHdrLinkSheen 900ms var(--pp-hlink-ease) 1;
-}
-
-/* Focus ring (keyboard) */
-.pp-topnav__link:focus-visible,
-.pp-topnav__linkBtn:focus-visible{
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .pp-topnav__link,
-  .pp-topnav__linkBtn,
-  .pp-topnav__link::before,
-  .pp-topnav__linkBtn::before{
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* =========================================================
-   Header link underline - shorter + contained (FINAL)
-   ========================================================= */
-
-/* Ensure link pills clip their underline */
-.pp-topnav__link,
-.pp-topnav__linkBtn{
-  position: relative;
-  overflow: hidden;          /* stops underline poking outside */
-  border-radius: 999px;      /* matches the pill */
-}
-
-/* Replace/override any long underline with a short centered one */
-.pp-topnav__link::after,
-.pp-topnav__linkBtn::after{
-  content:"";
-  position:absolute;
-  left: 0.85rem;             /* inset so it fits inside the pill */
-  right: 0.85rem;
-  bottom: 0.34rem;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand-neon-green), var(--brand-green));
-  opacity: 0;
-  transform: scaleX(0.55);
-  transform-origin: center;
-  transition: transform 180ms cubic-bezier(.22,1,.36,1), opacity 180ms ease;
-}
-
-.pp-topnav__link:hover::after,
-.pp-topnav__linkBtn:hover::after,
-.pp-topnav__link:focus-visible::after,
-.pp-topnav__linkBtn:focus-visible::after{
-  opacity: 0.78;
-  transform: scaleX(1);
-}
-
-/* =========================================================
-   Header -> content bridge (FINAL)
-   Softens the harsh seam between header + quick nav/menu
-   ========================================================= */
-
-/* Turn the header bottom line into a soft fade bridge */
-.pp-topnav::after{
-  /* keep it below the header */
-  bottom: -12px !important;
-  height: 12px !important;
-
-  /* a thin gradient line + a fade underneath (two-layer background) */
-  background:
-    linear-gradient(90deg,
-      transparent 0%,
-      var(--brand-neon-green) 18%,
-      var(--brand-green) 82%,
-      transparent 100%
-    ) 0 0 / 100% 2px no-repeat,
-    linear-gradient(180deg,
-      rgba(148,163,184,0.18),
-      rgba(2,6,23,0.00)
-    ) 0 0 / 100% 100% no-repeat !important;
-
-  opacity: 0.85 !important;
-}
-
 /* Give the quick-nav a tiny top "glare" so it visually merges upward */
 .quick-nav-container{
   margin-top: 0.35rem; /* creates breathing room so it doesn't slam into the header */
@@ -10676,22 +10635,6 @@ html[data-theme="light"]::before{
   background: linear-gradient(180deg, rgba(255,255,255,0.10), transparent);
   filter: blur(6px);
   opacity: 0.35;
-}
-
-/* Light mode bridge tuning (so it doesn't look dirty) */
-[data-theme="light"] .pp-topnav::after{
-  background:
-    linear-gradient(90deg,
-      transparent 0%,
-      var(--brand-neon-green) 18%,
-      var(--brand-green) 82%,
-      transparent 100%
-    ) 0 0 / 100% 2px no-repeat,
-    linear-gradient(180deg,
-      rgba(15,23,42,0.08),
-      rgba(255,255,255,0.00)
-    ) 0 0 / 100% 100% no-repeat !important;
-  opacity: 0.70 !important;
 }
 
 /* =========================================================
@@ -10733,144 +10676,6 @@ html[data-theme="light"]::before{
 }
 
 /* =========================================================
-   HEADER PREMIUM FINISH (FINAL)
-   - Makes header feel like a designed "glass rail"
-   - Groups left + right into premium capsules
-   - Improves readability (dark mode) without killing the vibe
-   ========================================================= */
-
-/* 1) Give the header a designed "rail" feel (not a flat slab) */
-.pp-topnav{
-  border-bottom-color: rgba(148,163,184,0.22) !important;
-}
-
-/* Dark mode: brighten the base slightly so it reads as glass, not void */
-[data-theme="dark"] .pp-topnav{
-  background:
-    radial-gradient(1100px 260px at 18% 0%, rgba(190,242,100,0.12), transparent 64%),
-    radial-gradient(1100px 260px at 82% 0%, rgba(190,242,100,0.10), transparent 64%),
-    linear-gradient(180deg, rgba(20,34,60,0.70), rgba(2,6,23,0.34)) !important;
-}
-
-/* Light mode: keep crisp but still glass */
-[data-theme="light"] .pp-topnav{
-  background:
-    radial-gradient(1100px 260px at 18% 0%, rgba(22,163,74,0.08), transparent 64%),
-    radial-gradient(1100px 260px at 82% 0%, rgba(190,242,100,0.06), transparent 64%),
-    linear-gradient(180deg, rgba(255,255,255,0.90), rgba(241,245,251,0.64)) !important;
-}
-
-/* Stronger specular + micro texture (subtle, but visible) */
-.pp-topnav::before{
-  opacity: 0.14 !important;
-}
-
-/* 2) Center the header content and give it "container" rhythm */
-.pp-topnav__row{
-  max-width: 1320px;
-  margin: 0 auto;
-}
-
-/* 3) Create premium "capsules" for left + right clusters */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav__left,
-  .pp-topnav__right{
-    border-radius: 999px;
-    padding: 0.42rem 0.55rem;
-    border: 1px solid rgba(148,163,184,0.18);
-    background: rgba(255,255,255,0.04);
-    backdrop-filter: blur(12px) saturate(155%);
-    -webkit-backdrop-filter: blur(12px) saturate(155%);
-    box-shadow: 0 14px 36px rgba(0,0,0,0.18);
-  }
-
-  [data-theme="light"] .pp-topnav__left,
-  [data-theme="light"] .pp-topnav__right{
-    background: rgba(255,255,255,0.72);
-    border-color: rgba(15,23,42,0.12);
-    box-shadow: 0 14px 34px rgba(2,6,23,0.10);
-  }
-}
-
-/* Tighten the logo so it feels intentional */
-.pp-topnav__logoImg{
-  height: 3.1rem;
-  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.35));
-}
-
-/* 4) Search pills: more premium glass + clearer text */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav__searchInput{
-    background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.12)) !important;
-    border-color: rgba(148,163,184,0.22) !important;
-    box-shadow:
-      0 12px 30px rgba(0,0,0,0.18),
-      inset 0 1px 0 rgba(255,255,255,0.16) !important;
-    color: rgba(234,242,255,0.95) !important;
-  }
-  [data-theme="light"] .pp-topnav__searchInput{
-    background: linear-gradient(180deg, rgba(255,255,255,0.84), rgba(241,245,251,0.64)) !important;
-    color: rgba(15,23,42,0.92) !important;
-  }
-}
-
-/* 5) Links: make them feel "button-like" (readable + premium) */
-.pp-topnav__link,
-.pp-topnav__linkBtn{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 2.25rem;
-  padding: 0 0.85rem;
-  border-radius: 999px;
-
-  font-weight: 800 !important;
-  letter-spacing: 0.04em;
-  text-transform: none; /* reads more premium */
-}
-
-[data-theme="dark"] .pp-topnav__link,
-[data-theme="dark"] .pp-topnav__linkBtn{
-  color: rgba(234,242,255,0.96) !important;
-  text-shadow: 0 10px 26px rgba(0,0,0,0.45);
-}
-
-[data-theme="light"] .pp-topnav__link,
-[data-theme="light"] .pp-topnav__linkBtn{
-  color: rgba(15,23,42,0.92) !important;
-}
-
-/* Hover: glass cap + tiny lift (matches your nav pill vibe) */
-.pp-topnav__link:hover,
-.pp-topnav__linkBtn:hover{
-  background: rgba(190,242,100,0.10);
-  border: 1px solid rgba(190,242,100,0.22);
-  transform: translateY(-1px);
-}
-
-/* 6) Make the underline gradient feel "finished", not faint */
-.pp-topnav::after{
-  opacity: 0.72 !important;
-  height: 2px !important;
-}
-
-/* 7) Mobile: don't over-style (keep your mobile layout pack in control) */
-@media (max-width: 900px){
-  .pp-topnav__row{ max-width: none; }
-
-  .pp-topnav__left,
-  .pp-topnav__right{
-    padding: 0.25rem 0.35rem;
-  }
-
-  .pp-topnav__link,
-  .pp-topnav__linkBtn{
-    height: 2.05rem;
-    padding: 0 0.65rem;
-  }
-}
-
-/* =========================================================
    PP HEADER + BUTTONS + ACTIVE PILL (PREMIUM FINAL)
    Paste at VERY END of App.css
    ========================================================= */
@@ -10885,65 +10690,6 @@ html[data-theme="light"]::before{
 
   --pp-activeGlowA: rgba(190,242,100,0.18);
   --pp-activeGlowB: rgba(190,242,100,0.10);
-}
-
-/* ---------- HEADER: brighter, readable glass ---------- */
-@media (min-width: 901px){
-  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-    .pp-topnav{
-      backdrop-filter: blur(var(--pp-hdr-blur)) saturate(var(--pp-hdr-sat)) !important;
-      -webkit-backdrop-filter: blur(var(--pp-hdr-blur)) saturate(var(--pp-hdr-sat)) !important;
-
-      border-bottom: 1px solid var(--pp-hdr-rim) !important;
-      overflow: hidden !important;
-      isolation: isolate !important;
-    }
-
-    /* Dark header: less black slab, more glass */
-    [data-theme="dark"] .pp-topnav{
-      background:
-        radial-gradient(900px 260px at 18% 0%, rgba(190,242,100,0.10), transparent 62%),
-        radial-gradient(900px 260px at 82% 0%, rgba(190,242,100,0.08), transparent 62%),
-        linear-gradient(180deg, rgba(17,28,51,0.72), rgba(2,6,23,0.34)) !important;
-      box-shadow: 0 22px 70px rgba(0,0,0,0.55) !important;
-    }
-
-    /* Light header: consistent premium glass */
-    [data-theme="light"] .pp-topnav{
-      background:
-        radial-gradient(900px 260px at 18% 0%, rgba(22,163,74,0.08), transparent 62%),
-        radial-gradient(900px 260px at 82% 0%, rgba(190,242,100,0.06), transparent 62%),
-        linear-gradient(180deg, rgba(255,255,255,0.86), rgba(241,245,251,0.62)) !important;
-      box-shadow: 0 18px 54px rgba(2,6,23,0.14) !important;
-    }
-
-    /* Specular + micrograin (subtle) */
-    .pp-topnav::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      background:
-        linear-gradient(120deg, rgba(255,255,255,0.65), transparent 42%),
-        linear-gradient(180deg, rgba(255,255,255,0.10), transparent 60%),
-        repeating-linear-gradient(
-          135deg,
-          rgba(255,255,255,0.045) 0px,
-          rgba(255,255,255,0.045) 1px,
-          rgba(0,0,0,0.040) 1px,
-          rgba(0,0,0,0.040) 3px
-        );
-      opacity: 0.10;
-      mix-blend-mode: overlay;
-    }
-  }
-}
-
-/* Header nav links: brighter + easier to read on dark */
-[data-theme="dark"] .pp-topnav__link,
-[data-theme="dark"] .pp-topnav__linkBtn{
-  color: rgba(234,242,255,0.94) !important;
-  text-shadow: 0 10px 26px rgba(0,0,0,0.45);
 }
 
 /* ---------- BUTTONS: consistent premium glass ---------- */
@@ -11082,105 +10828,6 @@ html[data-theme="light"]::before{
   --pp-glass-btn-sat: 155%;
 }
 
-/* ---------- HEADER GLASS (DESKTOP) ---------- */
-@media (min-width: 901px){
-  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-    html[data-theme] .pp-topnav{
-      backdrop-filter: blur(var(--pp-hdr-blur)) saturate(var(--pp-hdr-sat)) !important;
-      -webkit-backdrop-filter: blur(var(--pp-hdr-blur)) saturate(var(--pp-hdr-sat)) !important;
-
-      border-bottom: 1px solid var(--pp-hdr-border) !important;
-      box-shadow: var(--pp-hdr-shadow) !important;
-
-      overflow: hidden !important;
-      isolation: isolate !important;
-    }
-
-    /* Better "premium" fills (less flat) */
-    html[data-theme="dark"] .pp-topnav{
-      background:
-        radial-gradient(900px 320px at 18% 0%, rgba(190,242,100,0.10), transparent 62%),
-        radial-gradient(900px 320px at 82% 0%, rgba(190,242,100,0.08), transparent 62%),
-        linear-gradient(180deg, rgba(2,6,23,0.74), rgba(2,6,23,0.34)) !important;
-    }
-
-    html[data-theme="light"] .pp-topnav{
-      background:
-        radial-gradient(900px 320px at 18% 0%, rgba(22,163,74,0.08), transparent 62%),
-        radial-gradient(900px 320px at 82% 0%, rgba(190,242,100,0.06), transparent 62%),
-        linear-gradient(180deg, rgba(255,255,255,0.84), rgba(241,245,251,0.62)) !important;
-      box-shadow: 0 18px 52px rgba(2,6,23,0.14) !important;
-    }
-
-    /* Specular sheen + micro grain (subtle) */
-    html[data-theme] .pp-topnav::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      background:
-        linear-gradient(120deg, rgba(255,255,255,0.58), transparent 42%),
-        linear-gradient(180deg, rgba(255,255,255,0.10), transparent 60%),
-        repeating-linear-gradient(
-          135deg,
-          rgba(255,255,255,0.05) 0px,
-          rgba(255,255,255,0.05) 1px,
-          rgba(0,0,0,0.04) 1px,
-          rgba(0,0,0,0.04) 3px
-        );
-      opacity: 0.10;
-      mix-blend-mode: overlay;
-    }
-
-    /* ---------- HEADER CONTROLS (SEARCH + THEME + ICON BTNS) ---------- */
-    html[data-theme] .pp-topnav__searchInput,
-    html[data-theme] .pp-theme-toggle,
-    html[data-theme] .pp-topnav__iconBtn{
-      position: relative;
-      overflow: hidden;
-
-      backdrop-filter: blur(var(--pp-glass-btn-blur)) saturate(var(--pp-glass-btn-sat));
-      -webkit-backdrop-filter: blur(var(--pp-glass-btn-blur)) saturate(var(--pp-glass-btn-sat));
-
-      border: 1px solid rgba(148,163,184,0.22) !important;
-      box-shadow:
-        0 14px 34px rgba(0,0,0,0.16),
-        inset 0 1px 0 rgba(255,255,255,0.16) !important;
-    }
-
-    html[data-theme="dark"] .pp-topnav__searchInput,
-    html[data-theme="dark"] .pp-theme-toggle,
-    html[data-theme="dark"] .pp-topnav__iconBtn{
-      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.12)) !important;
-    }
-
-    html[data-theme="light"] .pp-topnav__searchInput,
-    html[data-theme="light"] .pp-theme-toggle,
-    html[data-theme="light"] .pp-topnav__iconBtn{
-      background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(241,245,251,0.58)) !important;
-    }
-
-    /* tiny moving highlight on hover (premium, not loud) */
-    html[data-theme] .pp-theme-toggle::before,
-    html[data-theme] .pp-topnav__iconBtn::before{
-      content:"";
-      position:absolute;
-      inset:-2px;
-      pointer-events:none;
-      background: linear-gradient(120deg, transparent, rgba(255,255,255,0.55), transparent);
-      opacity: 0;
-      transform: translateX(-120%) skewX(-18deg);
-    }
-
-    html[data-theme] .pp-theme-toggle:hover::before,
-    html[data-theme] .pp-topnav__iconBtn:hover::before{
-      opacity: 0.14;
-      transform: translateX(120%) skewX(-18deg);
-      transition: transform 520ms cubic-bezier(.22,1,.36,1), opacity 180ms ease;
-    }
-  }
-}
-
 /* ---------- BUTTONS (SITE-WIDE PREMIUM GLASS) ---------- */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
   :where(.pp-btn, .simple-button, .quantity-btn:not([title="Close"])){
@@ -11303,101 +10950,6 @@ html[data-theme="light"]::before{
   --pp-hdr-rim: rgba(148,163,184,0.18);
   --pp-hdr-shadow: 0 24px 70px rgba(0,0,0,0.55);
   --pp-sheen-opacity: 0.16;
-}
-
-/* ---------- HEADER (pp-topnav): real glass stack ---------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav{
-    /* Re-enable blur (your CSS currently forces none) */
-    backdrop-filter: blur(var(--pp-hdr-blur)) saturate(var(--pp-hdr-sat)) !important;
-    -webkit-backdrop-filter: blur(var(--pp-hdr-blur)) saturate(var(--pp-hdr-sat)) !important;
-
-    border-bottom: 1px solid var(--pp-hdr-rim) !important;
-    box-shadow: var(--pp-hdr-shadow) !important;
-
-    overflow: hidden !important;
-    isolation: isolate !important;
-  }
-
-  /* Better base fill (less muddy than a single dark block) */
-  [data-theme="dark"] .pp-topnav{
-    background:
-      radial-gradient(900px 280px at 18% 0%, rgba(190,242,100,0.10), transparent 62%),
-      radial-gradient(900px 280px at 82% 0%, rgba(190,242,100,0.08), transparent 62%),
-      linear-gradient(180deg, rgba(2,6,23,0.72), rgba(2,6,23,0.34)) !important;
-  }
-  [data-theme="light"] .pp-topnav{
-    background:
-      radial-gradient(900px 280px at 18% 0%, rgba(22,163,74,0.08), transparent 62%),
-      radial-gradient(900px 280px at 82% 0%, rgba(190,242,100,0.06), transparent 62%),
-      linear-gradient(180deg, rgba(255,255,255,0.82), rgba(241,245,251,0.62)) !important;
-  }
-
-  /* Specular + micro texture (subtle) */
-  .pp-topnav::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    background:
-      linear-gradient(120deg, rgba(255,255,255,0.55), transparent 42%),
-      linear-gradient(180deg, rgba(255,255,255,0.10), transparent 55%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,0.05) 0px,
-        rgba(255,255,255,0.05) 1px,
-        rgba(0,0,0,0.04) 1px,
-        rgba(0,0,0,0.04) 3px
-      );
-    opacity: 0.10;
-    mix-blend-mode: overlay;
-  }
-
-  /* Make the neon underline feel more intentional */
-  .pp-topnav::after{
-    opacity: 0.75 !important;
-    height: 2px !important;
-  }
-}
-
-/* Header links: add premium underline motion */
-.pp-topnav__link,
-.pp-topnav__linkBtn{
-  position: relative;
-  padding-bottom: 0.35rem;
-}
-.pp-topnav__link::after,
-.pp-topnav__linkBtn::after{
-  content:"";
-  position:absolute;
-  left:0;
-  right:0;
-  bottom:0.1rem;
-  height:2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand-neon-green), var(--brand-green));
-  opacity: 0;
-  transform: scaleX(0.35);
-  transform-origin: left;
-  transition: transform 180ms ease, opacity 180ms ease;
-}
-.pp-topnav__link:hover::after,
-.pp-topnav__linkBtn:hover::after{
-  opacity: 0.75;
-  transform: scaleX(1);
-}
-
-/* Make header search inputs feel like glass, not flat pills */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav__searchInput{
-    background: color-mix(in srgb, var(--pp-surface-2) 72%, transparent) !important;
-    border-color: rgba(148,163,184,0.22) !important;
-    backdrop-filter: blur(10px) saturate(150%);
-    -webkit-backdrop-filter: blur(10px) saturate(150%);
-    box-shadow:
-      0 12px 26px rgba(0,0,0,0.14),
-      inset 0 1px 0 rgba(255,255,255,0.14);
-  }
 }
 
 /* ---------- QUICK NAV: premium rail + animated border ---------- */
@@ -11556,62 +11108,6 @@ html[data-theme="light"]::before{
   --pp-glass-shadow: 0 22px 64px rgba(0,0,0,0.42);
 }
 
-/* -------- HEADER: true glass (pp-topnav) -------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav{
-    backdrop-filter: blur(var(--pp-glass-blur-hd)) saturate(var(--pp-glass-sat-hd)) !important;
-    -webkit-backdrop-filter: blur(var(--pp-glass-blur-hd)) saturate(var(--pp-glass-sat-hd)) !important;
-    border-bottom: 1px solid var(--pp-glass-rim) !important;
-    box-shadow: var(--pp-glass-shadow) !important;
-    overflow: hidden;
-    isolation: isolate;
-  }
-
-  [data-theme="dark"] .pp-topnav{
-    background: linear-gradient(180deg, rgba(2,6,23,0.70), rgba(2,6,23,0.35)) !important;
-  }
-  [data-theme="light"] .pp-topnav{
-    background: linear-gradient(180deg, rgba(255,255,255,0.80), rgba(241,245,251,0.58)) !important;
-  }
-
-  /* Specular + micro texture */
-  .pp-topnav::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    background:
-      linear-gradient(120deg, rgba(255,255,255,0.55), transparent 42%),
-      linear-gradient(180deg, rgba(255,255,255,0.14), transparent 55%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,0.05) 0px,
-        rgba(255,255,255,0.05) 1px,
-        rgba(0,0,0,0.05) 1px,
-        rgba(0,0,0,0.05) 3px
-      );
-    opacity: 0.12;
-    mix-blend-mode: overlay;
-  }
-
-  /* Keep your neon underline, just make it stronger */
-  .pp-topnav::after{
-    opacity: 0.70 !important;
-  }
-}
-
-/* Make header search fields feel like glass inputs */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav__searchInput{
-    background: color-mix(in srgb, var(--pp-surface-2) 70%, transparent) !important;
-    backdrop-filter: blur(10px) saturate(150%);
-    -webkit-backdrop-filter: blur(10px) saturate(150%);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.16),
-      0 10px 22px rgba(0,0,0,0.12);
-  }
-}
-
 /* -------- QUICK NAV BAR: premium rail -------- */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
   .quick-nav-container{
@@ -11740,47 +11236,6 @@ html[data-theme="light"]::before{
    ========================================================= */
 
 @media (min-width: 901px){
-  /* --- TOP HEADER (pp-topnav) --- */
-  html[data-theme] .pp-topnav{
-    /* IMPORTANT: override the "SOLID HEADER" rule */
-    backdrop-filter: blur(18px) saturate(170%) !important;
-    -webkit-backdrop-filter: blur(18px) saturate(170%) !important;
-
-    border-bottom: 1px solid rgba(148,163,184,0.18) !important;
-    box-shadow: 0 18px 60px rgba(0,0,0,0.35) !important;
-    overflow: hidden !important;
-    isolation: isolate !important;
-    position: sticky !important;
-  }
-
-  html[data-theme="dark"] .pp-topnav{
-    background: linear-gradient(180deg, rgba(2,6,23,0.72), rgba(2,6,23,0.38)) !important;
-  }
-  html[data-theme="light"] .pp-topnav{
-    background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(241,245,251,0.62)) !important;
-    box-shadow: 0 18px 50px rgba(2,6,23,0.12) !important;
-  }
-
-  /* Specular + micro texture (header) */
-  html[data-theme] .pp-topnav::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    background:
-      linear-gradient(120deg, rgba(255,255,255,0.60), transparent 42%),
-      linear-gradient(180deg, rgba(255,255,255,0.12), transparent 60%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,0.05) 0px,
-        rgba(255,255,255,0.05) 1px,
-        rgba(0,0,0,0.05) 1px,
-        rgba(0,0,0,0.05) 3px
-      );
-    opacity: 0.12;
-    mix-blend-mode: overlay;
-  }
-
   /* --- QUICK NAV RAIL (container) --- */
   html[data-theme] .quick-nav-container{
     backdrop-filter: blur(16px) saturate(165%) !important;
@@ -12932,64 +12387,6 @@ html[data-theme="dark"], body[data-theme="dark"]{
 }
 
 /* -----------------------------------
-   1) HEADER (pp-topnav) = real glass
-   ----------------------------------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .pp-topnav{
-    position: sticky;
-    top: 0;
-    z-index: 30;
-
-    /* Make it translucent (kills plastic) */
-    background: transparent !important;
-    backdrop-filter: blur(var(--pp-glass-blur)) saturate(var(--pp-glass-sat));
-    -webkit-backdrop-filter: blur(var(--pp-glass-blur)) saturate(var(--pp-glass-sat));
-
-    border-bottom: 1px solid var(--border-color) !important;
-    box-shadow:
-      0 18px 46px rgba(0,0,0,0.20),
-      inset 0 1px 0 var(--pp-rim-hi),
-      inset 0 -1px 0 var(--pp-rim-lo) !important;
-
-    overflow: hidden;
-    isolation: isolate;
-  }
-
-  /* Glass fill layer (theme-aware) */
-  [data-theme="dark"] .pp-topnav{
-    background: linear-gradient(180deg, rgba(2,6,23,0.62), rgba(2,6,23,0.30)) !important;
-  }
-  [data-theme="light"] .pp-topnav{
-    background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(241,245,251,0.62)) !important;
-  }
-
-  /* Specular + grain overlay (subtle) */
-  .pp-topnav::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    background:
-      linear-gradient(120deg, var(--pp-spec-a), transparent 42%),
-      linear-gradient(180deg, var(--pp-spec-b), transparent 55%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,var(--pp-grain-hi)) 0px,
-        rgba(255,255,255,var(--pp-grain-hi)) 1px,
-        rgba(0,0,0,var(--pp-grain-lo)) 1px,
-        rgba(0,0,0,var(--pp-grain-lo)) 3px
-      );
-    opacity: 0.14;
-    mix-blend-mode: overlay;
-  }
-
-  /* Keep your neon underline, just let it sit above glass */
-  .pp-topnav::after{
-    opacity: 0.55 !important;
-  }
-}
-
-/* -----------------------------------
    2) QUICK NAV BAR (container + arrows)
    ----------------------------------- */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
@@ -13376,26 +12773,6 @@ body[data-theme="light"] .menu-content::after{
   box-shadow: 0 8px 18px rgba(2,6,23,0.08);
 }
 
-/* Desktop: let the header search pills hug their placeholder text */
-@media (min-width: 1024px){
-  .pp-topnav__searchWrap{
-    flex-wrap: nowrap;
-  }
-
-  /* This is the big one: stop forcing full width */
-  .pp-topnav__searchInput{
-    width: auto;
-    box-sizing: content-box; /* so the size=... feels tight */
-  }
-}
-
-@media (min-width: 1024px){
-  .pp-topnav__searchInput{
-    width: 100%;
-    box-sizing: border-box;
-  }
-}
-
 /* =========================================================
    MOBILE: hide the bottom "order summary" panel,
    but KEEP the right-sidebar mounted so modals still work.
@@ -13431,3 +12808,5 @@ body[data-theme="light"] .menu-content::after{
   content: none !important;
   display: none !important;
 }
+
+

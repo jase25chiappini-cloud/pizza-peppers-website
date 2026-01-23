@@ -64,6 +64,7 @@ import {
   defaultSize,
 } from "./utils/size";
 import AdminPanelPage from "./AdminPanel";
+import ppBanner from "./assets/pizza-peppers-banner.png";
 const HALF_HALF_FORCED_ITEM = {
   id: "half_half",
   name: "The Half & Half Pizza",
@@ -11857,6 +11858,13 @@ function Navbar({
     (currentUser?.displayName && currentUser.displayName.split(" ")[0]) ||
     (currentUser?.phoneNumber ? currentUser.phoneNumber : "there");
 
+  const { theme, setTheme } = useTheme();
+  const handleToggleTheme = useCallback(() => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  }, [setTheme, theme]);
+
+  const [acctOpen, setAcctOpen] = useState(false);
+  const acctRef = useRef(null);
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isToppingFocused, setIsToppingFocused] = useState(false);
   // Desktop search pill "hug" widths (measured from placeholder + real padding)
@@ -11910,6 +11918,28 @@ function Navbar({
       window.removeEventListener("resize", measure);
     };
   }, []);
+
+  useEffect(() => {
+    if (!acctOpen || typeof window === "undefined") return;
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setAcctOpen(false);
+    };
+
+    const onMouseDown = (e) => {
+      const el = acctRef.current;
+      if (!el) return;
+      if (!el.contains(e.target)) setAcctOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("mousedown", onMouseDown, true);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mousedown", onMouseDown, true);
+    };
+  }, [acctOpen]);
 
   // Mobile navbar: keep the top bar tight, open search in a dropdown drawer.
   const [isMobile, setIsMobile] = useState(() => {
@@ -11996,56 +12026,58 @@ function Navbar({
 
   return (
     <nav ref={navRef} className="pp-topnav">
-      <div className="pp-topnav__row">
+      <div className={`pp-topnav__row${isMobile ? " pp-topnav__row--mobileMinimal" : ""}`}>
         {isMobile ? (
-          <div className="pp-topnav__mobileRow">
-            <ThemeSwitcher compact />
+          <>
+            <button
+              type="button"
+              className="pp-topnav__mIconBtn"
+              onClick={handleToggleTheme}
+              aria-label="Toggle theme"
+              title="Toggle theme"
+            >
+              <span className="pp-topnav__mIcon" aria-hidden="true">
+                {theme === "dark" ? "\uD83C\uDF19" : "\uD83C\uDF1E"}
+              </span>
+            </button>
 
             <Link
               to="/"
               onClick={onMenuClick}
-              className="pp-topnav__logo pp-topnav__logo--center"
-              aria-label="Go to menu"
-              title="Menu"
+              className="pp-topnav__mLogo"
+              aria-label="Pizza Peppers"
+              title="Pizza Peppers"
             >
               <img
-                src="/pizza-peppers-logo.jpg"
-                alt="Pizza Peppers Logo"
-                className="pp-topnav__logoImg"
+                className="pp-topnav__logoImg pp-topnav__logoImg--banner"
+                src={ppBanner}
+                alt="Pizza Peppers"
+                draggable="false"
               />
             </Link>
 
             <button
               type="button"
-              className={
-                "pp-topnav__iconBtn pp-topnav__iconBtn--search" +
-                (mobileSearchOpen ? " is-active" : "")
-              }
+              className="pp-topnav__mIconBtn"
               onClick={(e) => {
-                // keyboard accessibility
                 e.preventDefault();
                 e.stopPropagation();
                 toggleMobileSearch();
               }}
-              aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+              aria-label="Search"
               aria-expanded={mobileSearchOpen}
               aria-controls="pp-mobile-search-drawer"
               title="Search"
             >
-              {"\uD83D\uDD0D"}
+              <span className="pp-topnav__mIcon" aria-hidden="true">
+                {"\uD83D\uDD0D"}
+              </span>
             </button>
-          </div>
+          </>
         ) : (
           <>
             <div className="pp-topnav__left">
               <ThemeSwitcher compact={false} />
-              <Link to="/" onClick={onMenuClick} className="pp-topnav__logo">
-                <img
-                  src="/pizza-peppers-logo.jpg"
-                  alt="Pizza Peppers Logo"
-                  className="pp-topnav__logoImg"
-                />
-              </Link>
 
               {/* Desktop: keep the inline searches */}
               <div className="pp-topnav__searchWrap">
@@ -12103,54 +12135,96 @@ function Navbar({
               </div>
             </div>
 
+            <Link
+              to="/"
+              onClick={onMenuClick}
+              className="pp-topnav__logo pp-topnav__brandCard"
+              aria-label="Go to menu"
+              title="Menu"
+            >
+              <img
+                className="pp-topnav__logoImg pp-topnav__logoImg--banner"
+                src={ppBanner}
+                alt="Pizza Peppers"
+                draggable="false"
+              />
+            </Link>
+
             <div className="pp-topnav__right">
-              <Link to="/" onClick={onMenuClick} className="pp-topnav__link">
-                Menu
-              </Link>
-
-              <button
-                type="button"
-                onClick={onAboutClick}
-                className="pp-topnav__linkBtn"
-              >
-                About Us
-              </button>
-
-              <button
-                type="button"
-                onClick={onCartClick || onMenuClick}
-                className="pp-topnav__linkBtn"
-              >
-                Cart ({totalItems})
-              </button>
-
-              {authLoading ? null : currentUser ? (
-                <div className="pp-topnav__auth">
-                  <span className="pp-topnav__greeting">Hi, {firstName}</span>
+              {acctOpen && (
+                <div
+                  className="pp-topnav__acctScrim"
+                  onClick={() => setAcctOpen(false)}
+                  aria-hidden="true"
+                />
+              )}
+              <div className="pp-topnav__rightStack">
+                <div className="pp-topnav__rightActions">
                   <button
                     type="button"
-                    onClick={onProfileClick}
+                    onClick={onAboutClick}
                     className="pp-topnav__linkBtn"
                   >
-                    Profile
+                    About Us
                   </button>
+
                   <button
                     type="button"
-                    onClick={() => logout?.()}
+                    onClick={onCartClick}
                     className="pp-topnav__linkBtn"
                   >
-                    Logout
+                    Cart ({totalItems})
                   </button>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onLoginClick}
-                  className="pp-topnav__linkBtn"
-                >
-                  Login
-                </button>
-              )}
+
+                {authLoading ? null : currentUser ? (
+                  <details
+                    className="pp-topnav__acct"
+                    ref={acctRef}
+                    open={acctOpen}
+                    onToggle={(e) => setAcctOpen(e.currentTarget.open)}
+                  >
+                    <summary className="pp-topnav__acctBtn">
+                      <span className="pp-topnav__acctDot" />
+                      <span className="pp-topnav__acctText">Hi, {firstName}</span>
+                      <span className="pp-topnav__acctCaret">▾</span>
+                    </summary>
+
+                    <div className="pp-topnav__acctMenu">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAcctOpen(false);
+                          onProfileClick();
+                        }}
+                        className="pp-topnav__acctItem"
+                      >
+                        Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAcctOpen(false);
+                          logout?.();
+                        }}
+                        className="pp-topnav__acctItem pp-topnav__acctItem--danger"
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  </details>
+                ) : (
+                  <div className="pp-topnav__acct">
+                    <button
+                      type="button"
+                      onClick={onLoginClick}
+                      className="pp-topnav__acctBtn"
+                    >
+                      Login
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -12663,6 +12737,52 @@ function AppLayout({ isMapsLoaded }) {
   }, []);
 
   const [cartModalOpen, setCartModalOpen] = React.useState(false);
+
+  // --- SAFETY: prevent stale scroll locks on mobile (Render issue) ---
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const html = document.documentElement;
+    const body = document.body;
+
+    const hasVisibleOverlay = () => {
+      const selectors = [
+        ".modal-overlay",
+        ".pp-topnav__searchBackdrop",
+        ".pp-topnav__acctScrim",
+        ".pp-mealpick",
+        ".pp-md-editorOverlay",
+        ".pp-hh-editorModal",
+        ".pp-mealdeal-halfhalf--full",
+      ].join(",");
+
+      const nodes = Array.from(document.querySelectorAll(selectors));
+      for (const n of nodes) {
+        if (!(n instanceof HTMLElement)) continue;
+        const cs = window.getComputedStyle(n);
+        if (cs.display === "none" || cs.visibility === "hidden") continue;
+        const op = Number(cs.opacity || "1");
+        if (op <= 0.01 && cs.pointerEvents === "none") continue;
+        return true;
+      }
+      return false;
+    };
+
+    // If nothing overlay-ish is actually visible, nuke any leftover locks.
+    if (!hasVisibleOverlay()) {
+      try {
+        body.style.overflow = "";
+        body.style.touchAction = "";
+        html.style.overscrollBehavior = "";
+      } catch {}
+
+      try {
+        html.classList.remove("pp-halfhalf-open");
+        body.classList.remove("pp-halfhalf-open");
+      } catch {}
+    }
+  }, [location.pathname, authCtx.showLogin, cartModalOpen, isProfileOpen, selectedItem]);
+
   const showViewOrderFab =
     isMobile &&
     !authCtx.showLogin &&
@@ -14419,7 +14539,6 @@ function AboutPanel({ isMapsLoaded }) {
 }
 
 export default App;
-
 
 
 
