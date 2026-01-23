@@ -610,22 +610,37 @@ def admin_bootstrap():
 
 def _load_menu_json():
     """
-    Reads a menu JSON and returns a dict. Tries common locations.
-    Supports either a normalized shape: { "data": { "categories": [...], "products": [...] } }
-    or a catalog-like shape with top-level categories/products.
+    Reads menu.json from a predictable location.
+    Priority:
+      1) POS_MENU_FILE (explicit absolute/relative path)
+      2) alongside this app.py (BASE_DIR/menu.json)
+      3) repo root (BASE_DIR.parent/menu.json)
+      4) legacy cwd-based fallbacks
     """
+    base_dir = Path(__file__).resolve().parent
+
+    env_path = (os.getenv("POS_MENU_FILE") or "").strip()
+    if env_path:
+        p = (base_dir / env_path).resolve() if not os.path.isabs(env_path) else Path(env_path)
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
+
     candidate_paths = [
-        # common spots in this repo
-        os.path.join(os.getcwd(), "server", "static", "menu.json"),
-        os.path.join(os.getcwd(), "static", "menu.json"),
-        os.path.join(os.getcwd(), "public", "menu.json"),
-        os.path.join(os.getcwd(), "src", "data", "menu.json"),
-        os.path.join(os.getcwd(), "menu.json"),  # repo root (present in this project)
+        base_dir / "menu.json",
+        base_dir.parent / "menu.json",
+        base_dir / "static" / "menu.json",
+        base_dir / "public" / "menu.json",
+
+        # legacy fallbacks (keep these last)
+        Path(os.getcwd()) / "server" / "static" / "menu.json",
+        Path(os.getcwd()) / "static" / "menu.json",
+        Path(os.getcwd()) / "public" / "menu.json",
+        Path(os.getcwd()) / "src" / "data" / "menu.json",
+        Path(os.getcwd()) / "menu.json",
     ]
     for p in candidate_paths:
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                return json.load(f)
+        if p.exists():
+            return json.loads(p.read_text(encoding="utf-8"))
     raise FileNotFoundError("menu.json not found in expected locations.")
 
 
