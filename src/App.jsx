@@ -5069,6 +5069,111 @@ function getImagePath(productOrName) {
 }
 
 // ----------------- MENU PIPELINE (stable) -----------------
+
+// ----------------- ORDER PIPELINE (send website orders to POS) -----------------
+
+const ORDER_API_URL = (() => {
+  const raw = String(import.meta.env.VITE_PP_ORDER_INGEST_URL || "").trim();
+  if (raw) return raw;
+  // Default: talk to the POS service directly in prod; use proxy prefix in dev.
+  return import.meta.env.DEV
+    ? `${PP_PROXY_PREFIX}/api/orders`
+    : `${PP_POS_BASE_URL}/api/orders`;
+})();
+
+const PP_ORDER_OUTBOX_KEY = "pp_order_outbox_v1";
+
+function _safeJsonParse(raw, fallback = null) {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function enqueueOrder(orderPayload) {
+  try {
+    const cur = _safeJsonParse(localStorage.getItem(PP_ORDER_OUTBOX_KEY), []);
+    const next = Array.isArray(cur) ? cur.slice() : [];
+    next.push({ ts: Date.now(), payload: orderPayload });
+    localStorage.setItem(PP_ORDER_OUTBOX_KEY, JSON.stringify(next));
+    return next.length;
+  } catch (e) {
+    console.warn("[PP][OrderOutbox] enqueue failed", e);
+    return 0;
+  }
+}
+
+function readOutbox() {
+  try {
+    const cur = _safeJsonParse(localStorage.getItem(PP_ORDER_OUTBOX_KEY), []);
+    return Array.isArray(cur) ? cur : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeOutbox(items) {
+  try {
+    localStorage.setItem(PP_ORDER_OUTBOX_KEY, JSON.stringify(items || []));
+  } catch {}
+}
+
+async function postJson(url, body, timeoutMs = 12000) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const t = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller?.signal,
+    });
+
+    const text = await res.text().catch(() => "");
+    const json = text ? _safeJsonParse(text, null) : null;
+
+    if (!res.ok) {
+      const msg = (json && (json.error || json.message)) || text || `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    return json ?? { ok: true };
+  } finally {
+    if (t) clearTimeout(t);
+  }
+}
+
+async function sendOrderToPos(orderPayload) {
+  // If the ingest url is missing, fail clearly so we don't "pretend" the order is sent.
+  if (!ORDER_API_URL) {
+    throw new Error("Missing order ingest URL (set VITE_PP_ORDER_INGEST_URL)");
+  }
+  return postJson(ORDER_API_URL, orderPayload, 15000);
+}
+
+async function flushOrderOutboxOnce() {
+  const items = readOutbox();
+  if (!items.length) return { ok: true, sent: 0 };
+
+  const keep = [];
+  let sent = 0;
+
+  for (const item of items) {
+    if (!item || !item.payload) continue;
+    try {
+      await sendOrderToPos(item.payload);
+      sent += 1;
+    } catch (e) {
+      // keep anything that fails; we'll retry later
+      keep.push(item);
+    }
+  }
+
+  writeOutbox(keep);
+  return { ok: true, sent, remaining: keep.length };
+}
 const MENU_URL = import.meta.env.DEV
   ? `${PP_PROXY_PREFIX}/public/menu`
   : `${MENU_BASE}/public/menu`;
@@ -5789,6 +5894,7 @@ const CartContext = createContext({
   cart: [],
   addToCart: (_items) => {},
   removeFromCart: (_index) => {},
+  clearCart: () => {},
   totalPrice: 0,
 });
 function CartProvider({ children }) {
@@ -5826,13 +5932,14 @@ function CartProvider({ children }) {
   };
   const removeFromCart = (index) =>
     setCart((prev) => prev.filter((_, i) => i !== index));
+  const clearCart = () => setCart([]);
   const totalPrice = useMemo(
     () => cart.reduce((sum, it) => sum + it.price * it.qty, 0),
     [cart],
   );
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, totalPrice }}
+      value={{ cart, addToCart, removeFromCart, clearCart, totalPrice }}
     >
       {children}
     </CartContext.Provider>
@@ -8731,18 +8838,120 @@ function ReviewOrderPanel({
   storeOpenNow,
   preorderPickupLabel,
 }) {
-  const { cart, totalPrice } = useCart();
+  const { cart, totalPrice, clearCart } = useCart();
   const [voucherCode, setVoucherCode] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const isPreorder = orderType === "Pickup" && !storeOpenNow;
+  const [placing, setPlacing] = React.useState(false);
+  const [placeErr, setPlaceErr] = React.useState("");
+  const [placeOk, setPlaceOk] = React.useState("");
+  const canPlace =
+    cart.length > 0 &&
+    !(orderType === "Delivery" && (!orderAddress || !!orderAddressError));
+
+  const buildOrderPayload = React.useCallback(() => {
+    const clientOrderId = `pp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    const lines = (cart || []).map((it) => {
+      const size = makeSizeRecord(it?.size);
+      return {
+        product_id: it?.id || it?.product_id || null,
+        name: it?.name || "",
+        qty: Number(it?.qty || 1),
+        size: size?.ref || size?.id || size?.name || null,
+        is_gluten_free: !!it?.isGlutenFree,
+        unit_price: Number(it?.price || 0),
+        add_ons: Array.isArray(it?.add_ons) ? it.add_ons : [],
+        removed_ingredients: Array.isArray(it?.removedIngredients) ? it.removedIngredients : [],
+        bundle_items: Array.isArray(it?.bundle_items) ? it.bundle_items : null,
+        half_a: it?.halfA || null,
+        half_b: it?.halfB || null,
+        meta: {
+          raw: it,
+        },
+      };
+    });
+
+    return {
+      client_order_id: clientOrderId,
+      created_at: new Date().toISOString(),
+      order_type: orderType, // "Pickup" | "Delivery"
+      delivery_address: orderType === "Delivery" ? (orderAddress || "") : "",
+      delivery_fee: Number(orderDeliveryFee || 0),
+      estimated_time_mins: Number(estimatedTime || 0),
+      is_preorder: orderType === "Pickup" && !storeOpenNow,
+      preorder_pickup_label: preorderPickupLabel || "",
+      voucher_code: (voucherCode || "").trim(),
+      totals: {
+        items_total: Number(totalPrice || 0),
+        final_total: Number(finalTotal || 0),
+      },
+      lines,
+      source: {
+        app: "pizza-peppers-website",
+        version: "v1",
+      },
+    };
+  }, [
+    cart,
+    orderType,
+    orderAddress,
+    orderDeliveryFee,
+    estimatedTime,
+    storeOpenNow,
+    preorderPickupLabel,
+    voucherCode,
+    totalPrice,
+    finalTotal,
+  ]);
+
+  const handlePlaceOrder = React.useCallback(async () => {
+    if (!canPlace || placing) return;
+
+    setPlaceErr("");
+    setPlaceOk("");
+    setPlacing(true);
+
+    const payload = buildOrderPayload();
+
+    try {
+      const result = await sendOrderToPos(payload);
+      console.log("[PP][Order] sent", { result });
+
+      setPlaceOk("Order sent to POS.");
+      try {
+        clearCart?.();
+      } catch {}
+
+      // If we were in a modal flow, go back to menu after a beat
+      setTimeout(() => {
+        try {
+          onBack?.();
+        } catch {}
+      }, 600);
+    } catch (e) {
+      const msg = e?.message || String(e);
+
+      // If online send fails, queue it so it can retry on next load.
+      const queued = enqueueOrder(payload);
+      console.warn("[PP][Order] send failed (queued)", { msg, queued });
+
+      setPlaceErr(
+        `Could not reach the POS right now - saved locally and will retry. (${msg})`,
+      );
+
+      // Best-effort immediate flush (sometimes the POS endpoint comes back)
+      try {
+        await flushOrderOutboxOnce();
+      } catch {}
+    } finally {
+      setPlacing(false);
+    }
+  }, [canPlace, placing, buildOrderPayload, clearCart, onBack]);
 
   const pickupTimeLabel = storeOpenNow
     ? `ASAP (Approx. ${estimatedTime} mins)`
     : `Pre-order (Ready ${preorderPickupLabel || "15 min after opening"})`;
-
-  const canPlace =
-    cart.length > 0 &&
-    !(orderType === "Delivery" && (!orderAddress || !!orderAddressError));
 
   return (
     <>
@@ -8913,22 +9122,10 @@ function ReviewOrderPanel({
           <button
             type="button"
             className="place-order-button"
-            disabled={!canPlace}
-            onClick={() => {
-              console.log("[PP][Order] PLACE (stub)", {
-                voucherCode: (voucherCode || "").trim(),
-                orderType,
-                orderAddress,
-                orderDeliveryFee,
-                estimatedTime,
-                storeOpenNow,
-                preorderPickupLabel,
-                cart,
-                total: finalTotal,
-              });
-            }}
+            disabled={!canPlace || placing}
+            onClick={handlePlaceOrder}
           >
-            {isPreorder ? "Place pre-order" : "Place order"}
+            {placing ? "Sending..." : isPreorder ? "Place pre-order" : "Place order"}
           </button>
         </div>
 
@@ -8939,7 +9136,7 @@ function ReviewOrderPanel({
             color: "var(--text-medium)",
           }}
         >
-          Dev note: "Place order" is a stub (logs payload in console).
+          {placeErr ? placeErr : placeOk ? placeOk : "Orders send to POS when you place."}
         </div>
       </div>
     </>
@@ -12617,6 +12814,12 @@ function AppLayout({ isMapsLoaded }) {
 
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
+  React.useEffect(() => {
+    // Best-effort retry of queued orders
+    flushOrderOutboxOnce().then((r) => {
+      if (r?.sent) console.log("[PP][OrderOutbox] flushed", r);
+    }).catch(() => {});
+  }, []);
 
   const authCtx = useAuth();
   const authUser = authCtx.currentUser;

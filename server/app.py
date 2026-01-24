@@ -718,6 +718,22 @@ def public_menu():
         return jsonify({"error": f"Unexpected server error: {e.__class__.__name__}: {e}"}), 500
 
 
+@app.post("/api/orders")
+def api_orders():
+    payload = request.get_json(silent=True) or {}
+
+    lines = payload.get("lines") or []
+    if not isinstance(lines, list) or len(lines) == 0:
+        return jsonify({"error": "Missing or invalid 'lines'"}), 400
+
+    return jsonify({
+        "ok": True,
+        "received_at": int(time.time()),
+        "client_order_id": payload.get("client_order_id"),
+        "line_count": len(lines),
+    }), 201
+
+
 # 👇 Move this ABOVE the "if __name__ == '__main__':" line (already is)
 # Helper utilities for resilient image lookup
 def _norm_key(stem: str) -> str:
