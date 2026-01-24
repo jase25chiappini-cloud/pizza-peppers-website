@@ -37,7 +37,7 @@ if not ALLOWED_ORIGINS:
 CORS(
     app,
     resources={r"/*": {"origins": ALLOWED_ORIGINS}},
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "x-api-key"],
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 )
 
@@ -610,20 +610,23 @@ def admin_bootstrap():
 
 def _load_menu_json():
     """
-    Reads menu.json from a predictable location.
+    Reads menu JSON and returns a dict. Deterministic paths for Render.
     Priority:
-      1) POS_MENU_FILE (explicit absolute/relative path)
-      2) alongside this app.py (BASE_DIR/menu.json)
-      3) repo root (BASE_DIR.parent/menu.json)
-      4) legacy cwd-based fallbacks
+      1) POS_MENU_FILE env (absolute or relative to this file)
+      2) ./menu.json next to this app.py
+      3) ../menu.json (repo root)
+      4) legacy cwd-based paths
     """
     base_dir = Path(__file__).resolve().parent
 
     env_path = (os.getenv("POS_MENU_FILE") or "").strip()
     if env_path:
-        p = (base_dir / env_path).resolve() if not os.path.isabs(env_path) else Path(env_path)
+        p = Path(env_path)
+        if not p.is_absolute():
+            p = (base_dir / p).resolve()
         if p.exists():
-            return json.loads(p.read_text(encoding="utf-8"))
+            with p.open("r", encoding="utf-8") as f:
+                return json.load(f)
 
     candidate_paths = [
         base_dir / "menu.json",
@@ -631,17 +634,22 @@ def _load_menu_json():
         base_dir / "static" / "menu.json",
         base_dir / "public" / "menu.json",
 
-        # legacy fallbacks (keep these last)
+        # legacy fallbacks (last)
         Path(os.getcwd()) / "server" / "static" / "menu.json",
         Path(os.getcwd()) / "static" / "menu.json",
         Path(os.getcwd()) / "public" / "menu.json",
         Path(os.getcwd()) / "src" / "data" / "menu.json",
         Path(os.getcwd()) / "menu.json",
     ]
+
     for p in candidate_paths:
         if p.exists():
-            return json.loads(p.read_text(encoding="utf-8"))
-    raise FileNotFoundError("menu.json not found in expected locations.")
+            with p.open("r", encoding="utf-8") as f:
+                return json.load(f)
+
+    raise FileNotFoundError(
+        f"menu.json not found. Tried: {', '.join(str(p) for p in candidate_paths)}"
+    )
 
 
 def _normalize_to_minimal_catalog(payload: dict) -> dict:
@@ -664,29 +672,36 @@ def public_menu():
     Return helpful JSON on failure.
     """
     try:
-        # 1) Prefer live menu via POS API when key is provided
-        pos_key = os.getenv('POS_API_KEY')
-        pos_url = os.getenv('POS_MENU_URL', 'https://pizzapepperspos.onrender.com/public/menu')
+        # 1) Prefer live menu via POS_MENU_URL (key optional)
+        pos_key = (os.getenv("POS_API_KEY") or "").strip()
+        pos_url = (os.getenv("POS_MENU_URL") or "").strip()
+
         raw = None
-        if pos_key:
+        if pos_url:
             try:
-                res = requests.get(
-                    pos_url,
-                    headers={
-                        'Accept': 'application/json',
-                        # common patterns; server may use one of these
-                        'x-api-key': pos_key,
-                        'Authorization': f'Bearer {pos_key}',
-                    },
-                    timeout=12,
-                )
+                headers = {"Accept": "application/json"}
+                if pos_key:
+                    # send both header casings + bearer (covers most servers)
+                    headers["X-API-Key"] = pos_key
+                    headers["x-api-key"] = pos_key
+                    headers["Authorization"] = f"Bearer {pos_key}"
+
+                res = requests.get(pos_url, headers=headers, timeout=12)
                 if res.ok:
                     raw = res.json()
                 else:
-                    # fall back to local if remote returns non-OK
-                    raw = None
-            except Exception:
-                raw = None
+                    return jsonify({
+                        "error": "Upstream menu fetch failed",
+                        "upstream_status": res.status_code,
+                        "upstream_body": (res.text or "")[:200],
+                        "pos_url": pos_url,
+                    }), 502
+            except Exception as e:
+                return jsonify({
+                    "error": "Upstream menu fetch exception",
+                    "pos_url": pos_url,
+                    "detail": f"{e.__class__.__name__}: {e}",
+                }), 502
 
         # 2) Fallback to local file(s) when live fetch is unavailable
         if raw is None:
