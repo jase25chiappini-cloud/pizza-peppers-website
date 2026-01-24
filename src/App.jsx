@@ -9136,6 +9136,12 @@ function ReviewOrderPanel({
           </button>
         </div>
 
+        {import.meta.env.DEV ? (
+          <div style={{ marginTop: 8, fontSize: 12, opacity: 0.65 }}>
+            Order endpoint: {String(import.meta.env.VITE_PP_ORDER_INGEST_URL || "(not set)")}
+          </div>
+        ) : null}
+
         <div
           style={{
             marginTop: "0.5rem",
@@ -14389,6 +14395,14 @@ function AppLayout({ isMapsLoaded }) {
 
 
 function App() {
+  React.useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log(
+      "[PP][env] VITE_PP_ORDER_INGEST_URL =",
+      import.meta.env.VITE_PP_ORDER_INGEST_URL,
+    );
+  }, []);
+
   console.log("[env] VITE_PP_MENU_BASE_URL =", import.meta.env.VITE_PP_MENU_BASE_URL);
   console.log("[env] VITE_PP_IMAGES_BASE_URL =", import.meta.env.VITE_PP_IMAGES_BASE_URL);
   console.log("[img][debug] IMG_BASE =", IMG_BASE);
