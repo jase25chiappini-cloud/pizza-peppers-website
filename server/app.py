@@ -27,18 +27,16 @@ from flask_cors import CORS
 app = Flask(__name__, static_folder=None)
 ALLOWED_ORIGINS = [
     o.strip()
-    for o in (os.getenv("POS_ALLOWED_ORIGINS") or "").split(",")
+    for o in (os.getenv("POS_ALLOWED_ORIGINS") or "http://localhost:5173").split(",")
     if o.strip()
 ]
-# If no allowlist provided, default to local dev only
-if not ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 CORS(
     app,
     resources={r"/*": {"origins": ALLOWED_ORIGINS}},
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "x-api-key"],
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    supports_credentials=False,
 )
 
 app.config["SECRET_KEY"] = os.getenv("POS_SECRET_KEY", "dev-change-me-now")
@@ -844,6 +842,19 @@ def api_images_file(filename: str):
             pass
 
     return jsonify({"ok": False, "error": "not found"}), 404
+
+@app.after_request
+def add_cors_headers(resp):
+    origin = request.headers.get("Origin")
+    allowed = [
+        o.strip()
+        for o in os.getenv("POS_ALLOWED_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+    if origin and origin in allowed:
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Vary"] = "Origin"
+    return resp
 
 
 @app.get("/")
