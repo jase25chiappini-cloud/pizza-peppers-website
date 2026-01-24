@@ -5072,14 +5072,7 @@ function getImagePath(productOrName) {
 
 // ----------------- ORDER PIPELINE (send website orders to POS) -----------------
 
-const ORDER_API_URL = (() => {
-  const raw = String(import.meta.env.VITE_PP_ORDER_INGEST_URL || "").trim();
-  if (raw) return raw;
-  // Default: talk to the POS service directly in prod; use proxy prefix in dev.
-  return import.meta.env.DEV
-    ? `${PP_PROXY_PREFIX}/api/orders`
-    : `${PP_POS_BASE_URL}/api/orders`;
-})();
+const ORDER_INGEST_URL = String(import.meta.env.VITE_PP_ORDER_INGEST_URL || "").trim();
 
 const PP_ORDER_OUTBOX_KEY = "pp_order_outbox_v1";
 
@@ -5145,12 +5138,11 @@ async function postJson(url, body, timeoutMs = 12000) {
   }
 }
 
-async function sendOrderToPos(orderPayload) {
-  // If the ingest url is missing, fail clearly so we don't "pretend" the order is sent.
-  if (!ORDER_API_URL) {
-    throw new Error("Missing order ingest URL (set VITE_PP_ORDER_INGEST_URL)");
+async function sendWebsiteOrderToPos(orderPayload) {
+  if (!ORDER_INGEST_URL) {
+    throw new Error("Missing VITE_PP_ORDER_INGEST_URL");
   }
-  return postJson(ORDER_API_URL, orderPayload, 15000);
+  return postJson(ORDER_INGEST_URL, orderPayload, 15000);
 }
 
 async function flushOrderOutboxOnce() {
@@ -5163,7 +5155,7 @@ async function flushOrderOutboxOnce() {
   for (const item of items) {
     if (!item || !item.payload) continue;
     try {
-      await sendOrderToPos(item.payload);
+      await sendWebsiteOrderToPos(item.payload);
       sent += 1;
     } catch (e) {
       // keep anything that fails; we'll retry later
@@ -8850,58 +8842,73 @@ function ReviewOrderPanel({
     !(orderType === "Delivery" && (!orderAddress || !!orderAddressError));
 
   const buildOrderPayload = React.useCallback(() => {
-    const clientOrderId = `pp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const dollarsToCents = (n) => {
+      const x = Number(n || 0);
+      return Math.round(x * 100);
+    };
 
-    const lines = (cart || []).map((it) => {
-      const size = makeSizeRecord(it?.size);
-      return {
-        product_id: it?.id || it?.product_id || null,
-        name: it?.name || "",
+    const toExtraString = (x) => {
+      if (typeof x === "string") return x;
+      if (x && typeof x === "object") {
+        return x.name || x.label || x.title || x.id || JSON.stringify(x);
+      }
+      return String(x);
+    };
+
+    const cartItemToPosItem = (it) => {
+      const extras = [];
+      if (Array.isArray(it?.add_ons)) extras.push(...it.add_ons.map(toExtraString));
+      if (Array.isArray(it?.extras)) extras.push(...it.extras.map(toExtraString));
+      if (it?.isGlutenFree) extras.push("Gluten Free");
+
+      const size = it?.size;
+      const sizeLabel =
+        typeof size === "string" || typeof size === "number"
+          ? String(size)
+          : size && typeof size === "object"
+            ? size.name || size.ref || size.id || ""
+            : "";
+      if (sizeLabel) extras.push(`Size: ${sizeLabel}`);
+
+      if (it?.halfA?.name || it?.halfB?.name) {
+        extras.push(
+          `Half/Half: ${it?.halfA?.name || "?"} | ${it?.halfB?.name || "?"}`,
+        );
+      }
+
+      const category =
+        it?.category || it?.cat || (it?.isPizza ? "Pizza" : undefined) || "Other";
+
+      const item = {
+        name: it?.name || "Item",
         qty: Number(it?.qty || 1),
-        size: size?.ref || size?.id || size?.name || null,
-        is_gluten_free: !!it?.isGlutenFree,
-        unit_price: Number(it?.price || 0),
-        add_ons: Array.isArray(it?.add_ons) ? it.add_ons : [],
-        removed_ingredients: Array.isArray(it?.removedIngredients) ? it.removedIngredients : [],
-        bundle_items: Array.isArray(it?.bundle_items) ? it.bundle_items : null,
-        half_a: it?.halfA || null,
-        half_b: it?.halfB || null,
-        meta: {
-          raw: it,
-        },
+        price: Number(it?.price || 0),
+        category,
       };
-    });
+
+      if (extras.length) item.extras = extras;
+      return item;
+    };
+
+    const fulfilment =
+      (orderType || "").toLowerCase() === "delivery" ? "delivery" : "pickup";
+    const customerName = "Website Customer";
+    const customerPhone = "";
 
     return {
-      client_order_id: clientOrderId,
-      created_at: new Date().toISOString(),
-      order_type: orderType, // "Pickup" | "Delivery"
-      delivery_address: orderType === "Delivery" ? (orderAddress || "") : "",
-      delivery_fee: Number(orderDeliveryFee || 0),
-      estimated_time_mins: Number(estimatedTime || 0),
-      is_preorder: orderType === "Pickup" && !storeOpenNow,
-      preorder_pickup_label: preorderPickupLabel || "",
-      voucher_code: (voucherCode || "").trim(),
-      totals: {
-        items_total: Number(totalPrice || 0),
-        final_total: Number(finalTotal || 0),
+      source: "website",
+      fulfilment,
+      payment_method: "card",
+      payment_total_cents: dollarsToCents(finalTotal),
+      customer: {
+        name: customerName,
+        phone: customerPhone,
       },
-      lines,
-      source: {
-        app: "pizza-peppers-website",
-        version: "v1",
-      },
+      items: (cart || []).map(cartItemToPosItem),
     };
   }, [
     cart,
     orderType,
-    orderAddress,
-    orderDeliveryFee,
-    estimatedTime,
-    storeOpenNow,
-    preorderPickupLabel,
-    voucherCode,
-    totalPrice,
     finalTotal,
   ]);
 
@@ -8915,7 +8922,7 @@ function ReviewOrderPanel({
     const payload = buildOrderPayload();
 
     try {
-      const result = await sendOrderToPos(payload);
+      const result = await sendWebsiteOrderToPos(payload);
       console.log("[PP][Order] sent", { result });
 
       setPlaceOk("Order sent to POS.");
