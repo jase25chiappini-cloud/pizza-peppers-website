@@ -1646,6 +1646,14 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 .info-box p:last-child { margin-bottom: 0; }
 .info-box strong { color: var(--text-light); font-weight: 600; }
 
+.pp-warning{
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+
 .cart-total-section {
   margin-top: auto;
   padding-top: 1rem;

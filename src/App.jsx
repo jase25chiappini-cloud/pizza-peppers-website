@@ -106,6 +106,43 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half) => {
   return _toCentsFromMenuSurcharge(v);
 };
 
+function getLocalProfile(uid) {
+  if (!uid) return null;
+  try {
+    const raw = localStorage.getItem(`pp_profile_${uid}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function pickPhone(profile, user) {
+  return (
+    (profile?.phoneNumber || "").trim() ||
+    (profile?.phone || "").trim() ||
+    (user?.phoneNumber || "").trim() ||
+    (user?.phone || "").trim() ||
+    ""
+  );
+}
+
+function pickName(profile, user) {
+  return (
+    (profile?.displayName || "").trim() ||
+    (user?.displayName || "").trim() ||
+    (profile?.name || "").trim() ||
+    ""
+  );
+}
+
+function pickEmail(profile, user) {
+  return (
+    (profile?.email || "").trim() ||
+    (user?.email || "").trim() ||
+    ""
+  );
+}
+
 // --- RESTORED HALF & HALF COMPONENT ---
 const HalfAndHalfSelector = ({
   menuItems,
@@ -8831,15 +8868,34 @@ function ReviewOrderPanel({
   preorderPickupLabel,
 }) {
   const { cart, totalPrice, clearCart } = useCart();
+  const { currentUser, openLogin } = useAuth();
+  const profile = React.useMemo(
+    () => getLocalProfile(currentUser?.uid),
+    [currentUser?.uid],
+  );
+  const profileName = pickName(profile, currentUser);
+  const profilePhone = pickPhone(profile, currentUser);
+  const profileEmail = pickEmail(profile, currentUser);
   const [voucherCode, setVoucherCode] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const isPreorder = orderType === "Pickup" && !storeOpenNow;
   const [placing, setPlacing] = React.useState(false);
   const [placeErr, setPlaceErr] = React.useState("");
   const [placeOk, setPlaceOk] = React.useState("");
+  const fulfilment =
+    String(orderType || "").toLowerCase() === "delivery" ? "delivery" : "pickup";
+  const deliveryAddress = fulfilment === "delivery" ? (orderAddress || "").trim() : "";
+  const hasLocation = fulfilment === "pickup" ? true : !!deliveryAddress;
+  const hasProfile = !!currentUser;
+  const hasName = !!profileName;
+  const hasPhone = !!profilePhone;
   const canPlace =
     cart.length > 0 &&
-    !(orderType === "Delivery" && (!orderAddress || !!orderAddressError));
+    hasProfile &&
+    hasName &&
+    hasPhone &&
+    hasLocation &&
+    !(orderType === "Delivery" && (!!orderAddressError));
 
   const buildOrderPayload = React.useCallback(() => {
     const dollarsToCents = (n) => {
@@ -8855,20 +8911,26 @@ function ReviewOrderPanel({
       return String(x);
     };
 
+    const inferCategory = (it) => {
+      const raw = it?.category || it?.cat || it?.menuCategory || it?.group || "";
+      const s = String(raw).toLowerCase();
+
+      if (s.includes("pizza")) return "Pizza";
+      if (s.includes("side")) return "Sides";
+      if (s.includes("drink")) return "Drinks";
+      if (s.includes("dessert")) return "Dessert";
+
+      if (it?.size || it?.halfA || it?.halfB) return "Pizza";
+      return "Other";
+    };
+
     const cartItemToPosItem = (it) => {
       const extras = [];
       if (Array.isArray(it?.add_ons)) extras.push(...it.add_ons.map(toExtraString));
       if (Array.isArray(it?.extras)) extras.push(...it.extras.map(toExtraString));
       if (it?.isGlutenFree) extras.push("Gluten Free");
 
-      const size = it?.size;
-      const sizeLabel =
-        typeof size === "string" || typeof size === "number"
-          ? String(size)
-          : size && typeof size === "object"
-            ? size.name || size.ref || size.id || ""
-            : "";
-      if (sizeLabel) extras.push(`Size: ${sizeLabel}`);
+      if (it?.size) extras.push(`Size: ${toExtraString(it.size)}`);
 
       if (it?.halfA?.name || it?.halfB?.name) {
         extras.push(
@@ -8876,24 +8938,16 @@ function ReviewOrderPanel({
         );
       }
 
-      const category =
-        it?.category || it?.cat || (it?.isPizza ? "Pizza" : undefined) || "Other";
-
       const item = {
         name: it?.name || "Item",
         qty: Number(it?.qty || 1),
         price: Number(it?.price || 0),
-        category,
+        category: inferCategory(it),
       };
 
       if (extras.length) item.extras = extras;
       return item;
     };
-
-    const fulfilment =
-      (orderType || "").toLowerCase() === "delivery" ? "delivery" : "pickup";
-    const customerName = "Website Customer";
-    const customerPhone = "";
 
     return {
       source: "website",
@@ -8901,15 +8955,29 @@ function ReviewOrderPanel({
       payment_method: "card",
       payment_total_cents: dollarsToCents(finalTotal),
       customer: {
-        name: customerName,
-        phone: customerPhone,
+        name: profileName,
+        phone: profilePhone,
+        uid: currentUser?.uid || null,
+        email: profileEmail || null,
       },
       items: (cart || []).map(cartItemToPosItem),
+      website_order_id: `pp_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      created_at: new Date().toISOString(),
+      location:
+        fulfilment === "delivery"
+          ? { type: "delivery", address: deliveryAddress }
+          : { type: "pickup", store: "Pizza Peppers" },
     };
   }, [
     cart,
     orderType,
     finalTotal,
+    fulfilment,
+    deliveryAddress,
+    profileName,
+    profilePhone,
+    profileEmail,
+    currentUser?.uid,
   ]);
 
   const handlePlaceOrder = React.useCallback(async () => {
@@ -8963,6 +9031,36 @@ function ReviewOrderPanel({
   return (
     <>
       <h2 className="panel-title">Review Order</h2>
+
+      {!hasProfile || !hasName || !hasPhone || !hasLocation ? (
+        <div className="pp-warning">
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+            Finish details to place an order
+          </div>
+          {!hasProfile ? (
+            <div style={{ marginBottom: 6 }}>- Sign in to create a profile</div>
+          ) : null}
+          {hasProfile && !hasName ? (
+            <div style={{ marginBottom: 6 }}>- Add your name in Profile</div>
+          ) : null}
+          {hasProfile && !hasPhone ? (
+            <div style={{ marginBottom: 6 }}>- Add your phone number in Profile</div>
+          ) : null}
+          {!hasLocation ? (
+            <div style={{ marginBottom: 6 }}>- Add a delivery address</div>
+          ) : null}
+          {!hasProfile ? (
+            <button
+              type="button"
+              className="pp-btn"
+              onClick={() => openLogin?.("phone")}
+              style={{ marginTop: 10 }}
+            >
+              Sign in
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div style={{ marginBottom: "1rem" }}>
         <StoreMapEmbed height="320px" />
