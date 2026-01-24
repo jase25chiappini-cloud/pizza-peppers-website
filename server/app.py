@@ -718,13 +718,38 @@ def public_menu():
         return jsonify({"error": f"Unexpected server error: {e.__class__.__name__}: {e}"}), 500
 
 
-@app.post("/api/orders")
+@app.route("/api/orders", methods=["POST", "OPTIONS"])
 def api_orders():
-    payload = request.get_json(silent=True) or {}
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    raw = request.get_data(cache=False, as_text=True) or ""
+    print("[ORDERS] content_type:", request.content_type)
+    print("[ORDERS] content_length:", request.content_length)
+    print("[ORDERS] raw_body_head:", raw[:300])
+
+    payload = request.get_json(silent=True)
+    if payload is None:
+        try:
+            payload = json.loads(raw) if raw else {}
+        except Exception as e:
+            return jsonify({
+                "error": "Invalid JSON body",
+                "content_type": request.content_type,
+                "raw_head": raw[:300],
+                "exception": str(e),
+            }), 400
 
     lines = payload.get("lines") or []
     if not isinstance(lines, list) or len(lines) == 0:
-        return jsonify({"error": "Missing or invalid 'lines'"}), 400
+        return jsonify({
+            "error": "Missing or invalid 'lines'",
+            "debug": {
+                "content_type": request.content_type,
+                "raw_head": raw[:300],
+                "parsed_keys": list(payload.keys()) if isinstance(payload, dict) else str(type(payload)),
+            }
+        }), 400
 
     return jsonify({
         "ok": True,
