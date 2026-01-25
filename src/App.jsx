@@ -106,41 +106,64 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half) => {
   return _toCentsFromMenuSurcharge(v);
 };
 
-function getLocalProfile(uid) {
-  if (!uid) return null;
+// ----------------- PROFILE STORAGE (shared) -----------------
+function getStableUserKey(user) {
+  if (!user) return null;
+  return user.uid || user.email || user.phoneNumber || null;
+}
+
+function getLocalProfileStorageKey(user) {
+  const k = getStableUserKey(user);
+  return k ? `pp_profile_${k}` : null;
+}
+
+function readLocalProfile(user) {
+  const key = getLocalProfileStorageKey(user);
+  if (!key) return null;
   try {
-    const raw = localStorage.getItem(`pp_profile_${uid}`);
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-function pickPhone(profile, user) {
+function writeLocalProfile(user, data) {
+  const key = getLocalProfileStorageKey(user);
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(data || {}));
+  } catch (e) {
+    console.warn("[profile] local save failed", e?.message || e);
+  }
+}
+
+function pickProfileName(profile, user) {
   return (
-    (profile?.phoneNumber || "").trim() ||
-    (profile?.phone || "").trim() ||
-    (user?.phoneNumber || "").trim() ||
-    (user?.phone || "").trim() ||
+    String(profile?.displayName || "").trim() ||
+    String(user?.displayName || "").trim() ||
+    String(profile?.name || "").trim() ||
     ""
   );
 }
 
-function pickName(profile, user) {
+function pickProfilePhone(profile, user) {
   return (
-    (profile?.displayName || "").trim() ||
-    (user?.displayName || "").trim() ||
-    (profile?.name || "").trim() ||
+    String(profile?.phoneNumber || "").trim() ||
+    String(profile?.phone || "").trim() ||
+    String(user?.phoneNumber || "").trim() ||
     ""
   );
 }
 
-function pickEmail(profile, user) {
-  return (
-    (profile?.email || "").trim() ||
-    (user?.email || "").trim() ||
-    ""
-  );
+function pickProfileAddress(profile) {
+  const line1 = String(profile?.addressLine1 || profile?.address || "").trim();
+  const suburb = String(profile?.suburb || "").trim();
+  const state = String(profile?.state || "").trim();
+  const postcode = String(profile?.postcode || "").trim();
+
+  const tail = [suburb, state, postcode].filter(Boolean).join(" ");
+  return [line1, tail].filter(Boolean).join(", ").trim();
 }
 
 // --- RESTORED HALF & HALF COMPONENT ---
@@ -8859,6 +8882,7 @@ function StoreMapEmbed({ height = "320px" }) {
 function ReviewOrderPanel({
   onBack,
   onEditItem,
+  onOpenProfile,
   orderType,
   orderAddress,
   orderDeliveryFee,
@@ -8868,14 +8892,14 @@ function ReviewOrderPanel({
   preorderPickupLabel,
 }) {
   const { cart, totalPrice, clearCart } = useCart();
-  const { currentUser, openLogin } = useAuth();
-  const profile = React.useMemo(
-    () => getLocalProfile(currentUser?.uid),
-    [currentUser?.uid],
+  const { currentUser } = useAuth();
+  const localProfile = React.useMemo(
+    () => readLocalProfile(currentUser),
+    [currentUser?.uid, currentUser?.email, currentUser?.phoneNumber],
   );
-  const profileName = pickName(profile, currentUser);
-  const profilePhone = pickPhone(profile, currentUser);
-  const profileEmail = pickEmail(profile, currentUser);
+  const profileName = pickProfileName(localProfile, currentUser);
+  const profilePhone = pickProfilePhone(localProfile, currentUser);
+  const profileAddress = pickProfileAddress(localProfile);
   const [voucherCode, setVoucherCode] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const isPreorder = orderType === "Pickup" && !storeOpenNow;
@@ -8884,18 +8908,22 @@ function ReviewOrderPanel({
   const [placeOk, setPlaceOk] = React.useState("");
   const fulfilment =
     String(orderType || "").toLowerCase() === "delivery" ? "delivery" : "pickup";
-  const deliveryAddress = fulfilment === "delivery" ? (orderAddress || "").trim() : "";
-  const hasLocation = fulfilment === "pickup" ? true : !!deliveryAddress;
-  const hasProfile = !!currentUser;
-  const hasName = !!profileName;
-  const hasPhone = !!profilePhone;
-  const canPlace =
+  const deliveryAddress =
+    fulfilment === "delivery"
+      ? (String(orderAddress || "").trim() ||
+          String(profileAddress || "").trim())
+      : "";
+  const needsLogin = !currentUser;
+  const needsName = !!currentUser && !profileName;
+  const needsPhone = !!currentUser && !profilePhone;
+  const needsLocation = fulfilment === "delivery" && !deliveryAddress;
+  const canPlaceStrict =
     cart.length > 0 &&
-    hasProfile &&
-    hasName &&
-    hasPhone &&
-    hasLocation &&
-    !(orderType === "Delivery" && (!!orderAddressError));
+    !needsLogin &&
+    !needsName &&
+    !needsPhone &&
+    !needsLocation &&
+    !(orderType === "Delivery" && (!deliveryAddress || !!orderAddressError));
 
   const buildOrderPayload = React.useCallback(() => {
     const dollarsToCents = (n) => {
@@ -8949,7 +8977,11 @@ function ReviewOrderPanel({
       return item;
     };
 
-    return {
+    const websiteOrderId = `web_${Date.now()}_${Math.random()
+      .toString(16)
+      .slice(2)}`;
+
+    const payload = {
       source: "website",
       fulfilment,
       payment_method: "card",
@@ -8958,16 +8990,33 @@ function ReviewOrderPanel({
         name: profileName,
         phone: profilePhone,
         uid: currentUser?.uid || null,
-        email: profileEmail || null,
+        email: currentUser?.email || localProfile?.email || null,
       },
       items: (cart || []).map(cartItemToPosItem),
-      website_order_id: `pp_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      website_order_id: websiteOrderId,
       created_at: new Date().toISOString(),
       location:
         fulfilment === "delivery"
-          ? { type: "delivery", address: deliveryAddress }
+          ? {
+              type: "delivery",
+              address: deliveryAddress,
+              address_line1: localProfile?.addressLine1 || "",
+              suburb: localProfile?.suburb || "",
+              state: localProfile?.state || "",
+              postcode: localProfile?.postcode || "",
+            }
           : { type: "pickup", store: "Pizza Peppers" },
+      profile_snapshot: {
+        displayName: localProfile?.displayName || "",
+        phoneNumber: localProfile?.phoneNumber || "",
+        addressLine1: localProfile?.addressLine1 || "",
+        suburb: localProfile?.suburb || "",
+        state: localProfile?.state || "",
+        postcode: localProfile?.postcode || "",
+      },
     };
+
+    return payload;
   }, [
     cart,
     orderType,
@@ -8976,12 +9025,23 @@ function ReviewOrderPanel({
     deliveryAddress,
     profileName,
     profilePhone,
-    profileEmail,
     currentUser?.uid,
+    currentUser?.email,
+    localProfile?.email,
+    localProfile?.addressLine1,
+    localProfile?.suburb,
+    localProfile?.state,
+    localProfile?.postcode,
+    localProfile?.displayName,
+    localProfile?.phoneNumber,
   ]);
 
   const handlePlaceOrder = React.useCallback(async () => {
-    if (!canPlace || placing) return;
+    if (placing) return;
+    if (!canPlaceStrict) {
+      onOpenProfile?.();
+      return;
+    }
 
     setPlaceErr("");
     setPlaceOk("");
@@ -9022,7 +9082,7 @@ function ReviewOrderPanel({
     } finally {
       setPlacing(false);
     }
-  }, [canPlace, placing, buildOrderPayload, clearCart, onBack]);
+  }, [canPlaceStrict, placing, buildOrderPayload, clearCart, onBack, onOpenProfile]);
 
   const pickupTimeLabel = storeOpenNow
     ? `ASAP (Approx. ${estimatedTime} mins)`
@@ -9032,33 +9092,29 @@ function ReviewOrderPanel({
     <>
       <h2 className="panel-title">Review Order</h2>
 
-      {!hasProfile || !hasName || !hasPhone || !hasLocation ? (
+      {needsLogin || needsName || needsPhone || needsLocation ? (
         <div className="pp-warning">
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>
             Finish details to place an order
           </div>
-          {!hasProfile ? (
-            <div style={{ marginBottom: 6 }}>- Sign in to create a profile</div>
-          ) : null}
-          {hasProfile && !hasName ? (
-            <div style={{ marginBottom: 6 }}>- Add your name in Profile</div>
-          ) : null}
-          {hasProfile && !hasPhone ? (
-            <div style={{ marginBottom: 6 }}>- Add your phone number in Profile</div>
-          ) : null}
-          {!hasLocation ? (
-            <div style={{ marginBottom: 6 }}>- Add a delivery address</div>
-          ) : null}
-          {!hasProfile ? (
+          {needsLogin ? <div>• Sign in first</div> : null}
+          {needsName ? <div>• Add your name in Profile</div> : null}
+          {needsPhone ? <div>• Add your phone number in Profile</div> : null}
+          {needsLocation ? <div>• Add a delivery address</div> : null}
+          <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
             <button
               type="button"
-              className="pp-btn"
-              onClick={() => openLogin?.("phone")}
-              style={{ marginTop: 10 }}
+              className="simple-button"
+              onClick={() => onOpenProfile?.()}
             >
-              Sign in
+              {needsLogin ? "Sign in / Profile" : "Open Profile"}
             </button>
-          ) : null}
+            {needsLocation ? (
+              <button type="button" className="simple-button" onClick={onBack}>
+                Fix address
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
@@ -9094,7 +9150,7 @@ function ReviewOrderPanel({
         ) : (
           <>
             <p>
-              Delivery address: <strong>{orderAddress || "-"}</strong>
+              Delivery address: <strong>{deliveryAddress || "-"}</strong>
             </p>
             {estimatedTime > 0 ? (
               <p>
@@ -9227,7 +9283,7 @@ function ReviewOrderPanel({
           <button
             type="button"
             className="place-order-button"
-            disabled={!canPlace || placing}
+            disabled={!canPlaceStrict || placing}
             onClick={handlePlaceOrder}
           >
             {placing ? "Sending..." : isPreorder ? "Place pre-order" : "Place order"}
@@ -9272,6 +9328,12 @@ function OrderInfoPanel({
   onProceed,
 }) {
   const { cart, totalPrice } = useCart();
+  const { currentUser } = useAuth();
+  const localProfile = React.useMemo(
+    () => readLocalProfile(currentUser),
+    [currentUser?.uid, currentUser?.email, currentUser?.phoneNumber],
+  );
+  const profileAddress = pickProfileAddress(localProfile);
   const [voucherCode, setVoucherCode] = React.useState("");
   const addressInputRef = useRef(null);
   const [addressAutoErr, setAddressAutoErr] = React.useState("");
@@ -9281,6 +9343,15 @@ function OrderInfoPanel({
     isMapsLoaded &&
     typeof window !== "undefined" &&
     typeof window.google?.maps?.importLibrary === "function";
+
+  React.useEffect(() => {
+    if (orderType !== "Delivery") return;
+    if (String(orderAddress || "").trim()) return;
+    if (!profileAddress) return;
+
+    setOrderAddress(profileAddress);
+    setOrderAddressError?.("");
+  }, [orderType, orderAddress, profileAddress, setOrderAddress, setOrderAddressError]);
 
   useEffect(() => {
     if (
@@ -9544,6 +9615,12 @@ function OrderInfoPanel({
                 placeholder="Start typing your address\u2026"
               />
             )}
+
+            {orderType === "Delivery" && profileAddress ? (
+              <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                Using profile address by default. You can edit it for this order.
+              </div>
+            ) : null}
 
             {orderType === "Delivery" && addressAutoErr ? (
               <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#fca5a5" }}>
@@ -10903,18 +10980,6 @@ function ProfileModal({ onClose, isMapsLoaded }) {
     };
   }, []);
 
-  // Helpers
-  const getLocalProfileKey = (uid) => (uid ? `pp_profile_${uid}` : null);
-  const persistLocalProfile = (uid, data) => {
-    const key = getLocalProfileKey(uid);
-    if (!key) return;
-    try {
-      localStorage.setItem(key, JSON.stringify(data));
-    } catch (e) {
-      console.error("[profile] local save failed", e);
-    }
-  };
-
   // Load existing profile (or seed from auth)
   React.useEffect(() => {
     setErrMsg("");
@@ -10940,18 +11005,14 @@ function ProfileModal({ onClose, isMapsLoaded }) {
       email: currentUser.email || "",
     };
 
-    const key = getLocalProfileKey(currentUser.uid);
     let localData = {};
-    if (key) {
-      try {
-        const raw = localStorage.getItem(key);
-        localData = raw ? JSON.parse(raw) : {};
-      } catch (e) {
-        console.warn(
-          "[PP][Profile] local profile parse failed:",
-          e?.message || e,
-        );
-      }
+    try {
+      localData = readLocalProfile(currentUser) || {};
+    } catch (e) {
+      console.warn(
+        "[PP][Profile] local profile parse failed:",
+        e?.message || e,
+      );
     }
 
     const commitProfile = (data = {}, maybeError = null) => {
@@ -11070,12 +11131,10 @@ function ProfileModal({ onClose, isMapsLoaded }) {
       reader.onload = () => {
         const dataUrl = reader.result;
         setForm((prev) => ({ ...prev, photoURL: String(dataUrl || "") }));
-        if (currentUser?.uid) {
+        if (currentUser) {
           try {
-            const key = getLocalProfileKey(currentUser.uid);
-            const raw = key ? localStorage.getItem(key) : null;
-            const prevSaved = raw ? JSON.parse(raw) : {};
-            persistLocalProfile(currentUser.uid, {
+            const prevSaved = readLocalProfile(currentUser) || {};
+            writeLocalProfile(currentUser, {
               ...prevSaved,
               photoURL: String(dataUrl || ""),
             });
@@ -11182,7 +11241,7 @@ function ProfileModal({ onClose, isMapsLoaded }) {
         (currentUser.uid && currentUser.uid.startsWith("local:")) ||
         firebaseDisabled
       ) {
-        persistLocalProfile(currentUser.uid, payload);
+        writeLocalProfile(currentUser, payload);
         showOk("Profile saved locally.");
       } else if (!firebaseDisabled && sdk?.db) {
         const ref = sdk.doc(sdk.db, "users", currentUser.uid);
@@ -11198,7 +11257,7 @@ function ProfileModal({ onClose, isMapsLoaded }) {
         } catch {}
         showOk("Profile saved.");
       } else {
-        persistLocalProfile(currentUser.uid, payload);
+        writeLocalProfile(currentUser, payload);
         showOk("Profile saved to this device.");
       }
     } catch (err) {
@@ -14267,6 +14326,7 @@ function AppLayout({ isMapsLoaded }) {
           <ReviewOrderPanel
             onBack={() => setRightPanelView("order")}
             onEditItem={handleEditItem}
+            onOpenProfile={handleProfileOpen}
             orderType={orderType}
             orderAddress={orderAddress}
             orderDeliveryFee={orderDeliveryFee}
