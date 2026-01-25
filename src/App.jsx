@@ -166,6 +166,26 @@ function pickProfileAddress(profile) {
   return [line1, tail].filter(Boolean).join(", ").trim();
 }
 
+function normalizeAddressText(val) {
+  if (!val) return "";
+
+  if (typeof val === "string") return val.trim();
+
+  if (typeof val === "object") {
+    const candidate =
+      val.formattedAddress ||
+      val.formatted_address ||
+      val.description ||
+      val.address ||
+      (val.displayName && val.displayName.text) ||
+      "";
+
+    return typeof candidate === "string" ? candidate.trim() : "";
+  }
+
+  return "";
+}
+
 // --- RESTORED HALF & HALF COMPONENT ---
 const HalfAndHalfSelector = ({
   menuItems,
@@ -8906,17 +8926,15 @@ function ReviewOrderPanel({
   const [placing, setPlacing] = React.useState(false);
   const [placeErr, setPlaceErr] = React.useState("");
   const [placeOk, setPlaceOk] = React.useState("");
-  const fulfilment =
-    String(orderType || "").toLowerCase() === "delivery" ? "delivery" : "pickup";
+  const fulfilment = orderType === "Delivery" ? "delivery" : "pickup";
+  const orderAddressText = normalizeAddressText(orderAddress);
+  const profileAddressText = normalizeAddressText(profileAddress);
   const deliveryAddress =
-    fulfilment === "delivery"
-      ? (String(orderAddress || "").trim() ||
-          String(profileAddress || "").trim())
-      : "";
+    fulfilment === "delivery" ? (orderAddressText || profileAddressText) : "";
   const needsLogin = !currentUser;
   const needsName = !!currentUser && !profileName;
   const needsPhone = !!currentUser && !profilePhone;
-  const needsLocation = fulfilment === "delivery" && !deliveryAddress;
+  const needsLocation = fulfilment === "delivery" && deliveryAddress.length < 6;
   const canPlaceStrict =
     cart.length > 0 &&
     !needsLogin &&
@@ -9334,6 +9352,7 @@ function OrderInfoPanel({
     [currentUser?.uid, currentUser?.email, currentUser?.phoneNumber],
   );
   const profileAddress = pickProfileAddress(localProfile);
+  const orderAddressText = normalizeAddressText(orderAddress);
   const [voucherCode, setVoucherCode] = React.useState("");
   const addressInputRef = useRef(null);
   const [addressAutoErr, setAddressAutoErr] = React.useState("");
@@ -9352,6 +9371,13 @@ function OrderInfoPanel({
     setOrderAddress(profileAddress);
     setOrderAddressError?.("");
   }, [orderType, orderAddress, profileAddress, setOrderAddress, setOrderAddressError]);
+
+  React.useEffect(() => {
+    const cleaned = normalizeAddressText(orderAddress);
+    if (orderAddress && cleaned === "") {
+      setOrderAddress("");
+    }
+  }, [orderAddress, setOrderAddress]);
 
   useEffect(() => {
     if (
@@ -9607,7 +9633,7 @@ function OrderInfoPanel({
                 type="text"
                 id="address"
                 onChange={(e) => {
-                  setOrderAddress(e.target.value);
+                  setOrderAddress(normalizeAddressText(e.target.value));
                   setOrderDeliveryFee(0);
                   setOrderAddressError("");
                 }}
@@ -9768,7 +9794,7 @@ function OrderInfoPanel({
           className="place-order-button"
           disabled={
             cart.length === 0 ||
-            (orderType === "Delivery" && (!orderAddress || !!orderAddressError))
+            (orderType === "Delivery" && (!orderAddressText || !!orderAddressError))
           }
           onClick={() => onProceed?.()}
         >
