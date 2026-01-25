@@ -11093,7 +11093,7 @@ function ProfileModal({ onClose, isMapsLoaded }) {
 
     const seed = {
       displayName: currentUser.displayName || "",
-      phoneNumber: currentUser.phoneNumber || "",
+      phoneNumber: currentUser.phoneNumber || currentUser.phone || "",
       photoURL: currentUser.photoURL || "",
       email: currentUser.email || "",
     };
@@ -11131,10 +11131,13 @@ function ProfileModal({ onClose, isMapsLoaded }) {
       commitProfile();
     };
 
-    if (
-      currentUser.providerId === "local" ||
-      (currentUser.uid && currentUser.uid.startsWith("local:"))
-    ) {
+    const isLocalUser =
+      currentUser?.providerId === "local" ||
+      (currentUser?.uid &&
+        (currentUser.uid.startsWith("local:") ||
+          currentUser.uid.startsWith("local_")));
+
+    if (isLocalUser) {
       finishWithLocal();
       return () => {
         cancelled = true;
@@ -11160,6 +11163,14 @@ function ProfileModal({ onClose, isMapsLoaded }) {
     }
 
     if (!hasFirestore) {
+      finishWithLocal();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const hasFirebaseAuthedUser = !!firebaseAuth?.currentUser;
+    if (!hasFirebaseAuthedUser) {
       finishWithLocal();
       return () => {
         cancelled = true;
@@ -11329,16 +11340,29 @@ function ProfileModal({ onClose, isMapsLoaded }) {
         },
       };
       const sdk = await getFirebase();
-      if (
-        currentUser.providerId === "local" ||
-        (currentUser.uid && currentUser.uid.startsWith("local:")) ||
-        firebaseDisabled
-      ) {
-        writeLocalProfile(currentUser, payload);
-        showOk("Profile saved locally.");
-      } else if (!firebaseDisabled && sdk?.db) {
+      const isLocalUser =
+        currentUser?.providerId === "local" ||
+        (currentUser?.uid &&
+          (currentUser.uid.startsWith("local:") ||
+            currentUser.uid.startsWith("local_")));
+
+      const hasFirebaseAuthedUser = !!firebaseAuth?.currentUser;
+
+      const persistLocalCache = () => {
+        try {
+          writeLocalProfile(currentUser, payload);
+        } catch {}
+      };
+
+      if (isLocalUser || firebaseDisabled || !hasFirebaseAuthedUser) {
+        persistLocalCache();
+        showOk("Profile saved to this device.");
+      } else if (sdk?.db) {
         const ref = sdk.doc(sdk.db, "users", currentUser.uid);
         await sdk.setDoc(ref, payload, { merge: true });
+
+        persistLocalCache();
+
         try {
           const profileTarget = currentUser;
           if (profileTarget && sdk.updateProfile) {
@@ -11348,9 +11372,10 @@ function ProfileModal({ onClose, isMapsLoaded }) {
             });
           }
         } catch {}
+
         showOk("Profile saved.");
       } else {
-        writeLocalProfile(currentUser, payload);
+        persistLocalCache();
         showOk("Profile saved to this device.");
       }
     } catch (err) {
