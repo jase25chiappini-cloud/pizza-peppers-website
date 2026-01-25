@@ -107,6 +107,16 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half) => {
 };
 
 // ----------------- PROFILE STORAGE (shared) -----------------
+const PROFILE_UPDATED_EVENT = "pp-profile-updated";
+
+function notifyProfileUpdated(user) {
+  try {
+    if (typeof window === "undefined") return;
+    const detail = { key: getLocalProfileStorageKey(user) };
+    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail }));
+  } catch {}
+}
+
 function getStableUserKey(user) {
   if (!user) return null;
   return user.uid || user.email || user.phoneNumber || null;
@@ -143,9 +153,30 @@ function writeLocalProfile(user, data) {
   if (!key) return;
   try {
     localStorage.setItem(key, JSON.stringify(data || {}));
+    notifyProfileUpdated(user);
   } catch (e) {
     console.warn("[profile] local save failed", e?.message || e);
   }
+}
+
+function useLocalProfile(user) {
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onUpdate = (event) => {
+      const detailKey = event?.detail?.key || null;
+      const myKey = getLocalProfileStorageKey(user);
+      if (detailKey && myKey && detailKey !== myKey) return;
+      setTick((t) => t + 1);
+    };
+    window.addEventListener(PROFILE_UPDATED_EVENT, onUpdate);
+    return () => window.removeEventListener(PROFILE_UPDATED_EVENT, onUpdate);
+  }, [user?.uid, user?.email, user?.phoneNumber]);
+
+  return React.useMemo(
+    () => readLocalProfile(user),
+    [user?.uid, user?.email, user?.phoneNumber, tick],
+  );
 }
 
 function pickProfileName(profile, user) {
@@ -5877,6 +5908,12 @@ function AuthProvider({ children }) {
   // Called by your password modal on success
   const loginLocal = React.useCallback(
     (phone, displayName = "", token = null, userOverride = null) => {
+      try {
+        if (FB_READY && firebaseAuth?.currentUser) {
+          // Ensure local auth takes precedence over any lingering Firebase session.
+          fbSignOut(firebaseAuth).catch(() => {});
+        }
+      } catch {}
       const baseUser =
         userOverride && typeof userOverride === "object"
           ? { ...userOverride }
@@ -5925,8 +5962,12 @@ function AuthProvider({ children }) {
     }
   }, [logoutLocal]);
 
-  // prefer Firebase user; fall back to local user
-  const currentUser = firebaseUser || localUser;
+  // prefer local user when local auth is active; otherwise fall back to Firebase user
+  const preferLocal =
+    !!localUser &&
+    (localUser.providerId === "local" ||
+      String(localUser.uid || "").startsWith("local:"));
+  const currentUser = preferLocal ? localUser : firebaseUser || localUser;
 
   /** @type {AuthContextType} */
   const authValue = useMemo(
@@ -8976,10 +9017,7 @@ function ReviewOrderPanel({
 }) {
   const { cart, totalPrice, clearCart } = useCart();
   const { currentUser } = useAuth();
-  const localProfile = React.useMemo(
-    () => readLocalProfile(currentUser),
-    [currentUser?.uid, currentUser?.email, currentUser?.phoneNumber],
-  );
+  const localProfile = useLocalProfile(currentUser);
   const profileName = pickProfileName(localProfile, currentUser);
   const profilePhone = pickProfilePhone(localProfile, currentUser);
   const profileAddress = pickProfileAddress(localProfile);
@@ -9411,14 +9449,12 @@ function OrderInfoPanel({
 }) {
   const { cart, totalPrice } = useCart();
   const { currentUser } = useAuth();
-  const localProfile = React.useMemo(
-    () => readLocalProfile(currentUser),
-    [currentUser?.uid, currentUser?.email, currentUser?.phoneNumber],
-  );
+  const localProfile = useLocalProfile(currentUser);
   const profileAddress = pickProfileAddress(localProfile);
   const orderAddressText = normalizeAddressText(orderAddress);
   const [voucherCode, setVoucherCode] = React.useState("");
   const addressInputRef = useRef(null);
+  const deliveryPlacesElRef = React.useRef(null);
   const [addressAutoErr, setAddressAutoErr] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const isPreorder = orderType === "Pickup" && !storeOpenNow;
@@ -9432,7 +9468,7 @@ function OrderInfoPanel({
     if (normalizeAddressText(orderAddress)) return;
     if (!profileAddress) return;
 
-    setOrderAddress(profileAddress);
+    setOrderAddress(normalizeAddressText(profileAddress));
     setOrderAddressError?.("");
   }, [orderType, orderAddress, profileAddress, setOrderAddress, setOrderAddressError]);
 
@@ -9515,7 +9551,29 @@ function OrderInfoPanel({
         const container = addressInputRef.current;
         container.innerHTML = "";
         container.appendChild(el);
+        deliveryPlacesElRef.current = el;
         widget = el;
+
+        // Seed widget with whatever we already have (orderAddress or profileAddress)
+        try {
+          const desired =
+            normalizeAddressText(orderAddress) || normalizeAddressText(profileAddress);
+          if (desired) {
+            // only seed if the widget looks empty, so we don't fight typing
+            let current = "";
+            try {
+              current = normalizeAddressText(el.value || "");
+            } catch {}
+            if (!current) {
+              try {
+                el.value = desired;
+              } catch {}
+              try {
+                el.setAttribute("value", desired);
+              } catch {}
+            }
+          }
+        } catch {}
 
         el.addEventListener("gmp-requesterror", (e) => {
           console.warn("[maps][places] request error", e);
@@ -9616,6 +9674,33 @@ function OrderInfoPanel({
     canUsePlacesWidget,
     setAddressAutoErr,
   ]);
+
+  React.useEffect(() => {
+    if (orderType !== "Delivery") return;
+    if (!canUsePlacesWidget) return;
+
+    const el = deliveryPlacesElRef.current;
+    if (!el) return;
+
+    const desired =
+      normalizeAddressText(orderAddress) || normalizeAddressText(profileAddress);
+    if (!desired) return;
+
+    // Only update when widget is empty (or garbage), so user can still type/select
+    let current = "";
+    try {
+      current = normalizeAddressText(el.value || "");
+    } catch {}
+
+    if (!current || current.toLowerCase() === "[object object]") {
+      try {
+        el.value = desired;
+      } catch {}
+      try {
+        el.setAttribute("value", desired);
+      } catch {}
+    }
+  }, [orderType, canUsePlacesWidget, orderAddress, profileAddress]);
 
   return (
     <>
@@ -10850,7 +10935,7 @@ function LoginPage() {
 }
 
 function ProfileModal({ onClose, isMapsLoaded }) {
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, loading: authLoading, loginLocal } = useAuth();
   const [profileLoading, setProfileLoading] = React.useState(true);
   const [profile, setProfile] = React.useState(null);
   const [error, setError] = React.useState(null);
@@ -10885,6 +10970,7 @@ function ProfileModal({ onClose, isMapsLoaded }) {
   const [errMsg, setErrMsg] = React.useState("");
   const fileInputRef = React.useRef(null);
   const profileAddressRef = React.useRef(null);
+  const profilePlacesElRef = React.useRef(null);
   const [profileAutocompleteReady, setProfileAutocompleteReady] =
     React.useState(false);
   const [form, setForm] = React.useState(makeEmptyForm);
@@ -10895,6 +10981,83 @@ function ProfileModal({ onClose, isMapsLoaded }) {
   const canUseProfilePlaces =
     isMapsLoaded && !!w.google?.maps?.importLibrary;
   const showProfileAutocomplete = canUseProfilePlaces && profileAutocompleteReady;
+  const AUTH_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(
+    /\/+$/,
+    "",
+  );
+
+  const readSessionToken = React.useCallback(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("pp_session_v1") || "null");
+      return raw?.token || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const readJsonSafeLocal = React.useCallback(async (res) => {
+    const txt = await res.text();
+    try {
+      return JSON.parse(txt);
+    } catch {
+      return { ok: false, error: txt ? txt.slice(0, 180) : `HTTP ${res.status}` };
+    }
+  }, []);
+
+  const readAddressFromWidget = React.useCallback(() => {
+    try {
+      const container = profileAddressRef.current;
+      if (!container) return "";
+      const el = profilePlacesElRef.current || container.firstElementChild;
+      if (!el) return "";
+
+      // 1) Try direct value (some versions support it)
+      const direct = normalizeAddressText(el.value || "");
+      if (direct) return direct;
+
+      // 2) Try attribute (some versions reflect it)
+      const attr = normalizeAddressText(el.getAttribute?.("value") || "");
+      if (attr) return attr;
+
+      // 3) Last resort: look for a real input inside (shadow DOM if open)
+      try {
+        const shadowInput =
+          el.shadowRoot?.querySelector?.("input") ||
+          container.querySelector?.("input");
+        const v = normalizeAddressText(shadowInput?.value || "");
+        if (v) return v;
+      } catch {}
+
+      return "";
+    } catch {
+      return "";
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!showProfileAutocomplete) return;
+
+    const el = profilePlacesElRef.current;
+    if (!el) return;
+
+    const desired = normalizeAddressText(form.addressLine1 || "");
+    if (!desired) return;
+
+    // Only set if it's empty or garbage so we don't fight the user while typing
+    let current = "";
+    try {
+      current = normalizeAddressText(el.value || "");
+    } catch {}
+
+    if (!current || current.toLowerCase() === "[object object]") {
+      try {
+        el.value = desired;
+      } catch {}
+      try {
+        el.setAttribute("value", desired);
+      } catch {}
+    }
+  }, [showProfileAutocomplete, form.addressLine1]);
 
   // Attach Google Places PlaceAutocompleteElement to the profile address field
   React.useEffect(() => {
@@ -10943,8 +11106,23 @@ function ProfileModal({ onClose, isMapsLoaded }) {
 
         container.innerHTML = "";
         container.appendChild(el);
+        profilePlacesElRef.current = el;
         widget = el;
         setProfileAutocompleteReady(true);
+
+        // Seed the widget display with what we already have saved
+        try {
+          const existing = normalizeAddressText(form.addressLine1 || "");
+          if (existing) {
+            // Some builds support .value; some only respond to attribute
+            try {
+              el.value = existing;
+            } catch {}
+            try {
+              el.setAttribute("value", existing);
+            } catch {}
+          }
+        } catch {}
 
         onSelect = async (event) => {
           try {
@@ -11131,8 +11309,35 @@ function ProfileModal({ onClose, isMapsLoaded }) {
       setProfileLoading(false);
     };
 
+    const hydrateFromServer = async () => {
+      if (!AUTH_BASE) return;
+      const token = readSessionToken();
+      if (!token) return;
+      try {
+        const res = await fetch(`${AUTH_BASE}/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await readJsonSafeLocal(res);
+        if (!res.ok || !data?.ok) return;
+        const serverProfile =
+          data?.profile && typeof data.profile === "object" ? data.profile : {};
+        const serverDisplayName = data?.user?.displayName || "";
+        const merged = { ...serverProfile };
+        if (serverDisplayName && !merged.displayName) {
+          merged.displayName = serverDisplayName;
+        }
+        if (Object.keys(merged).length) {
+          writeLocalProfile(currentUser, merged);
+          commitProfile(merged);
+        }
+      } catch (e) {
+        console.warn("[PP][Profile] /me fetch failed:", e?.message || e);
+      }
+    };
+
     const finishWithLocal = () => {
       commitProfile();
+      hydrateFromServer();
     };
 
     const isLocalUser =
@@ -11328,16 +11533,21 @@ function ProfileModal({ onClose, isMapsLoaded }) {
         const addressOk = matchesConfig || matchesDeliveryZones;
         if (!addressOk) {
           setErrMsg(
-            "That address is outside our delivery area. Please use a supported suburb.",
+            "Saved, but this address looks outside our delivery area.",
           );
-          showOk("");
-          return;
         }
+      }
+      const addressLine1 = normalizeAddressText(
+        form.addressLine1 || readAddressFromWidget() || "",
+      );
+      if (addressLine1 !== normalizeAddressText(form.addressLine1 || "")) {
+        setForm((prev) => ({ ...prev, addressLine1 }));
       }
       const payload = {
         ...form,
+        addressLine1,
         address: {
-          line: form.addressLine1 || "",
+          line: addressLine1 || "",
           suburb: form.suburb || "",
           postcode: form.postcode || "",
           state: form.state || "",
@@ -11360,6 +11570,36 @@ function ProfileModal({ onClose, isMapsLoaded }) {
 
       if (isLocalUser || firebaseDisabled || !hasFirebaseAuthedUser) {
         persistLocalCache();
+        try {
+          const phoneValue =
+            form.phoneNumber ||
+            currentUser.phoneNumber ||
+            currentUser.phone ||
+            "";
+          if (loginLocal) {
+            const token = readSessionToken();
+            const updatedUser = {
+              ...currentUser,
+              displayName: form.displayName,
+              phoneNumber: phoneValue,
+              phone: phoneValue,
+            };
+            loginLocal(phoneValue, form.displayName, token, updatedUser);
+          }
+        } catch {}
+        try {
+          const token = readSessionToken();
+          if (AUTH_BASE && token) {
+            await fetch(`${AUTH_BASE}/me`, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ displayName: form.displayName, profile: payload }),
+            });
+          }
+        } catch {}
         showOk("Profile saved to this device.");
       } else if (sdk?.db) {
         const ref = sdk.doc(sdk.db, "users", currentUser.uid);
@@ -11398,8 +11638,8 @@ function ProfileModal({ onClose, isMapsLoaded }) {
   }, [okMsg, saving]);
 
   return (
-    <div className="modal-overlay" onClick={() => onClose?.()}>
-      <div className="pp-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay pp-profileOverlay" onClick={() => onClose?.()}>
+      <div className="pp-modal pp-profileModal" onClick={(e) => e.stopPropagation()}>
         <div className="pp-modal-header">
           <div className="pp-modal-title">Your Profile</div>
           <button

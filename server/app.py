@@ -21,6 +21,7 @@ try:
 except Exception:
     pass
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
@@ -279,6 +280,21 @@ class User(db.Model):
 
     reset_code_hash = db.Column(db.String(256), nullable=True)
     reset_expires_at = db.Column(db.DateTime, nullable=True)
+    profile_json = db.Column(db.Text, nullable=True)
+
+
+def _ensure_profile_column():
+    try:
+        table = User.__tablename__
+        with db.engine.connect() as conn:
+            res = conn.execute(text(f"PRAGMA table_info({table})"))
+            cols = [row[1] for row in res]  # (cid, name, type, ...)
+            if "profile_json" not in cols:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN profile_json TEXT"))
+                conn.commit()
+                print("[db] added profile_json column")
+    except Exception as e:
+        print("[db] ensure profile column failed:", e)
 
     def set_password(self, pw):
         self.password_hash = generate_password_hash(pw)
@@ -332,7 +348,8 @@ def should_bootstrap_admin(phone_raw: str, phone_normalized: str) -> bool:
 
 
 with app.app_context():
-    _ensure_db_ready()
+    if _ensure_db_ready():
+        _ensure_profile_column()
 
 
 @app.post("/register")
@@ -501,9 +518,14 @@ def auth_firebase():
 @auth_required
 def me():
     u = request.pp_user
+    profile = {}
+    try:
+        profile = json.loads(u.profile_json) if u.profile_json else {}
+    except Exception:
+        profile = {}
     return jsonify({"ok": True, "user": {
         "id": u.id, "phone": u.phone, "displayName": u.display_name, "role": u.role
-    }})
+    }, "profile": profile})
 
 
 @app.put("/me")
@@ -514,11 +536,23 @@ def update_me():
     if "displayName" in data:
         dn = (data.get("displayName") or "").strip()
         u.display_name = dn
+    if "profile" in data:
+        profile = data.get("profile")
+        if isinstance(profile, dict):
+            try:
+                u.profile_json = json.dumps(profile)
+            except Exception:
+                u.profile_json = u.profile_json
     u.updated_at = datetime.utcnow()
     db.session.commit()
+    profile = {}
+    try:
+        profile = json.loads(u.profile_json) if u.profile_json else {}
+    except Exception:
+        profile = {}
     return jsonify({"ok": True, "user": {
         "id": u.id, "phone": u.phone, "displayName": u.display_name, "role": u.role
-    }})
+    }, "profile": profile})
 
 
 @app.post("/auth/request-reset")

@@ -774,26 +774,6 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   --text: #111827;
   --muted: #6b7280;
 }
-[data-theme='dark'] .profile-modal {
-  --card-bg: rgba(15,23,42,0.92);
-  --stroke: rgba(148,163,184,0.35);
-  --input-bg: rgba(15,23,42,0.95);
-  --input-stroke: rgba(148,163,184,0.4);
-  --input-focus: #7CFF92;
-  --label: #b8ffc4;
-  --text: var(--text-light, #e7e7e7);
-  --muted: #9ca3af;
-}
-[data-theme='light'] .profile-modal {
-  --card-bg: #ffffff;
-  --stroke: rgba(15,23,42,0.12);
-  --input-bg: #f9fafb;
-  --input-stroke: rgba(15,23,42,0.12);
-  --input-focus: #00A756;
-  --label: #00A756;
-  --text: #111827;
-  --muted: #6b7280;
-}
 
 .profile-grid {
   display: grid;
@@ -9814,6 +9794,695 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 .quick-nav-scroll::after{
   content: none !important;
   display: none !important;
+}
+
+/* =========================================================
+   Profile Modal — Enterprise Overhaul (SCOPED)
+   Only affects: .pp-profileOverlay + .pp-profileModal
+   (Prevents conflicts with add-ons modal / other overlays)
+   ========================================================= */
+
+.pp-profileOverlay{
+  background: rgba(2,6,23,0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: clamp(12px, 2.2vw, 20px);
+}
+
+[data-theme="light"] .pp-profileOverlay{
+  background: rgba(15,23,42,0.28);
+}
+
+/* Modal shell */
+.pp-profileModal{
+  width: min(980px, calc(100vw - 24px));
+  max-height: min(86vh, 860px);
+  padding: 0;               /* header/body handle padding */
+  border-radius: 22px;
+  overflow: hidden;
+
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-modal);
+
+  background:
+    radial-gradient(900px 420px at 20% 0%, rgba(190,242,100,0.10), transparent 60%),
+    radial-gradient(900px 420px at 80% 0%, rgba(190,242,100,0.07), transparent 60%),
+    linear-gradient(180deg, var(--pp-surface, var(--panel)) 0%, var(--pp-surface-2, var(--panel)) 130%);
+}
+
+[data-theme="light"] .pp-profileModal{
+  background:
+    radial-gradient(900px 420px at 20% 0%, rgba(22,163,74,0.10), transparent 60%),
+    radial-gradient(900px 420px at 80% 0%, rgba(190,242,100,0.06), transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f6f8fc 140%);
+}
+
+/* Header: clean enterprise bar */
+.pp-profileModal .pp-modal-header{
+  position: sticky;
+  top: 0;
+  z-index: 5;
+
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-color);
+
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+[data-theme="light"] .pp-profileModal .pp-modal-header{
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(241,245,251,0.75));
+}
+
+.pp-profileModal .pp-modal-title{
+  font-size: 0.98rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+/* Body */
+.pp-profileModal .pp-modal-body{
+  padding: 16px 18px 18px;
+  overflow: auto;
+  max-height: calc(min(86vh, 860px) - 70px);
+}
+
+/* Form layout */
+.pp-profileModal form.profile-modal{
+  display: grid;
+  gap: 14px;
+}
+
+/* Card groups */
+.pp-profileModal .profile-card{
+  border-radius: 18px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.03);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+}
+
+[data-theme="light"] .pp-profileModal .profile-card{
+  background: rgba(15,23,42,0.02);
+  border-color: rgba(15,23,42,0.10);
+}
+
+/* Section titles inside cards */
+.pp-profileModal .profile-card h3{
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  opacity: 0.92;
+}
+
+/* Avatar row: less “big grey slab” */
+.pp-profileModal .avatar-row{
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+@media (max-width: 560px){
+  .pp-profileModal .avatar-row{
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+}
+
+.pp-profileModal .avatar-shell{
+  width: 108px;
+  height: 108px;
+  border-radius: 999px;
+  border: 2px solid rgba(190,242,100,0.55);
+  background: radial-gradient(120px 120px at 50% 40%, rgba(255,255,255,0.08), rgba(0,0,0,0.10));
+  box-shadow: 0 18px 40px rgba(0,0,0,0.18);
+}
+
+[data-theme="light"] .pp-profileModal .avatar-shell{
+  border-color: rgba(22,163,74,0.35);
+  box-shadow: 0 16px 36px rgba(2,6,23,0.08);
+}
+
+.pp-profileModal .avatar-actions{
+  display: grid;
+  gap: 8px;
+}
+
+/* Upload “button” currently uses .pp-input – make it look like a real CTA */
+.pp-profileModal button.pp-input{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(255,255,255,0.05);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.16);
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+[data-theme="light"] .pp-profileModal button.pp-input{
+  background: rgba(15,23,42,0.03);
+  box-shadow: 0 10px 22px rgba(2,6,23,0.08);
+}
+
+.pp-profileModal button.pp-input:hover:enabled{
+  transform: translateY(-1px);
+  border-color: rgba(190,242,100,0.35);
+}
+
+/* Inputs inside profile modal: consistent + enterprise */
+.pp-profileModal input[type="text"],
+.pp-profileModal input[type="tel"],
+.pp-profileModal input[type="url"],
+.pp-profileModal input[type="password"],
+.pp-profileModal textarea,
+.pp-profileModal select{
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.22);
+  background: rgba(0,0,0,0.14);
+}
+
+[data-theme="light"] .pp-profileModal input[type="text"],
+[data-theme="light"] .pp-profileModal input[type="tel"],
+[data-theme="light"] .pp-profileModal input[type="url"],
+[data-theme="light"] .pp-profileModal input[type="password"],
+[data-theme="light"] .pp-profileModal textarea,
+[data-theme="light"] .pp-profileModal select{
+  background: rgba(255,255,255,0.85);
+}
+
+/* Address widget mount (Google Places) */
+.pp-profileModal .pp-autocomplete-mount,
+.pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete{
+  width: 100%;
+}
+
+.pp-profileModal .pp-autocomplete-mount{
+  min-height: 46px;
+}
+
+.pp-profileModal .pp-label{
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-medium);
+}
+
+/* Footer actions: stick them to the bottom like a product modal */
+.pp-profileModal .profile-footer{
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+
+  padding: 14px 0 2px;
+  margin-top: 6px;
+
+  background: linear-gradient(180deg, rgba(0,0,0,0), rgba(2,6,23,0.35) 30%, rgba(2,6,23,0.55));
+  border-top: 1px solid rgba(148,163,184,0.16);
+}
+
+[data-theme="light"] .pp-profileModal .profile-footer{
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(241,245,251,0.82) 30%, rgba(241,245,251,0.96));
+  border-top-color: rgba(15,23,42,0.10);
+}
+
+/* =========================================================
+   Profile Modal — Liveliness Pass (SCOPED)
+   Adds depth + accent, no layout changes.
+   ========================================================= */
+
+.pp-profileModal{
+  position: relative;
+}
+
+/* Soft accent “edge glow” */
+.pp-profileModal::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 420px at 20% -10%, rgba(190,242,100,0.16), transparent 60%),
+    radial-gradient(1200px 420px at 80% -10%, rgba(34,197,94,0.12), transparent 60%),
+    radial-gradient(900px 520px at 50% 110%, rgba(56,189,248,0.06), transparent 55%);
+  opacity: 0.85;
+}
+
+[data-theme="light"] .pp-profileModal::before{
+  background:
+    radial-gradient(1200px 420px at 20% -10%, rgba(34,197,94,0.14), transparent 60%),
+    radial-gradient(1200px 420px at 80% -10%, rgba(190,242,100,0.10), transparent 60%),
+    radial-gradient(900px 520px at 50% 110%, rgba(59,130,246,0.06), transparent 55%);
+  opacity: 0.70;
+}
+
+/* Subtle texture layer to break up flat surfaces */
+.pp-profileModal::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.035) 0px,
+      rgba(255,255,255,0.035) 2px,
+      rgba(0,0,0,0) 8px,
+      rgba(0,0,0,0) 14px
+    );
+  mix-blend-mode: overlay;
+  opacity: 0.28;
+}
+
+[data-theme="light"] .pp-profileModal::after{
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(15,23,42,0.035) 0px,
+      rgba(15,23,42,0.035) 2px,
+      rgba(0,0,0,0) 8px,
+      rgba(0,0,0,0) 14px
+    );
+  mix-blend-mode: multiply;
+  opacity: 0.18;
+}
+
+/* Header gets a “premium bar” */
+.pp-profileModal .pp-modal-header{
+  position: relative;
+}
+
+.pp-profileModal .pp-modal-header::before{
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 10px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    rgba(190,242,100,0.0),
+    rgba(190,242,100,0.85),
+    rgba(34,197,94,0.55),
+    rgba(190,242,100,0.0)
+  );
+  opacity: 0.55;
+}
+
+[data-theme="light"] .pp-profileModal .pp-modal-header::before{
+  opacity: 0.40;
+}
+
+/* Cards: add a gentle accent border + hover lift */
+.pp-profileModal .profile-card{
+  position: relative;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.pp-profileModal .profile-card::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  pointer-events: none;
+  background:
+    radial-gradient(700px 220px at 15% 0%, rgba(190,242,100,0.10), transparent 60%),
+    radial-gradient(700px 220px at 85% 0%, rgba(56,189,248,0.05), transparent 55%);
+  opacity: 0.75;
+}
+
+[data-theme="light"] .pp-profileModal .profile-card::before{
+  opacity: 0.55;
+}
+
+.pp-profileModal .profile-card:hover{
+  transform: translateY(-1px);
+  border-color: rgba(190,242,100,0.30);
+  background: rgba(255,255,255,0.045);
+}
+
+[data-theme="light"] .pp-profileModal .profile-card:hover{
+  border-color: rgba(34,197,94,0.22);
+  background: rgba(15,23,42,0.02);
+}
+
+/* Inputs: better focus glow */
+.pp-profileModal input[type="text"]:focus,
+.pp-profileModal input[type="tel"]:focus,
+.pp-profileModal input[type="url"]:focus,
+.pp-profileModal input[type="password"]:focus,
+.pp-profileModal textarea:focus,
+.pp-profileModal select:focus{
+  outline: none;
+  border-color: rgba(190,242,100,0.38);
+  box-shadow:
+    0 0 0 3px rgba(190,242,100,0.14),
+    0 14px 34px rgba(0,0,0,0.18);
+}
+
+[data-theme="light"] .pp-profileModal input[type="text"]:focus,
+[data-theme="light"] .pp-profileModal input[type="tel"]:focus,
+[data-theme="light"] .pp-profileModal input[type="url"]:focus,
+[data-theme="light"] .pp-profileModal input[type="password"]:focus,
+[data-theme="light"] .pp-profileModal textarea:focus,
+[data-theme="light"] .pp-profileModal select:focus{
+  border-color: rgba(34,197,94,0.28);
+  box-shadow:
+    0 0 0 3px rgba(34,197,94,0.10),
+    0 10px 22px rgba(2,6,23,0.10);
+}
+
+/* Upload button: more “enterprise CTA” */
+.pp-profileModal button.pp-input{
+  position: relative;
+  overflow: hidden;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.pp-profileModal button.pp-input::after{
+  content: "";
+  position: absolute;
+  inset: -60% -30%;
+  background: radial-gradient(circle at 30% 40%, rgba(190,242,100,0.18), transparent 60%);
+  transform: rotate(12deg);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.pp-profileModal button.pp-input:hover:enabled{
+  border-color: rgba(190,242,100,0.38);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.22);
+}
+
+.pp-profileModal button.pp-input:hover:enabled::after{
+  opacity: 1;
+}
+
+/* =========================================================
+   Profile Modal — Pop + Address Contrast (SCOPED)
+   Fixes: "plain" look + address bar white-on-white
+   Only affects: .pp-profileModal
+   ========================================================= */
+
+/* 1) Light mode cards: add subtle depth so it’s not flat white */
+[data-theme="light"] .pp-profileModal .profile-card{
+  background:
+    radial-gradient(820px 260px at 18% 0%, rgba(34,197,94,0.06), transparent 62%),
+    radial-gradient(820px 260px at 82% 0%, rgba(59,130,246,0.04), transparent 62%),
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(241,245,251,0.82));
+  border-color: rgba(15,23,42,0.10);
+  box-shadow:
+    0 16px 40px rgba(2,6,23,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.70);
+}
+
+/* 2) Section titles: tiny accent notch so it feels “designed” */
+.pp-profileModal .profile-card h3{
+  position: relative;
+  padding-left: 14px;
+}
+.pp-profileModal .profile-card h3::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(34,197,94,0.60));
+  opacity: 0.85;
+}
+[data-theme="light"] .pp-profileModal .profile-card h3::before{
+  background: linear-gradient(180deg, rgba(34,197,94,0.80), rgba(59,130,246,0.35));
+  opacity: 0.75;
+}
+
+/* 3) Address widget contrast — container */
+.pp-profileModal .pp-autocomplete-mount{
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.26);
+  background: rgba(0,0,0,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+  padding: 0; /* let the control fill cleanly */
+}
+
+/* Light mode: NOT white-on-white */
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount{
+  border-color: rgba(15,23,42,0.16);
+  background: rgba(15,23,42,0.03);
+  box-shadow:
+    0 10px 22px rgba(2,6,23,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.75);
+}
+
+/* 4) If the Places component exposes CSS vars, set them */
+.pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete{
+  width: 100%;
+  display: block;
+
+  /* harmless if unsupported */
+  --gmp-place-autocomplete-input-border-color: rgba(148,163,184,0.26);
+  --gmp-place-autocomplete-input-background-color: rgba(0,0,0,0.14);
+  --gmp-place-autocomplete-input-text-color: rgba(234,242,255,0.92);
+  --gmp-place-autocomplete-input-placeholder-color: rgba(159,177,199,0.85);
+}
+
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete{
+  --gmp-place-autocomplete-input-border-color: rgba(15,23,42,0.16);
+  --gmp-place-autocomplete-input-background-color: rgba(255,255,255,0.78);
+  --gmp-place-autocomplete-input-text-color: rgba(15,23,42,0.92);
+  --gmp-place-autocomplete-input-placeholder-color: rgba(15,23,42,0.55);
+}
+
+/* 5) If the component exposes parts, force a readable input */
+.pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(input),
+.pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(text-field),
+.pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(container){
+  border-radius: 14px !important;
+}
+
+/* Dark mode part styling */
+[data-theme="dark"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(input),
+[data-theme="dark"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(text-field),
+[data-theme="dark"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(container){
+  background: rgba(0,0,0,0.14) !important;
+  color: rgba(234,242,255,0.92) !important;
+  border-color: rgba(148,163,184,0.26) !important;
+}
+
+/* Light mode part styling (fixes white-on-white) */
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(input),
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(text-field),
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(container){
+  background: rgba(255,255,255,0.78) !important;
+  color: rgba(15,23,42,0.92) !important;
+  border-color: rgba(15,23,42,0.16) !important;
+}
+
+/* 6) If the control renders an actual input (fallback), style it too */
+.pp-profileModal .pp-autocomplete-mount input{
+  background: transparent !important; /* let mount bg show */
+  border: 0 !important;
+  color: inherit !important;
+}
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount input::placeholder{
+  color: rgba(15,23,42,0.55) !important;
+}
+[data-theme="dark"] .pp-profileModal .pp-autocomplete-mount input::placeholder{
+  color: rgba(159,177,199,0.85) !important;
+}
+
+/* 7) Focus state so it feels responsive */
+.pp-profileModal .pp-autocomplete-mount:focus-within{
+  border-color: rgba(190,242,100,0.40);
+  box-shadow: 0 0 0 3px rgba(190,242,100,0.14);
+}
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount:focus-within{
+  border-color: rgba(34,197,94,0.26);
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.10);
+}
+
+/* =========================================================
+   Profile Modal — Address bar (LIGHT) contrast fix (SCOPED)
+   Fixes: white-on-white input inside the profile modal only
+   ========================================================= */
+
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount{
+  background: rgba(15,23,42,0.04) !important;
+  border-color: rgba(15,23,42,0.14) !important;
+  box-shadow:
+    0 10px 22px rgba(2,6,23,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.70) !important;
+}
+
+/* If the widget renders a real input, don't force pure white */
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount input,
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount .pp-input{
+  background: transparent !important;
+  color: rgba(15,23,42,0.92) !important;
+}
+
+/* If it’s the Google web component, push it off pure white */
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete{
+  /* harmless if unsupported */
+  --gmp-place-autocomplete-input-background-color: rgba(248,250,252,0.88);
+  --gmp-place-autocomplete-input-text-color: rgba(15,23,42,0.92);
+  --gmp-place-autocomplete-input-placeholder-color: rgba(15,23,42,0.55);
+  --gmp-place-autocomplete-input-border-color: rgba(15,23,42,0.14);
+}
+
+/* If styling is exposed via ::part, enforce it */
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(input),
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(text-field),
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount gmp-place-autocomplete::part(container){
+  background: rgba(248,250,252,0.88) !important;
+  color: rgba(15,23,42,0.92) !important;
+  border-color: rgba(15,23,42,0.14) !important;
+}
+
+/* Make placeholder + icon readable */
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount input::placeholder{
+  color: rgba(15,23,42,0.55) !important;
+}
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount svg,
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount [class*="icon"]{
+  color: rgba(15,23,42,0.78) !important;
+  fill: currentColor !important;
+}
+
+/* =========================================================
+   Profile Modal — LIGHT mode address input fix (part="input")
+   Target: <input part="input"> inside .pp-autocomplete-mount
+   ========================================================= */
+
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount input[part="input"]{
+  background: rgba(248,250,252,0.92) !important; /* not pure white */
+  border: 1px solid rgba(15,23,42,0.14) !important;
+  color: rgba(15,23,42,0.92) !important;
+  border-radius: 14px !important;
+
+  /* add depth so it reads on a light card */
+  box-shadow:
+    0 10px 22px rgba(2,6,23,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.75) !important;
+}
+
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount input[part="input"]::placeholder{
+  color: rgba(15,23,42,0.55) !important;
+}
+
+/* nice focus cue */
+[data-theme="light"] .pp-profileModal .pp-autocomplete-mount input[part="input"]:focus{
+  outline: none !important;
+  border-color: rgba(34,197,94,0.26) !important;
+  box-shadow:
+    0 0 0 3px rgba(34,197,94,0.10),
+    0 10px 22px rgba(2,6,23,0.10) !important;
+}
+
+/* =========================================================
+   Profile Modal — Places input TEXT color fix (LIGHT)
+   We set text + placeholder + icon via ::part and vars.
+   (No container/background changes)
+   ========================================================= */
+
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete{
+  /* Works on builds that read these vars */
+  --gmp-place-autocomplete-input-text-color: rgba(15,23,42,0.92);
+  --gmp-place-autocomplete-input-placeholder-color: rgba(15,23,42,0.55);
+}
+
+/* Force the actual visible text field inside the web component */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(input),
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(text-field){
+  color: rgba(15,23,42,0.92) !important;
+}
+
+/* Placeholder + icon (some builds expose these parts) */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(input)::placeholder{
+  color: rgba(15,23,42,0.55) !important;
+}
+
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(leading-icon),
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(trailing-icon){
+  color: rgba(15,23,42,0.78) !important;
+  fill: currentColor !important;
+}
+
+/* =========================================================
+   Profile Modal — Places prediction dropdown (LIGHT)
+   Make suggestion list white/soft-grey with dark text.
+   Targets exposed parts: prediction-list, prediction-item, etc.
+   ========================================================= */
+
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-list){
+  background: rgba(255,255,255,0.98) !important;
+  border: 1px solid rgba(15,23,42,0.14) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 22px 46px rgba(2,6,23,0.16) !important;
+  overflow: hidden !important;
+}
+
+/* Each row */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-item){
+  background: transparent !important;
+  color: rgba(15,23,42,0.92) !important;
+}
+
+/* Hover/active */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-item):hover{
+  background: rgba(15,23,42,0.04) !important;
+}
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-item)[aria-selected="true"]{
+  background: rgba(34,197,94,0.10) !important;
+}
+
+/* Main text + details */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-item-main-text){
+  color: rgba(15,23,42,0.92) !important;
+}
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-item-secondary-text){
+  color: rgba(15,23,42,0.60) !important;
+}
+
+/* Matched segments */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-item-match){
+  color: rgba(15,23,42,0.92) !important;
+  font-weight: 800 !important;
+}
+
+/* Icons */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete::part(prediction-item-icon){
+  color: rgba(15,23,42,0.70) !important;
+  fill: currentColor !important;
+}
+
+/* Attribution area (keeps it neat) */
+[data-theme="light"] .pp-profileModal gmp-place-autocomplete .attributions{
+  background: rgba(255,255,255,0.98) !important;
+  border-top: 1px solid rgba(15,23,42,0.08) !important;
 }
 
 .pp-admin-standalone{
