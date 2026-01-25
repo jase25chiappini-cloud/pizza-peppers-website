@@ -439,9 +439,21 @@ def login():
         candidates = [phone]
         if phone_raw and phone_raw not in candidates:
             candidates.append(phone_raw)
-        u = User.query.filter(User.phone.in_(candidates)).first()
-        if not u or not u.is_active or not u.check_password(password):
-            return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+    u = User.query.filter(User.phone.in_(candidates)).first()
+    if not u or not u.is_active:
+        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+
+    # Backwards-compatible: some deployed versions might not have check_password yet
+    ok_pw = False
+    if hasattr(u, "check_password"):
+        ok_pw = u.check_password(password)
+    else:
+        ok_pw = bool(getattr(u, "password_hash", None)) and check_password_hash(
+            u.password_hash, password
+        )
+
+    if not ok_pw:
+        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
         if u.role == "customer" and should_bootstrap_admin(phone_raw, phone):
             u.role = "admin"
