@@ -111,6 +111,31 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        "/login": {
+          target: LOCAL,
+          changeOrigin: true,
+          secure: false,
+        },
+        "/register": {
+          target: LOCAL,
+          changeOrigin: true,
+          secure: false,
+        },
+        "/auth": {
+          target: LOCAL,
+          changeOrigin: true,
+          secure: false,
+        },
+        "/me": {
+          target: LOCAL,
+          changeOrigin: true,
+          secure: false,
+        },
+        "/admin": {
+          target: LOCAL,
+          changeOrigin: true,
+          secure: false,
+        },
         "/api": {
           target: LOCAL,
           changeOrigin: true,

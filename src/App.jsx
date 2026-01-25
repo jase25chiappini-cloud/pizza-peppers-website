@@ -5806,9 +5806,12 @@ function AuthProvider({ children }) {
     const run = async () => {
       if (!FB_READY || !firebaseUser) return;
 
-      // MENU_BASE exists in this file; if empty, call same-origin "/auth/firebase"
-      const base = (MENU_BASE || "").replace(/\/+$/, "");
-      const url = `${base}/auth/firebase`;
+      // In dev, use same-origin + Vite proxy to avoid CORS for /auth/*
+      const rawAuthBase = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(
+        /\/+$/,
+        "",
+      );
+      const url = `${rawAuthBase}/auth/firebase`;
 
       try {
         const idToken = await firebaseUser.getIdToken(true);
@@ -10170,9 +10173,10 @@ function LoginModal({ isOpen, tab = "providers", onClose }) {
   };
 
   const MENU_BASE = (import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(/\/+$/, "");
-  const AUTH_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(/\/+$/, "");
+  const RAW_AUTH_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(/\/+$/, "");
+  const AUTH_BASE = RAW_AUTH_BASE;
 
-  console.log("[auth] AUTH_BASE =", AUTH_BASE);
+  console.log("[auth] AUTH_BASE =", AUTH_BASE || "(same-origin)");
 
   const saveSession = (token, user) => {
     localStorage.setItem("pp_session_v1", JSON.stringify({ token, user }));

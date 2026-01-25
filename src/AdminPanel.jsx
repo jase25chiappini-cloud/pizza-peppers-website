@@ -9,7 +9,11 @@ const STATUS_FILTERS = ["all", "active", "inactive"];
 
 export default function AdminPanelPage() {
   const MENU_BASE = (import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(/\/+$/, "");
-  const API_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(/\/+$/, "");
+  const RAW_API_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(
+    /\/+$/,
+    "",
+  );
+  const API_BASE = RAW_API_BASE;
 
   const [session, setSession] = useState(() => readSession());
   const token = session?.token || readAuthTokenFallback();

@@ -21,15 +21,26 @@ try:
 except Exception:
     pass
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import OperationalError
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder=None)
-ALLOWED_ORIGINS = [
-    o.strip()
-    for o in (os.getenv("POS_ALLOWED_ORIGINS") or "http://localhost:5173").split(",")
-    if o.strip()
-]
+IS_PROD = (os.getenv("FLASK_ENV") or "").lower() == "production" or (os.getenv("RENDER") == "true")
+_raw_origins = (os.getenv("POS_ALLOWED_ORIGINS") or "").strip()
+if _raw_origins:
+    ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+else:
+    # Dev-friendly defaults (covers localhost vs 127.0.0.1 and Vite port bumps)
+    ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        r"^http://localhost:\d+$",
+        r"^http://127\.0\.0\.1:\d+$",
+    ] if not IS_PROD else [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
 CORS(
     app,
@@ -39,10 +50,15 @@ CORS(
     supports_credentials=False,
 )
 
+# Ensure instance folder exists for SQLite relative paths (Flask-SQLAlchemy uses it)
+try:
+    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+except Exception as e:
+    print("[db] failed to create instance dir:", e)
+
 app.config["SECRET_KEY"] = os.getenv("POS_SECRET_KEY", "dev-change-me-now")
 TOKEN_SALT = "pp_auth_v1"
 TOKEN_MAX_AGE_SECONDS = int(os.getenv("POS_TOKEN_MAX_AGE", "259200"))  # 3 days
-IS_PROD = (os.getenv("FLASK_ENV") or "").lower() == "production" or (os.getenv("RENDER") == "true")
 
 def _serializer():
     return URLSafeTimedSerializer(app.config["SECRET_KEY"], salt=TOKEN_SALT)
@@ -166,6 +182,14 @@ else:
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
+
+def _ensure_db_ready() -> bool:
+    try:
+        db.create_all()
+        return True
+    except Exception as e:
+        print("[db] create_all failed:", e)
+        return False
 
 def normalize_phone(s: str) -> str:
     if not s:
@@ -308,7 +332,7 @@ def should_bootstrap_admin(phone_raw: str, phone_normalized: str) -> bool:
 
 
 with app.app_context():
-    db.create_all()
+    _ensure_db_ready()
 
 
 @app.post("/register")
@@ -322,25 +346,42 @@ def register():
     password = data.get("password") or ""
     display_name = (data.get("displayName") or "").strip()
 
-    if not phone or not password:
-        return jsonify({"ok": False, "error": "Missing phone or password"}), 400
-    if User.query.filter_by(phone=phone).first():
-        return jsonify({"ok": False, "error": "User already exists"}), 400
-    role = "customer"
-    if should_bootstrap_admin(phone_raw, phone):
-        role = "admin"
-        if not display_name:
-            display_name = "Admin"
-    u = User(phone=phone, display_name=display_name, role=role)
-    u.set_password(password)
-    db.session.add(u)
-    db.session.commit()
-    token = make_token({"uid": u.id, "role": u.role})
-    return jsonify({
-        "ok": True,
-        "token": token,
-        "user": {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role},
-    }), 200
+    def _do_register():
+        if not phone or not password:
+            return jsonify({"ok": False, "error": "Missing phone or password"}), 400
+        if User.query.filter_by(phone=phone).first():
+            return jsonify({"ok": False, "error": "User already exists"}), 400
+        role = "customer"
+        if should_bootstrap_admin(phone_raw, phone):
+            role = "admin"
+            if not display_name:
+                display_name = "Admin"
+        u = User(phone=phone, display_name=display_name, role=role)
+        u.set_password(password)
+        db.session.add(u)
+        db.session.commit()
+        token = make_token({"uid": u.id, "role": u.role})
+        return jsonify({
+            "ok": True,
+            "token": token,
+            "user": {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role},
+        }), 200
+
+    try:
+        return _do_register()
+    except OperationalError as e:
+        print("[db] OperationalError in /register:", e)
+        db.session.rollback()
+        if _ensure_db_ready():
+            try:
+                return _do_register()
+            except Exception as e2:
+                print("[db] /register retry failed:", e2)
+        return jsonify({"ok": False, "error": "Database error. Try again."}), 500
+    except Exception as e:
+        print("[register] unexpected error:", e)
+        db.session.rollback()
+        return jsonify({"ok": False, "error": "Server error"}), 500
 
 
 @app.post("/login")
@@ -356,28 +397,45 @@ def login():
     if phone and not rate_limit(f"login:{phone}", limit=8, window_sec=300):
         return jsonify({"ok": False, "error": "Too many login attempts"}), 429
 
-    candidates = [phone]
-    if phone_raw and phone_raw not in candidates:
-        candidates.append(phone_raw)
-    u = User.query.filter(User.phone.in_(candidates)).first()
-    if not u or not u.is_active or not u.check_password(password):
-        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+    def _do_login():
+        candidates = [phone]
+        if phone_raw and phone_raw not in candidates:
+            candidates.append(phone_raw)
+        u = User.query.filter(User.phone.in_(candidates)).first()
+        if not u or not u.is_active or not u.check_password(password):
+            return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
-    if u.role == "customer" and should_bootstrap_admin(phone_raw, phone):
-        u.role = "admin"
-        if not u.display_name:
-            u.display_name = "Admin"
+        if u.role == "customer" and should_bootstrap_admin(phone_raw, phone):
+            u.role = "admin"
+            if not u.display_name:
+                u.display_name = "Admin"
 
-    u.last_login_at = datetime.utcnow()
-    u.updated_at = datetime.utcnow()
-    db.session.commit()
+        u.last_login_at = datetime.utcnow()
+        u.updated_at = datetime.utcnow()
+        db.session.commit()
 
-    token = make_token({"uid": u.id, "role": u.role})
-    return jsonify({
-        "ok": True,
-        "token": token,
-        "user": {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role},
-    }), 200
+        token = make_token({"uid": u.id, "role": u.role})
+        return jsonify({
+            "ok": True,
+            "token": token,
+            "user": {"id": u.id, "phone": u.phone, "email": u.email, "displayName": u.display_name, "role": u.role},
+        }), 200
+
+    try:
+        return _do_login()
+    except OperationalError as e:
+        print("[db] OperationalError in /login:", e)
+        db.session.rollback()
+        if _ensure_db_ready():
+            try:
+                return _do_login()
+            except Exception as e2:
+                print("[db] /login retry failed:", e2)
+        return jsonify({"ok": False, "error": "Database error. Try again."}), 500
+    except Exception as e:
+        print("[login] unexpected error:", e)
+        db.session.rollback()
+        return jsonify({"ok": False, "error": "Server error"}), 500
 
 
 @app.post("/auth/firebase")
