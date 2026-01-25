@@ -301,6 +301,27 @@ class User(db.Model):
     reset_expires_at = db.Column(db.DateTime, nullable=True)
     profile_json = db.Column(db.Text, nullable=True)
 
+    # ---- password helpers ----
+    def set_password(self, pw: str):
+        self.password_hash = generate_password_hash(pw)
+
+    def check_password(self, pw: str) -> bool:
+        if not self.password_hash:
+            return False
+        return check_password_hash(self.password_hash, pw)
+
+    # ---- reset helpers ----
+    def set_reset_code(self, code: str, minutes: int = 10):
+        self.reset_code_hash = generate_password_hash(code)
+        self.reset_expires_at = datetime.utcnow() + timedelta(minutes=minutes)
+
+    def check_reset_code(self, code: str) -> bool:
+        if not self.reset_code_hash or not self.reset_expires_at:
+            return False
+        if datetime.utcnow() > self.reset_expires_at:
+            return False
+        return check_password_hash(self.reset_code_hash, code)
+
 
 def _ensure_profile_column():
     try:
@@ -314,25 +335,6 @@ def _ensure_profile_column():
                 print("[db] added profile_json column")
     except Exception as e:
         print("[db] ensure profile column failed:", e)
-
-    def set_password(self, pw):
-        self.password_hash = generate_password_hash(pw)
-
-    def check_password(self, pw):
-        if not self.password_hash:
-            return False
-        return check_password_hash(self.password_hash, pw)
-
-    def set_reset_code(self, code: str, minutes: int = 10):
-        self.reset_code_hash = generate_password_hash(code)
-        self.reset_expires_at = datetime.utcnow() + timedelta(minutes=minutes)
-
-    def check_reset_code(self, code: str) -> bool:
-        if not self.reset_code_hash or not self.reset_expires_at:
-            return False
-        if datetime.utcnow() > self.reset_expires_at:
-            return False
-        return check_password_hash(self.reset_code_hash, code)
 
 
 class AdminAudit(db.Model):
@@ -380,9 +382,10 @@ def register():
     phone_raw = (data.get("phone") or "").strip()
     phone = normalize_phone(phone_raw)
     password = data.get("password") or ""
-    display_name = (data.get("displayName") or "").strip()
+    display_name_in = (data.get("displayName") or "").strip()
 
     def _do_register():
+        display_name = display_name_in  # local copy (prevents nested-scope assignment issues)
         if not phone or not password:
             return jsonify({"ok": False, "error": "Missing phone or password"}), 400
         if User.query.filter_by(phone=phone).first():
@@ -439,21 +442,21 @@ def login():
         candidates = [phone]
         if phone_raw and phone_raw not in candidates:
             candidates.append(phone_raw)
-    u = User.query.filter(User.phone.in_(candidates)).first()
-    if not u or not u.is_active:
-        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+        u = User.query.filter(User.phone.in_(candidates)).first()
+        if not u or not u.is_active:
+            return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
-    # Backwards-compatible: some deployed versions might not have check_password yet
-    ok_pw = False
-    if hasattr(u, "check_password"):
-        ok_pw = u.check_password(password)
-    else:
-        ok_pw = bool(getattr(u, "password_hash", None)) and check_password_hash(
-            u.password_hash, password
-        )
+        # Backwards-compatible: if a DB row exists but code changed, do safe check
+        ok_pw = False
+        if hasattr(u, "check_password"):
+            ok_pw = u.check_password(password)
+        else:
+            ok_pw = bool(getattr(u, "password_hash", None)) and check_password_hash(
+                u.password_hash, password
+            )
 
-    if not ok_pw:
-        return jsonify({"ok": False, "error": "Invalid credentials"}), 401
+        if not ok_pw:
+            return jsonify({"ok": False, "error": "Invalid credentials"}), 401
 
         if u.role == "customer" and should_bootstrap_admin(phone_raw, phone):
             u.role = "admin"
