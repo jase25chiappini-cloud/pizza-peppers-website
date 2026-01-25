@@ -167,20 +167,37 @@ function pickProfilePhone(profile, user) {
 }
 
 function normalizeAddressText(val) {
-  if (!val) return "";
+  if (val == null) return "";
 
-  if (typeof val === "string") return val.trim();
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (s.toLowerCase() === "[object object]") return "";
+    return s;
+  }
 
   if (typeof val === "object") {
     const candidate =
-      val.formattedAddress ||
-      val.formatted_address ||
-      val.description ||
-      val.address ||
-      (val.displayName && val.displayName.text) ||
+      val.formattedAddress ??
+      val.formatted_address ??
+      val.description ??
+      val.address ??
+      val.addressLine1 ??
+      val.line ??
+      (val.displayName && val.displayName.text) ??
       "";
 
-    return typeof candidate === "string" ? candidate.trim() : "";
+    if (typeof candidate === "string") return candidate.trim();
+    if (candidate && typeof candidate === "object") {
+      const t =
+        candidate.text ??
+        candidate.value ??
+        candidate.line ??
+        candidate.addressLine1 ??
+        "";
+      return typeof t === "string" ? t.trim() : "";
+    }
+
+    return "";
   }
 
   return "";
@@ -9211,7 +9228,8 @@ function ReviewOrderPanel({
         ) : (
           <>
             <p>
-              Delivery address: <strong>{deliveryAddress || "-"}</strong>
+              Delivery address:{" "}
+              <strong>{normalizeAddressText(deliveryAddress) || "-"}</strong>
             </p>
             {estimatedTime > 0 ? (
               <p>
@@ -9408,7 +9426,7 @@ function OrderInfoPanel({
 
   React.useEffect(() => {
     if (orderType !== "Delivery") return;
-    if (String(orderAddress || "").trim()) return;
+    if (normalizeAddressText(orderAddress)) return;
     if (!profileAddress) return;
 
     setOrderAddress(profileAddress);
@@ -9417,7 +9435,13 @@ function OrderInfoPanel({
 
   React.useEffect(() => {
     const cleaned = normalizeAddressText(orderAddress);
-    if (orderAddress && cleaned === "") {
+
+    if (typeof orderAddress !== "string") {
+      setOrderAddress(cleaned);
+      return;
+    }
+
+    if (cleaned === "" && orderAddress) {
       setOrderAddress("");
     }
   }, [orderAddress, setOrderAddress]);
