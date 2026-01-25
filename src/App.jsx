@@ -122,7 +122,17 @@ function readLocalProfile(user) {
   if (!key) return null;
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === "object") {
+      const cleaned = scrubBadAddressFields(parsed);
+      if (JSON.stringify(cleaned) !== JSON.stringify(parsed)) {
+        try {
+          localStorage.setItem(key, JSON.stringify(cleaned));
+        } catch {}
+      }
+      return cleaned;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -156,16 +166,6 @@ function pickProfilePhone(profile, user) {
   );
 }
 
-function pickProfileAddress(profile) {
-  const line1 = String(profile?.addressLine1 || profile?.address || "").trim();
-  const suburb = String(profile?.suburb || "").trim();
-  const state = String(profile?.state || "").trim();
-  const postcode = String(profile?.postcode || "").trim();
-
-  const tail = [suburb, state, postcode].filter(Boolean).join(" ");
-  return [line1, tail].filter(Boolean).join(", ").trim();
-}
-
 function normalizeAddressText(val) {
   if (!val) return "";
 
@@ -184,6 +184,37 @@ function normalizeAddressText(val) {
   }
 
   return "";
+}
+
+function pickProfileAddress(profile) {
+  const line1 = normalizeAddressText(
+    profile?.addressLine1 || profile?.address || "",
+  );
+  const suburb = String(profile?.suburb || "").trim();
+  const state = String(profile?.state || "").trim();
+  const postcode = String(profile?.postcode || "").trim();
+
+  const tail = [suburb, state, postcode].filter(Boolean).join(" ");
+  return [line1, tail].filter(Boolean).join(", ").trim();
+}
+
+function scrubBadAddressFields(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  const next = { ...obj };
+
+  const fix = (k) => {
+    const v = next[k];
+    if (v == null) return;
+    if (typeof v === "string") {
+      if (v.trim().toLowerCase() === "[object object]") next[k] = "";
+      return;
+    }
+    next[k] = "";
+  };
+
+  fix("addressLine1");
+  fix("address");
+  return next;
 }
 
 // --- RESTORED HALF & HALF COMPONENT ---
@@ -8641,12 +8672,24 @@ function ItemDetailPanel({
 
 function getFormattedAddressFromPlace(place) {
   if (!place) return "";
-  return (
-    place.formattedAddress || // Places API (new)
-    place.formatted_address || // legacy
-    place.displayName?.text || // sometimes exposed in new API
-    ""
-  );
+
+  const fa = place.formattedAddress ?? place.formatted_address ?? null;
+
+  if (typeof fa === "string") return fa.trim();
+
+  if (fa && typeof fa === "object") {
+    const t =
+      fa.text ||
+      fa.value ||
+      (fa.displayName && fa.displayName.text) ||
+      "";
+    if (typeof t === "string") return t.trim();
+  }
+
+  const dn = place.displayName?.text;
+  if (typeof dn === "string") return dn.trim();
+
+  return "";
 }
 
 function getAddressComponentsFromPlace(place) {
@@ -10914,7 +10957,7 @@ function ProfileModal({ onClose, isMapsLoaded }) {
 
             setForm((prev) => ({
               ...prev,
-              addressLine1: formatted,
+              addressLine1: normalizeAddressText(formatted),
               suburb,
               postcode,
               state,
