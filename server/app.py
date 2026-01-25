@@ -46,10 +46,29 @@ else:
 CORS(
     app,
     resources={r"/*": {"origins": ALLOWED_ORIGINS}},
-    allow_headers=["Content-Type", "Authorization", "X-API-Key", "x-api-key"],
+    allow_headers=[
+        "Content-Type", "content-type",
+        "Authorization",
+        "X-API-Key", "x-api-key",
+        "Accept", "Origin",
+    ],
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     supports_credentials=False,
 )
+
+@app.after_request
+def _cors_preflight_fix(resp):
+    # If browser preflight asked for headers, echo them back
+    req_headers = request.headers.get("Access-Control-Request-Headers")
+    if req_headers:
+        resp.headers["Access-Control-Allow-Headers"] = req_headers
+
+    # Ensure OPTIONS is always permitted
+    resp.headers.setdefault(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    )
+    return resp
 
 # Ensure instance folder exists for SQLite relative paths (Flask-SQLAlchemy uses it)
 try:
@@ -401,8 +420,10 @@ def register():
         return jsonify({"ok": False, "error": "Server error"}), 500
 
 
-@app.post("/login")
+@app.route("/login", methods=["POST", "OPTIONS"])
 def login():
+    if request.method == "OPTIONS":
+        return ("", 204)
     data = request.get_json() or {}
     phone_raw = (data.get("phone") or "").strip()
     phone = normalize_phone(phone_raw)
