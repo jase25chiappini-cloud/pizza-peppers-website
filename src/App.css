@@ -13615,3 +13615,12 @@ body[data-theme="light"] .menu-content::after{
     transform-origin: center top;
   }
 }
+
+/* Mobile: let card titles show in full (titles only, not ingredients) */
+@media (max-width: 640px){
+  .menu-item-card .pp-cardOverlay__title{
+    -webkit-line-clamp: 4 !important; /* was 2; increase until it fits */
+    line-clamp: 4 !important;
+    overflow: visible !important;
+  }
+}
