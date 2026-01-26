@@ -1065,7 +1065,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 
 /* Meal deal cards: significantly smaller (height + padding) */
 .menu-item-card--mealdeal .card-image-container {
-  padding-top: 49%;
+  padding-top: 56%;
 }
 
 /* Meal deal cards: significantly smaller (height + padding) */
@@ -1079,7 +1079,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 
 @media (max-width: 640px){
   .menu-item-card--mealdeal .card-image-container{
-    padding-top: 43%;
+    padding-top: 49%;
   }
   .menu-item-card--mealdeal .card-text-container{
     padding: 0.55rem;
@@ -1088,8 +1088,63 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 
 @media (max-width: 420px){
   .menu-item-card--mealdeal .card-image-container{
-    padding-top: 41%;
+    padding-top: 47%;
   }
+}
+
+/* =========================
+   Specials (Meal Deal) card tuning
+   ========================= */
+
+.menu-item-card--mealdeal .card-item-name{
+  font-size: 1.15rem;
+  line-height: 1.15;
+}
+
+.menu-item-card--mealdeal .card-item-description{
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+/* Meal deal overlay: bottom-right stack (price above title) */
+.menu-item-card--mealdeal .pp-cardOverlay{
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 14px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.72) 100%);
+}
+
+.menu-item-card--mealdeal .pp-mealdealOverlayMeta{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+}
+
+.menu-item-card--mealdeal .pp-mealdealName{
+  font-weight: 950;
+  font-size: 1.05rem;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 10px 22px rgba(0,0,0,0.55);
+}
+
+.menu-item-card--mealdeal .pp-mealdealPrice{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.38rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+  color: #0b1220;
+  background: linear-gradient(180deg, var(--brand-neon-green), rgba(190,242,100,0.78));
+  box-shadow: 0 14px 34px rgba(0,0,0,0.45);
 }
 
 /* Mobile: fit the screen better (denser 2-col grid + tighter spacing) */
@@ -1099,7 +1154,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
     gap: 0.7rem;
   }
   .menu-item-card { min-width: 0; } /* prevents overflow in grid */
-  .card-image-container { padding-top: 62%; } /* shorter image strip */
+  .card-image-container { padding-top: 74%; } /* shorter image strip */
   .card-text-container { padding: 0.55rem; }
   .card-item-name { font-size: 0.95rem; line-height: 1.15; }
   .card-item-price { font-size: 0.95rem; }
@@ -1108,7 +1163,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 /* Extra-small phones: go even tighter */
 @media (max-width: 420px) {
   .menu-grid { gap: 0.6rem; }
-  .card-image-container { padding-top: 58%; }
+  .card-image-container { padding-top: 70%; }
   .card-text-container { padding: 0.5rem; }
   .card-item-description { display: none; } /* kills dead space */
 }
@@ -1179,7 +1234,7 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 .card-image-container{
   position: relative;
   width: 100%;
-  padding-top: 72%;
+  padding-top: 86%;
   overflow: hidden;
   border-bottom: 1px solid rgba(148,163,184,0.5);
 }
@@ -2290,6 +2345,13 @@ footer,
     color: var(--text-primary);
     cursor: pointer;
     user-select: none;
+  }
+
+  /* Logged-out state: <button class="pp-topnav__acctBtn">Login</button> should be centered */
+  .pp-topnav__acct button.pp-topnav__acctBtn{
+    justify-content: center;
+    gap: 0;
+    text-align: center;
   }
 
   .pp-topnav__acctBtn:hover{
@@ -9796,6 +9858,42 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   display: none !important;
 }
 
+
+/* When we suppress the card title, tighten spacing a touch */
+.menu-item-card[data-pp-noheader="1"] .card-text-container{
+  padding-top: 0.45rem;
+}
+
+/* =========================================================
+   Meal deal overlay — hard anchor to bottom-left
+   (Wins even if something else sets right: or flex-end)
+   ========================================================= */
+
+.menu-item-card--mealdeal .pp-cardOverlay{
+  position: absolute; /* keep overlay covering the image */
+  inset: 0;
+  display: block !important;
+}
+
+/* The stack container */
+.menu-item-card--mealdeal .pp-mealdealOverlayMeta{
+  position: absolute !important;
+  left: 14px !important;
+  bottom: 14px !important;
+  right: auto !important;
+  top: auto !important;
+
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+
+/* If either element was individually pinned right, kill it */
+.menu-item-card--mealdeal .pp-mealdealPrice,
+.menu-item-card--mealdeal .pp-mealdealName{
+  right: auto !important;
+  left: auto;
+}
+
 /* =========================================================
    Profile Modal — Enterprise Overhaul (SCOPED)
    Only affects: .pp-profileOverlay + .pp-profileModal
@@ -13487,3 +13585,33 @@ body[data-theme="light"] .menu-content::after{
 }
 
 
+
+/* =========================================================
+   Image SHIFT (Y axis) — ONLY tagged list, exclude specials
+   Purpose: push bottom logo out of view + lift image text above price pill
+   ========================================================= */
+
+.menu-item-card[data-pp-imglift="1"]:not(.menu-item-card--mealdeal) .card-image-container{
+  overflow: hidden; /* safety */
+}
+
+.menu-item-card[data-pp-imglift="1"]:not(.menu-item-card--mealdeal) .card-image{
+  /* MOVE UP (no zoom). Increase magnitude to move further up */
+  transform: translate3d(0, -33%, 0) scale(1.30) !important;
+  transform-origin: center top;
+  will-change: transform;
+}
+
+/* Mobile tuning */
+@media (max-width: 640px){
+  .menu-item-card[data-pp-imglift="1"]:not(.menu-item-card--mealdeal) .card-image{
+    transform: translate3d(0, -31%, 0) scale(1.27) !important;
+    transform-origin: center top;
+  }
+}
+@media (max-width: 420px){
+  .menu-item-card[data-pp-imglift="1"]:not(.menu-item-card--mealdeal) .card-image{
+    transform: translate3d(0, -29%, 0) scale(1.25) !important;
+    transform-origin: center top;
+  }
+}

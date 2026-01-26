@@ -6178,6 +6178,77 @@ function formatId(name) {
     .replace(/ /g, "-");
 }
 
+// ----------------- CARD HEADER SUPPRESSION (specific items) -----------------
+const _ppNormName = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const _PP_HIDE_HEADERS_BY_NAME = new Set(
+  [
+    "Ham & Salami",
+    "Seafood",
+    "Tropical baked potato",
+    "Bolognese Baked Potato",
+    "Bacon Deluxe Baked Potato",
+    "Our Signature Baked Potato",
+    "Ribs",
+    "Homemade Lasagna Bolognese",
+  ].map(_ppNormName),
+);
+
+function shouldHideMenuCardHeader(item) {
+  const nameKey = _ppNormName(item?.name);
+  if (nameKey && _PP_HIDE_HEADERS_BY_NAME.has(nameKey)) return true;
+
+  const catRef = String(item?.category_ref || item?.categoryRef || "").toUpperCase();
+  if (catRef === "CALZONE") return true;
+
+  // Safety: if "Calzone ..." but category ref is missing/mis-shaped
+  if (String(item?.name || "").toLowerCase().startsWith("calzone")) return true;
+
+  return false;
+}
+
+// --- Image lift list (EXCLUDES meal deals) ---
+const _ppNorm = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const _PP_IMG_LIFT_NAMES = new Set(
+  [
+    "Ham & Salami",
+    "Seafood",
+    "Tropical baked potato",
+    "Bolognese Baked Potato",
+    "Bacon Deluxe Baked Potato",
+    "Our Signature Baked Potato",
+    "Ribs",
+    "Homemade Lasagna Bolognese",
+  ].map(_ppNorm),
+);
+
+function shouldLiftCardImage(item, isMealDeal) {
+  if (isMealDeal) return false; // never touch specials/meal deals
+
+  const nameKey = _ppNorm(item?.name);
+  if (nameKey && _PP_IMG_LIFT_NAMES.has(nameKey)) return true;
+
+  // All Calzone pizzas (but not meal deals)
+  const catRef = String(item?.category_ref || item?.categoryRef || "").toUpperCase();
+  if (catRef === "CALZONE") return true;
+
+  // Safety if category_ref missing
+  if (String(item?.name || "").toLowerCase().startsWith("calzone")) return true;
+
+  return false;
+}
+
 // ErrorBoundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -7407,6 +7478,7 @@ function Menu({ menuData, onItemClick }) {
               const isDessertComboMealDeal =
                 String(item?.name || "").trim().toLowerCase() ===
                 "dessert combo meal deal";
+              const hideHeader = shouldHideMenuCardHeader(item);
               return (
                 <div
                   key={item.id || item.name}
@@ -7415,6 +7487,8 @@ function Menu({ menuData, onItemClick }) {
                     isMealDeal ? "menu-item-card--mealdeal" : "",
                     isDessertComboMealDeal ? "pp-card--dessert-combo" : "",
                   ].join(" ")}
+                  data-pp-noheader={hideHeader ? "1" : "0"}
+                  data-pp-imglift={shouldLiftCardImage(item, isMealDeal) ? "1" : "0"}
                   onClick={() => onItemClick(item)}
                 >
                   <div className="card-image-container">
@@ -7453,16 +7527,27 @@ function Menu({ menuData, onItemClick }) {
                     )}
                     {/* NEW: overlay name + price on the image */}
                     <div className="pp-cardOverlay" aria-hidden="true">
-                      <div className="pp-cardOverlay__row">
-                        <div className="pp-cardOverlay__title">{item.name}</div>
-                        <div className="pp-cardOverlay__price">
-                          {currency(minPriceCents(item))}
+                      {isMealDeal ? (
+                        <div className="pp-mealdealOverlayMeta">
+                          <div className="pp-mealdealPrice">
+                            {currency(minPriceCents(item))}
+                          </div>
+                          {!hideHeader && (
+                            <div className="pp-mealdealName">{item.name}</div>
+                          )}
                         </div>
-                      </div>
-
-                      <div className="pp-cardOverlay__hint">
-                        Tap to customise →
-                      </div>
+                      ) : (
+                        <div className="pp-cardOverlay__row">
+                          {!hideHeader && (
+                            <div className="pp-cardOverlay__title">
+                              {item.name}
+                            </div>
+                          )}
+                          <div className="pp-cardOverlay__price">
+                            {currency(minPriceCents(item))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
