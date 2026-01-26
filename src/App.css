@@ -540,54 +540,6 @@ html { scroll-behavior: smooth; }
   box-sizing: border-box;
 }
 
-/* 8) Navbar */
-.navbar {
-  padding: 0.4rem 1.5rem;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  border-bottom: 1px solid var(--border-color);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-/* Dark: aggressive glass bar */
-[data-theme='dark'] .navbar {
-  background-color: var(--pp-surface, #0f172a);
-  box-shadow: 0 20px 50px rgba(0,0,0,0.9);
-  border-bottom-color: rgba(15,23,42,0.95);
-}
-
-/* Light: crisp white bar */
-[data-theme='light'] .navbar {
-  background-color: #ffffff;
-  box-shadow: 0 16px 40px rgba(15,23,42,0.14);
-  border-bottom-color: rgba(209,213,219,0.9);
-}
-
-.navbar-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo-link { text-decoration: none; display: flex; align-items: center; }
-.logo-image { height: 3.5rem; margin-right: 1rem; }
-
-.nav-links a {
-  color: var(--text-light);
-  text-decoration: none;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  transition: color 0.18s ease;
-}
-.nav-links a:first-child { margin-right: 1.5rem; }
-
-.nav-links a:hover {
-  color: var(--brand-green);
-}
-
 *{box-sizing:border-box}
 html,body{height:100%}
 a{color:var(--accent);text-decoration:none}
@@ -900,13 +852,22 @@ body {
 
 /* Main content column */
 .main-content-area {
-  padding: 1.5rem;
+  padding: 0.70rem 1.5rem 1.5rem;
 }
 
 @media (min-width: 1024px) {
   .main-content-area {
-    padding: 1.75rem 1.75rem 2.25rem;
+    padding: 0.90rem 1.75rem 2.25rem;
   }
+}
+
+.pp-qnav-slot{
+  flex: 0 0 auto;
+  margin: 0.25rem 0 0.55rem;
+
+  position: sticky;
+  top: calc(var(--pp-hdr-h, 90px) + 6px + env(safe-area-inset-top));
+  z-index: 29;
 }
 
 /* Light: subtle white panel down the left */
@@ -1336,215 +1297,94 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 .quantity-btn:active { transform: translateY(0) scale(0.99); }
 
 /* =========================
-   Quick Nav — clean 3-column rail
+   QUICK NAV (single source of truth)
    ========================= */
 
 .quick-nav-container{
-  position: sticky;
-  top: 5.5rem;
-  z-index: 15;
+  position: relative;
+  top: auto;
+  z-index: 1;
 
-  margin: 0 0 1.1rem;
-  padding: 0.45rem;
+  margin: 0 0 0.5rem;
+  padding: 4px;
 
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid var(--border-color);
-
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-
-  overflow: visible;  /* let arrow glow + rounded ends render cleanly */
-  isolation: isolate; /* keeps layering predictable WITHOUT breaking sticky */
-
-  /* outer should NOT be a grid anymore */
-  display: block;
-  min-height: 60px;
-}
-
-/* When arrows are present (desktop), keep the rail consistent */
-.quick-nav-container.quick-nav-container--arrows{
-  padding: 0.45rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 [data-theme='dark'] .quick-nav-container{
-  background: rgba(2, 6, 23, 0.35);
-  border-color: rgba(255,255,255,0.12);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.55);
+  background:
+    radial-gradient(900px 240px at 18% 0%, rgba(190,242,100,0.08), transparent 62%),
+    radial-gradient(900px 240px at 82% 0%, rgba(56,189,248,0.08), transparent 64%),
+    linear-gradient(180deg, rgba(15,23,42,0.82), rgba(2,6,23,0.34));
+  border-color: rgba(148,163,184,0.14);
+  box-shadow: 0 18px 54px rgba(0,0,0,0.42);
 }
-
 [data-theme='light'] .quick-nav-container{
-  background: rgba(255,255,255,0.78);
-  border-color: rgba(15,23,42,0.12);
-  box-shadow: 0 10px 24px rgba(15,23,42,0.10);
+  background: rgba(255,255,255,0.92);
+  border-color: rgba(15,23,42,0.14);
+  box-shadow: 0 12px 26px rgba(15,23,42,0.12);
 }
 
+/* wrapper: arrows + rail aligned perfectly */
 .quick-nav-scroll{
-  width: 100%;
-  min-width: 0;
-
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ONLY this element scrolls */
+.quick-nav-rail{
+  flex: 1 1 auto;
+  min-width: 0;
 
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
 
-  white-space: nowrap;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-
-  /* arrows are INSIDE the scroller now - don't add fake side gutters */
-  padding: 8px 12px;
-
-  position: relative;
   scrollbar-width: none;
   -ms-overflow-style: none;
+
+  padding: 2px 2px; /* small internal gutter */
 }
-.quick-nav-scroll::-webkit-scrollbar{ display:none; }
+.quick-nav-rail::-webkit-scrollbar{ display:none; }
 
-/* When arrows are sticky, reserve space so pills never slide underneath */
+.quick-nav-list{
+  list-style: none;
+  margin: 0;
+  padding: 0;
 
-/* arrow buttons */
-.quick-nav-arrow{
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 
+.quick-nav-item a{
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
-  border: 1px solid var(--border-color);
-  background: rgba(255,255,255,0.06);
-  color: var(--text-primary);
-
-  font-weight: 950;
-  font-size: 1.25rem;
-  line-height: 1;
-
-  box-shadow: 0 10px 22px rgba(0,0,0,0.12);
-}
-
-.quick-nav-arrow--inscroll{
-  position: sticky;
-  z-index: 5;
-  flex: 0 0 auto;
-
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-
-  /* this makes them look "part of the bar" */
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
-
-  align-self: center;
-  margin: 0;
-}
-
-.quick-nav-arrow--left.quick-nav-arrow--inscroll{
-  left: 8px;
-}
-
-.quick-nav-arrow--right.quick-nav-arrow--inscroll{
-  right: 8px;
-}
-
-[data-theme='light'] .quick-nav-arrow:not(.quick-nav-arrow--inscroll){
-  background: rgba(255,255,255,0.92);
-  box-shadow: 0 10px 22px rgba(15,23,42,0.10);
-}
-
-.quick-nav-arrow:hover:enabled{
-  transform: scale(1.03);
-  border-color: rgba(190,242,100,0.45);
-}
-
-.quick-nav-arrow:disabled{
-  opacity: 0.35;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.quick-nav-arrow:focus-visible{
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-@media (max-width: 900px){
-  .quick-nav-container{
-    padding: 0.5rem;
-  }
-
-  .quick-nav-arrow{
-    display: none;
-  }
-
-  .quick-nav-scroll{
-    padding: 0.15rem 0.25rem;
-    scroll-padding-left: 0.25rem;
-    scroll-padding-right: 0.25rem;
-  }
-
-  .quick-nav-container--arrows .quick-nav-scroll{
-    padding-left: 0.15rem;
-    padding-right: 0.25rem;
-    scroll-padding-left: 0.25rem;
-    scroll-padding-right: 0.25rem;
-  }
-}
-
-.quick-nav-list{
-  list-style:none;
-  padding:0;
-  margin:0;
-  display:flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.quick-nav-item a{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-
-  height: 38px;
-  padding: 0 0.95rem;
-  line-height: 1;
+  height: 24px;
+  padding: 0 10px;
 
   border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-
-  color: var(--text-medium);
-  text-decoration:none;
+  text-decoration: none;
 
   font-weight: 900;
-  font-size: 0.74rem;
+  font-size: 0.60rem;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.10em;
 
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
-}
+  border: 1px solid rgba(148,163,184,0.14);
+  background: rgba(17,28,51,0.55);
+  color: rgba(234,242,255,0.82);
 
-[data-theme='dark'] .quick-nav-item a{
-  background: rgba(255,255,255,0.03);
-  border-color: rgba(255,255,255,0.08);
-}
-
-[data-theme='dark'] .quick-nav-item a:hover{
-  color: var(--text-primary);
-  background: rgba(190,242,100,0.10);
-  border-color: rgba(190,242,100,0.22);
-  transform: translateY(-1px);
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease, color 160ms ease;
 }
 
 [data-theme='light'] .quick-nav-item a{
@@ -1552,10 +1392,10 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   border-color: rgba(15,23,42,0.10);
 }
 
-[data-theme='light'] .quick-nav-item a:hover{
+.quick-nav-item a:hover{
   color: var(--text-primary);
-  background: rgba(15,23,42,0.06);
-  border-color: rgba(15,23,42,0.14);
+  border-color: rgba(190,242,100,0.22);
+  background: rgba(17,28,51,0.72);
   transform: translateY(-1px);
 }
 
@@ -1563,14 +1403,52 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   color: #0b1220;
   background: linear-gradient(180deg, var(--brand-neon-green), rgba(190,242,100,0.74));
   border-color: rgba(190,242,100,0.55);
-  box-shadow: 0 12px 30px rgba(190,242,100,0.18);
+  box-shadow: 0 8px 18px rgba(190,242,100,0.12);
 }
 
-[data-theme='light'] .quick-nav-item a.active-nav-link{
-  color: #0b1220;
-  background: linear-gradient(180deg, #bbf7d0, #86efac);
-  border-color: rgba(22,163,74,0.28);
-  box-shadow: 0 10px 26px rgba(22,163,74,0.16);
+/* arrows (fixed, never scroll) */
+.quick-nav-arrow{
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid rgba(148,163,184,0.14);
+  background: rgba(17,28,51,0.60);
+  color: var(--text-primary);
+
+  font-weight: 950;
+  font-size: 1.15rem;
+  line-height: 1;
+
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+}
+
+.quick-nav-arrow[aria-disabled="true"],
+.quick-nav-arrow[data-disabled="1"]{
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+[data-theme='dark'] .quick-nav-arrow:hover{
+  border-color: rgba(190,242,100,0.24);
+  background: rgba(17,28,51,0.74);
+}
+
+/* mobile: free scroll, no arrows */
+@media (max-width: 900px){
+  .quick-nav-container{ padding: 0.35rem; }
+  .quick-nav-arrow{ display: none; }
+  .quick-nav-rail{ padding: 2px 0; }
+  .quick-nav-item a{
+    height: 32px;
+    padding: 0 12px;
+    font-size: 0.70rem;
+  }
 }
 
 .about-panel-list-item {
@@ -1991,7 +1869,8 @@ input[type="number"] {
   max-width: 100%;       /* <-- was 1320px */
   margin: 0;             /* <-- no centering container */
   padding-inline: 1.25rem;
-  padding-block: 1.25rem;
+  padding-top: 0;
+  padding-bottom: 1.25rem;
   gap: 1.25rem;
   column-gap: 2.5rem;
 }
@@ -2091,14 +1970,6 @@ footer,
   padding-inline: 1.5rem;
 }
 
-/* === FINAL POLISH: NAV + QUICK NAV === */
-
-/* Navbar content should stretch with the page */
-.navbar-container {
-  max-width: 100%;
-  margin: 0;
-}
-
 /* === DARK MODE CONTAINER POLISH === */
 
 /* Main content containers - match light mode rounding, lighter depth */
@@ -2132,7 +2003,7 @@ footer,
   position: sticky;
   top: 0;
   z-index: 30;
-  padding: 0.55rem 1.25rem;
+  padding: 0.40rem 1.00rem;
   border-bottom: 1px solid rgba(148,163,184,0.18);
 
   /* DESKTOP GLASS */
@@ -2205,20 +2076,23 @@ footer,
 
 @media (min-width: 901px){
   :root{
-    --pp-hdr-h: clamp(96px, 4.4vw, 112px);
-    --pp-right-h: clamp(108px, 4.8vw, 124px);
+    --pp-hdr-h: clamp(80px, 3.5vw, 94px);
+    --pp-right-h: clamp(88px, 3.9vw, 102px);
     --pp-gap: clamp(10px, 1.1vw, 16px);
 
     --pp-left-w: clamp(260px, 22vw, 360px);
     --pp-brand-w: clamp(520px, 34vw, 700px);
     --pp-right-w: clamp(280px, 22vw, 380px);
 
-    --pp-btn-h: clamp(34px, 2.2vw, 38px);
-    --pp-input-h: clamp(38px, 2.6vw, 44px);
+    --pp-btn-h: clamp(30px, 1.9vw, 32px);
+    --pp-input-h: clamp(30px, 1.8vw, 32px);
     --pp-radius: clamp(14px, 1.2vw, 18px);
-    --pp-btn-pad-x: clamp(0.44rem, 0.9vw, 0.70rem);
-    --pp-btn-font: clamp(0.78rem, 0.85vw, 0.90rem);
-    --pp-sub-row-h: clamp(104px, 6.0vw, 120px);
+    --pp-btn-pad-x: clamp(0.40rem, 0.8vw, 0.62rem);
+    --pp-btn-font: clamp(0.74rem, 0.82vw, 0.86rem);
+    --pp-sub-row-h: clamp(90px, 5.2vw, 104px);
+
+    /* Desktop search expand width (keeps it off the banner) */
+    --pp-input-expanded-w: clamp(120px, 7.8vw, 140px);
   }
 
   /* Symmetric layout: keeps banner perfectly centered while resizing */
@@ -2258,10 +2132,11 @@ footer,
     width: 100%;
     height: 100%;
     display: grid;
-    grid-template-rows: 1fr 1fr;
-    gap: 10px;
+    grid-template-rows: var(--pp-btn-h) var(--pp-btn-h);
+    align-content: center;
+    gap: 6px;
 
-    padding: 10px;
+    padding: 6px;
     border-radius: var(--pp-radius);
     border: 1px solid rgba(148,163,184,0.18);
     background: rgba(255,255,255,0.02);
@@ -2285,7 +2160,7 @@ footer,
   /* Buttons: flat toolbar style (no nested pills) */
   .pp-topnav__right .pp-topnav__link,
   .pp-topnav__right .pp-topnav__linkBtn{
-    height: 34px;
+    height: var(--pp-btn-h);
     padding: 0 0.65rem;
     border-radius: 12px;
 
@@ -2295,6 +2170,8 @@ footer,
 
     font-weight: 850;
     letter-spacing: 0.01em;
+    white-space: nowrap;
+    line-height: 1;
   }
 
   /* Calm hover */
@@ -2329,9 +2206,9 @@ footer,
 
   .pp-topnav__acctBtn{
     width: 100%;
-    height: 34px;
-    padding: 0 0.8rem;
-    border-radius: 12px;
+    height: var(--pp-btn-h);
+    padding: 0 var(--pp-btn-pad-x);
+    border-radius: calc(var(--pp-radius, 18px) - 6px);
     border: 1px solid rgba(148,163,184,0.14);
     background: rgba(255,255,255,0.02);
 
@@ -2343,6 +2220,7 @@ footer,
     font-weight: 850;
     letter-spacing: 0.01em;
     color: var(--text-primary);
+    font-size: var(--pp-btn-font);
     cursor: pointer;
     user-select: none;
   }
@@ -2474,8 +2352,8 @@ footer,
 
   /* Keep the searches tidy */
   .pp-topnav__searchWrap{
-    width: 210px;
-    max-width: 210px;
+    width: 160px;
+    max-width: 160px;
     margin: 0;
     align-content: center;
   }
@@ -2536,12 +2414,16 @@ footer,
   align-items:center;
   gap: 0.75rem;
   min-width: 0;
+  position: relative;
+  z-index: 3;
 }
 
 .pp-topnav__logo{
   display:flex;
   align-items:center;
   text-decoration:none;
+  position: relative;
+  z-index: 1;
 }
 
 .pp-topnav__brandCard{
@@ -2573,20 +2455,27 @@ footer,
 .pp-topnav__searchWrap{
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.55rem;
-  width: 220px;
-  max-width: 220px;
+  gap: 0.40rem;
+  width: 160px;
+  max-width: 160px;
   min-width: 0;
+  grid-auto-rows: var(--pp-input-h, 40px);
 }
 
 .pp-topnav__searchInput{
   background: var(--pp-surface-2);
   border: 1px solid var(--border-color);
-  border-radius: 14px;
-  min-height: 40px;
-  padding: 0.45rem 0.75rem;
+  border-radius: calc(var(--pp-radius, 18px) - 6px);
+  height: var(--pp-input-h, 40px);
+  min-height: 0;
+  padding: 0 0.55rem;
   color: var(--text-primary);
-  font-size: 0.88rem;
+  font-size: var(--pp-btn-font, 0.88rem);
+  line-height: 1;
+  width: 100%;
+  min-width: 0;
+  display: block;
+  box-sizing: border-box;
 }
 
 .pp-topnav__searchInput::placeholder{
@@ -2602,8 +2491,7 @@ footer,
 
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
   .pp-topnav__searchInput,
-  .pp-theme-toggle,
-  .pp-topnav__iconBtn{
+  .pp-theme-toggle{
     background: color-mix(in srgb, var(--pp-surface-2) 75%, transparent) !important;
     border: 1px solid rgba(148,163,184,0.22) !important;
     backdrop-filter: blur(12px) saturate(155%);
@@ -2716,10 +2604,10 @@ footer,
   color: var(--text-primary);
   text-decoration:none;
   font-weight: 700;
-  height: 38px;
-  padding: 0 0.70rem;
-  font-size: 0.90rem;
-  border-radius: 14px;
+  height: var(--pp-btn-h, 38px);
+  padding: 0 var(--pp-btn-pad-x, 0.70rem);
+  font-size: var(--pp-btn-font, 0.90rem);
+  border-radius: calc(var(--pp-radius, 18px) - 6px);
   background:none;
   border: 1px solid transparent;
   cursor:pointer;
@@ -2750,13 +2638,13 @@ footer,
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  height: 2rem;
+  height: var(--pp-btn-h, 34px);
   padding: 0 0.7rem;
   border-radius: 999px;
   cursor: pointer;
   user-select: none;
 
-  border: 2px solid var(--border-color);
+  border: 1px solid rgba(148,163,184,0.22);
   background: rgba(255,255,255,0.06);
   color: var(--text);
 
@@ -2815,10 +2703,14 @@ footer,
 
 /* Compact (mobile topbar): emoji-only */
 .pp-theme-toggle--compact{
-  width: 2rem;
-  min-width: 2rem;
+  width: var(--pp-btn-h, 34px);
+  min-width: var(--pp-btn-h, 34px);
   padding: 0;
   border-radius: 999px;
+}
+
+.pp-theme-toggle--compact .pp-theme-toggle__label{
+  display: none;
 }
 
 /* Emoji animates when theme changes */
@@ -3943,46 +3835,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 }
 
-/* 2) Quick-nav — ultra compact on mobile (FINAL override) */
-@media (max-width: 900px) {
-  .quick-nav-container{
-    top: calc(3.45rem + env(safe-area-inset-top)); /* snug under header */
-    margin: 0 0 0.55rem;
-    padding: 0.14rem;
-    min-height: 38px;
-    border-radius: 14px;
-
-    /* keep it fast */
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  .quick-nav-scroll{
-    padding: 2px 6px;
-    gap: 6px;
-  }
-
-  .quick-nav-list{
-    gap: 0.35rem;
-  }
-
-  .quick-nav-item a{
-    height: 26px;              /* smaller pills */
-    padding: 0 0.55rem;
-    font-size: 0.60rem;
-    letter-spacing: 0.085em;
-  }
-}
-
-/* extra tight for tiny phones */
-@media (max-width: 420px){
-  .quick-nav-item a{
-    height: 24px;
-    padding: 0 0.50rem;
-    font-size: 0.58rem;
-  }
-}
-
 /* 3) Touch devices: kill “hover jump” effects so taps don’t bounce */
 @media (hover: none) and (pointer: coarse) {
   .menu-item-card:hover {
@@ -4150,28 +4002,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     overflow: visible !important;
   }
 
-  /* Navbar: compact top bar + dropdown search */
-  .pp-topnav__iconBtn {
-    width: 2.2rem;
-    height: 2.2rem;
-    border-radius: 26px;
-    border: 1px solid var(--border-color);
-    background: rgba(0, 0, 0, 0.14);
-    color: var(--text-light);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform 160ms ease, border-color 160ms ease,
-      box-shadow 160ms ease;
-    flex: 0 0 auto;
-  }
-  .pp-topnav__iconBtn.is-active {
-    border-color: rgba(190, 242, 100, 0.75);
-    box-shadow: 0 0 0 3px rgba(190, 242, 100, 0.14);
-    transform: translateY(-1px);
-  }
-
   /* Backdrop + drawer */
   .pp-topnav__searchBackdrop {
     position: fixed;
@@ -4236,11 +4066,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     }
   }
 
-  /* Quick-nav sticky offset: navbar is compact again */
-  .quick-nav-container {
-    /* Keep category chips snug under the sticky header */
-    top: calc(3.75rem + env(safe-area-inset-top));
-  }
 }
 
 /* =========================================================
@@ -7268,96 +7093,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 }
 
-@media (max-width: 1023.98px){
-  .pp-topnav__iconBtn{
-    width: 2.15rem;
-    height: 2.15rem;
-    border-radius: 999px;
-    border: 1px solid var(--border-color);
-    background: rgba(0,0,0,0.12);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.05rem;
-  }
-
-  .pp-topnav__cartBtn{
-    position: relative;
-  }
-
-  .pp-topnav__badge{
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    border-radius: 999px;
-    background: var(--brand-neon-green);
-    color: #0b1220;
-    font-weight: 950;
-    font-size: 0.7rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(0,0,0,0.18);
-  }
-
-  .pp-topnav__userBackdrop{
-    position: fixed;
-    inset: 0;
-    z-index: 18;
-    background: rgba(2, 6, 23, 0.18);
-  }
-
-  .pp-topnav__userDrawer{
-    position: absolute;
-    right: 0.6rem;
-    top: calc(100% + 0.35rem);
-    z-index: 19;
-    width: min(240px, calc(100vw - 1.2rem));
-    opacity: 0;
-    transform: translateY(-10px);
-    pointer-events: none;
-    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
-  }
-
-  .pp-topnav__userDrawer.is-open{
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-
-  .pp-topnav__userDrawerInner{
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    background: var(--pp-surface, var(--panel));
-    box-shadow: var(--shadow-modal);
-    padding: 0.5rem;
-    display: grid;
-    gap: 0.4rem;
-  }
-
-  .pp-topnav__drawerBtn{
-    width: 100%;
-    border-radius: 14px;
-    border: 1px solid rgba(148,163,184,0.22);
-    background: rgba(255,255,255,0.04);
-    padding: 0.65rem 0.75rem;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-size: 0.78rem;
-    justify-content: flex-start;
-    gap: 0.55rem;
-  }
-
-  .pp-topnav__drawerBtn--danger{
-    border-color: rgba(190,242,100,0.30);
-    background: rgba(190,242,100,0.08);
-  }
-}
-
 /* Meal Deal Half & Half: pick-halves stage uses the regular Menu grid inside the modal */
 .pp-hh-mealPick{
   display: flex;
@@ -8605,28 +8340,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
 }
 
-@media (max-width: 1023.98px){
-  /* small breathing room between header pill and the sticky category nav */
-  .pp-topnav{
-    padding-bottom: 0.65rem !important;
-  }
-}
-
-/* =========================================================
-   MOBILE: prevent sticky category nav overlapping header
-   ========================================================= */
-@media (max-width: 1023.98px){
-  :root{
-    /* header pill total occupied height (tuned) */
-    --pp-mobile-header-offset: 76px;
-    --pp-mobile-header-gap: 0px;
-  }
-
-  /* This is the sticky category chips bar */
-  .quick-nav-container{
-    top: calc(var(--pp-mobile-header-offset) + var(--pp-mobile-header-gap) + env(safe-area-inset-top)) !important;
-  }
-}
 
 /* =========================================================
    ItemDetailPanel close button -- make it obvious on photos
@@ -8678,25 +8391,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
     0 16px 40px rgba(0,0,0,0.46) !important;
 }
 
-/* =========================================================
-   Mobile QuickNav: sticky + truly swipeable
-   ========================================================= */
-@media (max-width: 1023.98px){
-  .quick-nav-container{
-    position: sticky !important;
-    z-index: 40 !important;
-
-    /* keep your existing top logic, but ensure it always applies */
-    top: calc(var(--pp-mobile-header-offset, 82px) + env(safe-area-inset-top)) !important;
-  }
-
-  .quick-nav-scroll{
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
-    overscroll-behavior-x: contain;
-  }
-}
 
 /* =========================================================
    MODERN PASS (no carbon) -- left menu only
@@ -8819,10 +8513,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   overflow: hidden;
 }
 
-.left-pane .quick-nav-container{
-  isolation: isolate;
-}
-
 .left-pane .main-content-area{
   position: relative;
   isolation: isolate;
@@ -8830,7 +8520,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* fine micro-diagonal film (very subtle) */
-.left-pane .quick-nav-container::before,
 .left-pane .main-content-area::before,
 .left-pane .menu-category::before{
   content:"";
@@ -8852,7 +8541,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* soft highlight vignette (adds depth without "busy" patterns) */
-.left-pane .quick-nav-container::after,
 .left-pane .main-content-area::after,
 .left-pane .menu-category::after{
   content:"";
@@ -8869,8 +8557,7 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* keep real content above texture */
-.left-pane .quick-nav-container > *,
-.left-pane .main-content-area > :not(.quick-nav-container),
+.left-pane .main-content-area > *,
 .left-pane .menu-category > *{
   position: relative;
   z-index: 1;
@@ -8879,985 +8566,11 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 /* ---------- (D) Don't change order panel at all ---------- */
 /* (Intentionally no .order-panel-container overrides here) */
 
-/* =========================================================
-   DESKTOP: keep header sticky + tuck QuickNav under it
-   ========================================================= */
-@media (min-width: 1024px){
-  .quick-nav-container{
-    top: calc(4.35rem + 8px + env(safe-area-inset-top)) !important;
-  }
-}
-
 @media (max-width: 1023.98px){
   .pp-topnav__searchDrawer{
     position: absolute !important;
   }
 }
-
-/* =========================================================
-   QUICK NAV — FINAL OVERRIDE (clean rail + no clipping)
-   Paste at VERY BOTTOM so it wins
-   ========================================================= */
-
-.quick-nav-container{
-  display: block !important;
-
-  padding: 0.45rem !important;
-  min-height: 60px !important;
-
-  border-radius: 20px !important;
-  border: 1px solid var(--border-color) !important;
-
-  overflow: visible !important;  /* let arrow glow + rounded ends render cleanly */
-  position: relative; /* keeps layering predictable */
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-}
-
-/* When arrows are present (desktop), keep the rail consistent */
-.quick-nav-container.quick-nav-container--arrows{
-  padding: 0.45rem !important;
-}
-
-[data-theme='dark'] .quick-nav-container{
-  background: rgba(2,6,23,0.42) !important;
-  border-color: rgba(255,255,255,0.14) !important;
-}
-
-[data-theme='light'] .quick-nav-container{
-  background: rgba(255,255,255,0.86) !important;
-  border-color: rgba(15,23,42,0.12) !important;
-}
-
-.quick-nav-scroll{
-  width: 100% !important;
-  min-width: 0 !important;
-
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-
-  overflow-x: auto !important;
-  overflow-y: visible !important;
-  white-space: nowrap !important;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-
-  /* arrows are INSIDE the scroller now - don't add fake side gutters */
-  padding: 8px 12px !important;
-
-  position: relative !important;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.quick-nav-scroll::-webkit-scrollbar{ display:none; }
-
-.quick-nav-list{
-  margin: 0 !important;
-  padding: 0 !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 0.5rem !important;
-  flex: 0 0 auto !important;
-}
-
-/* When the row fits, visually balance the pills */
-.quick-nav--fits .quick-nav-list{
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-
-/* Optional: when it fits, make arrows less visually “present” */
-.quick-nav--fits .quick-nav-arrow--inscroll{
-  opacity: 0.35 !important;
-}
-
-.quick-nav-item a{
-  height: 38px;                 /* fixes the "sitting low" look */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 0 0.95rem !important;
-  border-radius: 999px;
-  line-height: 1;
-}
-
-.quick-nav-arrow{
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 999px !important;
-
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  border: 1px solid rgba(148,163,184,0.22) !important;
-  background: rgba(255,255,255,0.10) !important;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.10) !important;
-
-  transform: none !important;
-}
-
-.quick-nav-arrow--inscroll{
-  position: sticky !important;
-  z-index: 5 !important;
-  flex: 0 0 auto !important;
-
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 999px !important;
-
-  /* this makes them look "part of the bar" */
-  background: color-mix(in srgb, var(--panel) 88%, transparent) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
-  box-shadow: 0 10px 22px rgba(0,0,0,0.10) !important;
-
-  align-self: center;
-  margin: 0;
-}
-
-
-.quick-nav-arrow--left.quick-nav-arrow--inscroll{
-  left: 14px !important;
-}
-
-.quick-nav-arrow--right.quick-nav-arrow--inscroll{
-  right: 14px !important;
-}
-
-[data-theme='dark'] .quick-nav-arrow:not(.quick-nav-arrow--inscroll){
-  background: rgba(15,23,42,0.35) !important;
-}
-[data-theme='light'] .quick-nav-arrow:not(.quick-nav-arrow--inscroll){
-  background: rgba(255,255,255,0.92) !important;
-}
-
-@media (max-width: 900px){
-  .quick-nav-container{
-    padding: 0.5rem !important;
-  }
-  .quick-nav-arrow{ display: none !important; }
-  .quick-nav-scroll{
-    padding: 0.15rem 0.25rem !important;
-    scroll-padding-left: 0.25rem !important;
-    scroll-padding-right: 0.25rem !important;
-  }
-
-  .quick-nav-container--arrows .quick-nav-scroll{
-    padding-left: 0.15rem !important;
-    padding-right: 0.25rem !important;
-    scroll-padding-left: 0.25rem !important;
-    scroll-padding-right: 0.25rem !important;
-  }
-}
-
-/* =========================================================
-   Quick Nav — alignment + centering (DESKTOP/TABLET ONLY)
-   Fixes: chips sitting low + row feels unbalanced
-   ========================================================= */
-@media (min-width: 901px){
-  .quick-nav-scroll{
-    /* keep the scroll area aligned with the sticky arrows */
-    display: flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 8px 12px !important;
-    position: relative !important;
-  }
-
-  .quick-nav-list{
-    height: 44px !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: 0.5rem !important;
-  }
-
-  .quick-nav-item{
-    display: flex !important;
-    align-items: center !important;
-  }
-
-  .quick-nav-item a{
-    /* force the pills to sit dead-center vertically */
-    height: 38px !important;
-    padding: 0 0.95rem !important;
-
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    line-height: 1 !important;
-  }
-
-  .quick-nav-arrow{
-    /* arrows centered in their grid columns */
-    align-self: center !important;
-  }
-}
-
-/* =========================================================
-   QUICK NAV — Sleek Modern Rail (FINAL)
-   Targets: .quick-nav-container / --arrows / .quick-nav-scroll
-   Paste at VERY BOTTOM so it wins
-   ========================================================= */
-
-.quick-nav-container{
-  --qnav-h: 64px;
-  --qnav-radius: 22px;
-  --qnav-inner-radius: 18px;
-  --qnav-pad: 10px;
-  --qnav-gap: 10px;
-
-  min-height: var(--qnav-h) !important;
-  border-radius: var(--qnav-radius) !important;
-  padding: var(--qnav-pad) !important;
-
-  border: 1px solid rgba(148,163,184,0.18) !important;
-  overflow: visible !important;  /* let arrow glow + rounded ends render cleanly */
-  position: relative; /* keeps layering predictable */
-  position: sticky !important;
-
-  /* crisp glass */
-  background: rgba(255,255,255,0.78) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-
-  box-shadow:
-    0 18px 50px rgba(15,23,42,0.10),
-    inset 0 1px 0 rgba(255,255,255,0.65) !important;
-}
-
-/* Symmetrical rail: dedicated arrow slots */
-.quick-nav-container.quick-nav-container--arrows{
-  display: grid !important;
-  grid-template-columns: 56px 1fr 56px !important; /* equal slots */
-  align-items: center !important;
-  gap: 10px !important;
-}
-
-[data-theme="dark"] .quick-nav-container{
-  background: rgba(2,6,23,0.42) !important;
-  border-color: rgba(255,255,255,0.12) !important;
-  box-shadow:
-    0 22px 70px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.07) !important;
-}
-
-/* Inner rail */
-.quick-nav-scroll{
-  width: 100% !important;
-  min-width: 0 !important;
-
-  display: flex !important;
-  align-items: center !important;
-  gap: var(--qnav-gap) !important;
-
-  padding: 8px 12px !important;
-  border-radius: var(--qnav-inner-radius) !important;
-
-  /* subtle inner track so it feels “designed” */
-  background: rgba(15,23,42,0.03) !important;
-  border: 1px solid rgba(148,163,184,0.14) !important;
-
-  overflow-x: auto !important;
-  overflow-y: visible !important;
-  white-space: nowrap !important;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-
-  position: relative !important;
-}
-.quick-nav-scroll::-webkit-scrollbar{ display:none; }
-
-/* Center the scroll lane between arrows */
-.quick-nav-container--arrows .quick-nav-scroll{
-  grid-column: 2 !important;
-  padding: 8px 10px !important; /* normal padding now */
-  justify-content: center !important; /* looks "complete" */
-}
-
-[data-theme="dark"] .quick-nav-scroll{
-  background: rgba(255,255,255,0.045) !important;
-  border-color: rgba(255,255,255,0.10) !important;
-}
-
-/* Pills row */
-.quick-nav-list{
-  list-style: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-
-  flex: 0 0 auto !important; /* prevents odd stretching */
-}
-
-/* Pills */
-.quick-nav-item a{
-  height: 38px !important;
-  padding: 0 14px !important;
-  border-radius: 999px !important;
-
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  font-weight: 900 !important;
-  font-size: 0.74rem !important;
-  letter-spacing: 0.12em !important;
-  text-transform: uppercase !important;
-  line-height: 1 !important;
-
-  text-decoration: none !important;
-
-  border: 1px solid rgba(148,163,184,0.18) !important;
-  background: rgba(255,255,255,0.65) !important;
-  color: rgba(15,23,42,0.78) !important;
-
-  box-shadow: 0 10px 22px rgba(15,23,42,0.08) !important;
-  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
-}
-
-[data-theme="dark"] .quick-nav-item a{
-  background: rgba(255,255,255,0.06) !important;
-  border-color: rgba(255,255,255,0.10) !important;
-  color: rgba(226,232,240,0.86) !important;
-  box-shadow: 0 12px 26px rgba(0,0,0,0.28) !important;
-}
-
-.quick-nav-item a:hover{
-  transform: translateY(-1px) !important;
-  border-color: rgba(190,242,100,0.28) !important;
-  box-shadow: 0 16px 36px rgba(15,23,42,0.14) !important;
-}
-[data-theme="dark"] .quick-nav-item a:hover{
-  box-shadow: 0 18px 44px rgba(0,0,0,0.40) !important;
-}
-
-/* Active pill */
-.quick-nav-item a.active-nav-link{
-  color: #0b1220 !important;
-  border-color: rgba(190,242,100,0.55) !important;
-  background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(190,242,100,0.72)) !important;
-  box-shadow:
-    0 16px 38px rgba(190,242,100,0.14),
-    inset 0 1px 0 rgba(255,255,255,0.65) !important;
-}
-
-/* Arrow buttons in dedicated slots (NOT inside scroller) */
-.quick-nav-arrow--slot{
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 999px !important;
-
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  position: static !important;  /* kill sticky positioning */
-  z-index: auto !important;
-  transform: none !important;
-
-  border: 1px solid rgba(148,163,184,0.18) !important;
-  background: rgba(255,255,255,0.82) !important;
-  color: rgba(15,23,42,0.85) !important;
-
-  box-shadow: 0 14px 30px rgba(15,23,42,0.10) !important;
-}
-
-[data-theme="dark"] .quick-nav-arrow--slot{
-  background: rgba(15,23,42,0.55) !important;
-  border-color: rgba(255,255,255,0.12) !important;
-  color: rgba(226,232,240,0.92) !important;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.40) !important;
-}
-
-.quick-nav-arrow--left.quick-nav-arrow--slot{ grid-column: 1 !important; }
-.quick-nav-arrow--right.quick-nav-arrow--slot{ grid-column: 3 !important; }
-
-.quick-nav-arrow--slot:hover:enabled{
-  transform: translateY(-1px) scale(1.02) !important;
-  border-color: rgba(190,242,100,0.35) !important;
-}
-
-.quick-nav-arrow--slot:disabled{
-  opacity: 0.32 !important;
-  box-shadow: none !important;
-}
-
-/* Focus-visible (keyboard accessibility) */
-.quick-nav-item a:focus-visible,
-.quick-nav-arrow--slot:focus-visible{
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(190,242,100,0.22), 0 14px 34px rgba(15,23,42,0.12) !important;
-}
-
-/* Mobile: slightly tighter rail */
-@media (max-width: 900px){
-  .quick-nav-container.quick-nav-container--arrows{
-    display: block !important;
-  }
-
-  .quick-nav-arrow--slot{
-    display: none !important;
-  }
-
-  .quick-nav-container{
-    --qnav-h: 60px;
-    --qnav-pad: 8px;
-    --qnav-gap: 8px;
-    border-radius: 18px !important;
-  }
-
-  .quick-nav-scroll{
-    padding: 8px 10px !important;
-    justify-content: flex-start !important;
-  }
-
-  .quick-nav-item a{
-    height: 36px !important;
-    padding: 0 12px !important;
-    font-size: 0.70rem !important;
-  }
-}
-
-/* =========================================================
-   QUICK NAV — Modern v2 (symmetrical + premium)
-   Paste at VERY BOTTOM so it wins
-   Targets: .quick-nav-container / --arrows / .quick-nav-scroll
-   ========================================================= */
-
-.quick-nav-container{
-  --qnav-h: 66px;
-  --qnav-slot: 64px;
-  --qnav-radius: 24px;
-  --qnav-track-radius: 18px;
-
-  min-height: var(--qnav-h) !important;
-  border-radius: var(--qnav-radius) !important;
-  padding: 10px 12px !important;
-
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent) !important;
-  overflow: visible !important;  /* let arrow glow + rounded ends render cleanly */
-  position: relative; /* keeps layering predictable */
-  position: sticky !important;
-
-  /* modern glass */
-  background: color-mix(in srgb, var(--panel) 86%, rgba(255,255,255,0.10)) !important;
-  backdrop-filter: blur(18px) saturate(1.15) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
-
-  box-shadow:
-    0 18px 50px rgba(15,23,42,0.10),
-    inset 0 1px 0 rgba(255,255,255,0.55) !important;
-}
-
-[data-theme="dark"] .quick-nav-container{
-  background: color-mix(in srgb, var(--panel) 72%, rgba(0,0,0,0.20)) !important;
-  box-shadow:
-    0 22px 70px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.08) !important;
-}
-
-/* Symmetry: dedicated arrow slots */
-.quick-nav-container.quick-nav-container--arrows{
-  display: grid !important;
-  grid-template-columns: var(--qnav-slot) 1fr var(--qnav-slot) !important;
-  align-items: center !important;
-  gap: 10px !important;
-}
-
-/* Middle lane */
-.quick-nav-container--arrows .quick-nav-scroll{
-  grid-column: 2 !important;
-}
-
-/* Ensure the scroll lane behaves like a scroller (not a centered tray) */
-.quick-nav-container--arrows .quick-nav-scroll{
-  justify-content: flex-start !important;
-}
-
-/* Scroll lane = subtle "track" (NO clipping) */
-.quick-nav-scroll{
-  width: 100% !important;
-  min-width: 0 !important;
-
-  display: flex !important;
-  align-items: center !important;
-
-  overflow-x: auto !important;
-  overflow-y: visible !important; /* key: don't nibble pill edges */
-
-  padding: 8px 16px !important;
-  scroll-padding-left: 16px !important;
-  scroll-padding-right: 16px !important;
-
-  /* IMPORTANT: remove track styling from the scroller itself */
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-
-  position: relative !important;
-  isolation: isolate !important;
-
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.quick-nav-scroll::-webkit-scrollbar{ display:none; }
-
-/* Make sure pills sit above the track */
-.quick-nav-scroll .quick-nav-list{
-  position: relative;
-  z-index: 1;
-}
-
-/* Extra end buffers so first/last pill never looks chopped */
-.quick-nav-list::before,
-.quick-nav-list::after{
-  content: "";
-  flex: 0 0 16px;
-}
-
-/* Pills row */
-.quick-nav-list{
-  flex: 0 0 auto !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  list-style: none !important;
-
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-}
-
-/* Pills: less "shouty", more product-y */
-.quick-nav-item a{
-  height: 38px !important;
-  padding: 0 14px !important;
-  border-radius: 999px !important;
-
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  font-weight: 850 !important;
-  font-size: 0.78rem !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-  line-height: 1 !important;
-
-  border: 1px solid rgba(148,163,184,0.18) !important;
-  background: rgba(255,255,255,0.72) !important;
-  color: color-mix(in srgb, var(--text-primary) 80%, rgba(15,23,42,0.35)) !important;
-
-  box-shadow: 0 10px 22px rgba(15,23,42,0.08) !important;
-  transition: transform 160ms var(--pp-ease, ease), box-shadow 160ms var(--pp-ease, ease), border-color 160ms ease, background-color 160ms ease;
-}
-
-[data-theme="dark"] .quick-nav-item a{
-  background: rgba(255,255,255,0.06) !important;
-  border-color: rgba(255,255,255,0.10) !important;
-  color: rgba(226,232,240,0.86) !important;
-  box-shadow: 0 12px 26px rgba(0,0,0,0.28) !important;
-}
-
-.quick-nav-item a:hover{
-  transform: translateY(-1px) !important;
-  border-color: rgba(190,242,100,0.28) !important;
-  box-shadow: 0 16px 36px rgba(15,23,42,0.14) !important;
-}
-
-.quick-nav-item a.active-nav-link{
-  color: #0b1220 !important;
-  border-color: rgba(190,242,100,0.55) !important;
-  background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(190,242,100,0.72)) !important;
-  box-shadow: 0 16px 38px rgba(190,242,100,0.16) !important;
-}
-
-/* Arrows in dedicated slots */
-.quick-nav-arrow--slot{
-  width: 44px !important;
-  height: 44px !important;
-  border-radius: 999px !important;
-
-  justify-self: center !important;
-  align-self: center !important;
-
-  border: 1px solid rgba(148,163,184,0.18) !important;
-  background: rgba(255,255,255,0.82) !important;
-  color: rgba(15,23,42,0.88) !important;
-
-  box-shadow: 0 14px 30px rgba(15,23,42,0.10) !important;
-  transition: transform 160ms var(--pp-ease, ease), box-shadow 160ms var(--pp-ease, ease), border-color 160ms ease, opacity 160ms ease;
-}
-
-[data-theme="dark"] .quick-nav-arrow--slot{
-  background: rgba(15,23,42,0.55) !important;
-  border-color: rgba(255,255,255,0.12) !important;
-  color: rgba(226,232,240,0.92) !important;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.40) !important;
-}
-
-.quick-nav-arrow--slot:hover:enabled{
-  transform: translateY(-1px) scale(1.02) !important;
-  border-color: rgba(190,242,100,0.35) !important;
-}
-
-.quick-nav-arrow--slot:disabled{
-  opacity: 0.30 !important;
-  box-shadow: none !important;
-}
-
-/* Keyboard focus */
-.quick-nav-item a:focus-visible,
-.quick-nav-arrow--slot:focus-visible{
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(190,242,100,0.22), 0 14px 34px rgba(15,23,42,0.12) !important;
-}
-
-/* When it fits, center the whole pill set (symmetry feels "complete") */
-.quick-nav--fits .quick-nav-list{
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-
-/* Mobile: keep the modern rail, hide arrow slots */
-@media (max-width: 900px){
-  .quick-nav-container.quick-nav-container--arrows{
-    display: block !important;
-  }
-  .quick-nav-arrow--slot{
-    display: none !important;
-  }
-  .quick-nav-scroll{
-    padding: 8px 10px !important;
-  }
-}
-
-/* =========================================================
-   QUICK NAV -- Edge space + end clipping fix (FINAL)
-   - tighter arrow slots (less dead space)
-   - tiny flex buffers so first/last pill never looks chopped
-   ========================================================= */
-
-.quick-nav-container{
-  padding: 8px 10px !important;     /* less outer dead space */
-  min-height: 62px !important;
-}
-
-/* smaller dedicated arrow pockets */
-.quick-nav-container.quick-nav-container--arrows{
-  display: grid !important;
-  grid-template-columns: 52px 1fr 52px !important; /* was too wide */
-  gap: 8px !important;
-  align-items: center !important;
-}
-
-/* track padding reduced so content uses the rail */
-.quick-nav-scroll{
-  padding: 8px 12px !important;      /* tighter = less wasted edge */
-  scroll-padding-left: 12px !important;
-  scroll-padding-right: 12px !important;
-  border-radius: 16px !important;
-}
-
-/* IMPORTANT: prevent cut-off look at both ends WITHOUT big padding.
-   These pseudo-elements act like tiny spacers inside the scroll lane. */
-.quick-nav-list::before,
-.quick-nav-list::after{
-  content: "";
-  flex: 0 0 14px;                    /* small buffer for pill rounded edge/shadow */
-}
-
-/* keep pills modern but reduce heavy shadow that exaggerates clipping */
-.quick-nav-item a{
-  box-shadow: 0 8px 18px rgba(15,23,42,0.06) !important;
-}
-
-/* if you have ultra-long labels, stop them kissing the rail edge */
-.quick-nav-item a{
-  scroll-margin-left: 8px;
-  scroll-margin-right: 8px;
-}
-
-/* Mobile stays as-is (arrows hidden). Keep the rail tight. */
-@media (max-width: 900px){
-  .quick-nav-container{
-    padding: 8px 8px !important;
-  }
-  .quick-nav-scroll{
-    padding: 7px 6px !important;
-  }
-  .quick-nav-list::before,
-  .quick-nav-list::after{
-    flex-basis: 10px;
-  }
-}
-
-/* =========================================================
-   QUICK NAV - END CLIP FIX (wins over all older blocks)
-   ========================================================= */
-
-.quick-nav-scroll{
-  width: 100% !important;
-  min-width: 0 !important;
-
-  position: relative !important;
-  isolation: isolate; /* makes z-index layers reliable */
-
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-
-  overflow-x: auto !important;
-  overflow-y: visible !important; /* prevents "nibbled" pill edges/shadows */
-
-  white-space: nowrap !important;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-
-  /* real breathing room so first/last chip never kisses the track edge */
-  padding: 8px 16px !important;
-  scroll-padding-left: 16px !important;
-  scroll-padding-right: 16px !important;
-
-  /* remove track styling from the scroller itself */
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.quick-nav-scroll::-webkit-scrollbar{ display:none; }
-
-/* Ensure chips render above the track */
-.quick-nav-scroll .quick-nav-list{
-  position: relative;
-  z-index: 1;
-}
-
-/* add true end-buffers INSIDE the list so pills never look chopped */
-.quick-nav-list::before,
-.quick-nav-list::after{
-  content: "" !important;
-  flex: 0 0 12px !important;
-}
-
-/* =========================================================
-   QUICK NAV -- NO CLIP SHELL (FINAL)
-   Fixes: pills looking cut off by rounded rail / track
-   ========================================================= */
-
-/* 1) Shell stops clipping */
-.quick-nav-container{
-  position: sticky !important;
-  overflow: visible !important;   /* <-- key change */
-  isolation: isolate !important;  /* stable stacking */
-}
-
-/* 2) Glass rail becomes a background layer (keeps rounded look) */
-.quick-nav-container::before{
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 24px;
-  pointer-events: none;
-  z-index: 0;
-
-  /* match your modern glass look */
-  background: color-mix(in srgb, var(--panel) 86%, rgba(255,255,255,0.10));
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-
-  box-shadow:
-    0 18px 50px rgba(15,23,42,0.10),
-    inset 0 1px 0 rgba(255,255,255,0.55);
-}
-
-[data-theme="dark"] .quick-nav-container::before{
-  background: color-mix(in srgb, var(--panel) 72%, rgba(0,0,0,0.20));
-  border-color: rgba(255,255,255,0.12);
-  box-shadow:
-    0 22px 70px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
-
-/* 3) Ensure real content sits above the background */
-.quick-nav-container > *{
-  position: relative;
-  z-index: 1;
-}
-
-/* =========================
-   Quick Nav -- FINAL "no cut ends"
-   ========================= */
-
-/* Dedicated arrow slots (your JSX has arrows as siblings) */
-.quick-nav-container.quick-nav-container--arrows{
-  display: grid !important;
-  grid-template-columns: 56px 1fr 56px !important;
-  align-items: center !important;
-  gap: 10px !important;
-
-  /* IMPORTANT: don't clip pill edges/shadows */
-  overflow: visible !important;
-}
-
-/* Middle lane */
-.quick-nav-container--arrows .quick-nav-scroll{
-  grid-column: 2 !important;
-}
-
-/* The scroller must NOT clip vertically */
-.quick-nav-scroll{
-  position: relative !important;
-  isolation: isolate !important;
-
-  overflow-x: auto !important;
-  overflow-y: visible !important; /* <- key */
-
-  clip-path: none !important;
-
-  /* comfortable but not "wasteful" */
-  padding: 10px 12px !important;
-  scroll-padding-left: 12px !important;
-  scroll-padding-right: 12px !important;
-
-  /* the track should NOT be the background/border of the scroller */
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-}
-
-/* Make pills sit above the track */
-.quick-nav-list{
-  position: relative !important;
-  z-index: 1 !important;
-}
-
-/* Real end buffers so first/last pill never looks "shaved" */
-.quick-nav-list::before,
-.quick-nav-list::after{
-  content: "";
-  flex: 0 0 16px;
-}
-
-/* Arrows in slots (not sticky) */
-.quick-nav-arrow--slot{
-  position: relative !important;
-  z-index: 2 !important;
-}
-
-/* Arrow "disabled" styling now driven by aria/data attributes (not the disabled attribute) */
-.quick-nav-arrow[aria-disabled="true"],
-.quick-nav-arrow[data-disabled="1"]{
-  opacity: 0.35;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* =========================================================
-   QUICK NAV — End cut-off fix (FINAL winner)
-   Targets: .quick-nav-container / --arrows / .quick-nav-scroll
-   ========================================================= */
-
-.quick-nav-container.quick-nav-container--arrows{
-  /* keep your symmetric arrow slots */
-  display: grid !important;
-  grid-template-columns: 56px 1fr 56px !important;
-  align-items: center !important;
-  gap: 10px !important;
-
-  /* don't clip chip edges */
-  overflow: visible !important;
-}
-
-/* The scroller must never fade/clip the ends */
-.quick-nav-scroll{
-  /* kill any remaining edge fades/masks from older attempts */
-  clip-path: none !important;
-
-  /* stop vertical clipping of pill shadows/edges */
-  overflow-x: auto !important;
-  overflow-y: visible !important;
-
-  /* real inner gutters so first/last chip never kisses the edge */
-  padding-left: 18px !important;
-  padding-right: 18px !important;
-  scroll-padding-left: 18px !important;
-  scroll-padding-right: 18px !important;
-}
-
-/* true end buffers inside the row (prevents "shaved" look at both ends) */
-.quick-nav-list::before,
-.quick-nav-list::after{
-  content: "" !important;
-  flex: 0 0 18px !important;
-}
-
-/* --- QuickNav: never rest "half-cut" (FINAL snap + padding) --- */
-.quick-nav-scroll{
-  /* snap to whole pills */
-  scroll-snap-type: x mandatory !important;
-  scroll-behavior: smooth !important;
-
-  /* make scrollIntoView land with breathing room */
-  scroll-padding-left: 16px !important;
-  scroll-padding-right: 16px !important;
-}
-
-/* snap points */
-.quick-nav-item{
-  scroll-snap-align: start !important;
-  scroll-snap-stop: always !important;
-}
-
-/* ensure start/end pills don't kiss the edge */
-.quick-nav-list::before,
-.quick-nav-list::after{
-  content: "" !important;
-  flex: 0 0 16px !important;
-}
-
-/* when we scrollIntoView, don't align flush to the very edge */
-.quick-nav-item a{
-  scroll-margin-left: 16px !important;
-  scroll-margin-right: 16px !important;
-}
-
-/* Quick Nav: remove the grey "track" bar behind chips */
-.quick-nav-scroll{
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  scroll-padding-left: 12px !important;
-  scroll-padding-right: 12px !important;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-/* If any older attempt drew a track as a pseudo-element, nuke it */
-.quick-nav-scroll::before,
-.quick-nav-scroll::after{
-  content: none !important;
-  display: none !important;
-}
-
 
 /* When we suppress the card title, tighten spacing a touch */
 .menu-item-card[data-pp-noheader="1"] .card-text-container{
@@ -10612,140 +9325,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   background: #f9fafb !important;
 }
 
-/* =========================================================
-   QuickNav polish (desktop spacing + sizing)
-   ========================================================= */
-@media (min-width: 901px){
-  .quick-nav-container{
-    margin: 0 0 0.9rem !important;
-    padding: 0.3rem 0.5rem !important;
-    min-height: 54px !important;
-    border-radius: 16px !important;
-  }
-
-  .quick-nav-scroll{
-    padding: 6px 10px !important;
-    gap: 8px !important;
-  }
-
-  .quick-nav-list{
-    gap: 0.45rem !important;
-  }
-
-  .quick-nav-item a{
-    height: 34px !important;
-    padding: 0 0.85rem !important;
-    font-size: 0.72rem !important;
-    letter-spacing: 0.08em !important;
-  }
-
-  .quick-nav-arrow--inscroll{
-    width: 40px !important;
-    height: 40px !important;
-  }
-}
-
-/* QuickNav: add breathing room between arrows and category pills (desktop) */
-@media (min-width: 901px){
-  .quick-nav-arrow--left.quick-nav-arrow--inscroll{
-    margin-right: 8px;
-  }
-
-  .quick-nav-arrow--right.quick-nav-arrow--inscroll{
-    margin-left: 8px;
-  }
-}
-
-/* =========================================================
-   QuickNav (desktop): inscroll arrows + gutters (FINAL)
-   ========================================================= */
-
-@media (min-width: 901px){
-  .quick-nav-container.quick-nav-container--arrows{
-    display: block !important;
-    grid-template-columns: none !important;
-  }
-
-  .quick-nav-container--arrows .quick-nav-scroll{
-    padding: 8px 12px !important;
-    scroll-padding-left: 64px !important;
-    scroll-padding-right: 64px !important;
-  }
-
-  .quick-nav-arrow--inscroll{
-    position: sticky !important;
-    z-index: 6;
-    flex: 0 0 auto;
-    align-self: center;
-  }
-
-  .quick-nav-arrow--left.quick-nav-arrow--inscroll{
-    left: 8px !important;
-    margin-right: 8px; /* small gap before first pill */
-  }
-
-  .quick-nav-arrow--right.quick-nav-arrow--inscroll{
-    right: 8px !important;
-    margin-left: 8px; /* small gap after last pill */
-  }
-
-  .quick-nav-arrow--slot{
-    position: static !important;
-  }
-}
-
-@media (min-width: 901px){
-  .quick-nav-container.quick-nav-container--arrows{
-    display: block !important;
-  }
-
-  /* Enough room so chips never sit under sticky arrows */
-  .quick-nav-container--arrows .quick-nav-scroll{
-    scroll-padding-left: 64px !important;
-    scroll-padding-right: 64px !important;
-  }
-
-  .quick-nav-arrow--inscroll{
-    position: sticky !important;
-    z-index: 6;
-    flex: 0 0 auto;
-    align-self: center;
-  }
-
-  .quick-nav-arrow--left.quick-nav-arrow--inscroll{
-    left: 8px !important;
-  }
-
-  .quick-nav-arrow--right.quick-nav-arrow--inscroll{
-    right: 8px !important;
-  }
-}
-
-@media (min-width: 901px){
-  /* Enough room so chips never sit under sticky arrows */
-  .quick-nav-container--arrows .quick-nav-scroll{
-    scroll-padding-left: 64px;
-    scroll-padding-right: 64px;
-  }
-}
-
-@media (min-width: 901px){
-  .quick-nav-arrow--inscroll{
-    position: sticky !important;
-    z-index: 6;
-    flex: 0 0 auto;
-    align-self: center;
-  }
-
-  .quick-nav-arrow--left.quick-nav-arrow--inscroll{
-    left: 8px !important;
-  }
-
-  .quick-nav-arrow--right.quick-nav-arrow--inscroll{
-    right: 8px !important;
-  }
-}
-
 /* Ensure last categories can scroll under the sticky header+quicknav line */
 .menu-content::after{
   content: "";
@@ -11266,844 +9845,6 @@ body{
 }
 
 /* =========================================================
-   HEADER COMPLETION + STABLE QUICK-NAV ANIM (FINAL)
-   Paste at VERY END of App.css
-   ========================================================= */
-
-/* ---------- QUICK NAV: remove "shaky" transform shimmer, use background-position sheen ---------- */
-.quick-nav-item a{
-  transform: translate3d(0,0,0);          /* stable GPU path */
-  backface-visibility: hidden;
-  will-change: transform;
-  transition:
-    transform 180ms var(--pp-ease, cubic-bezier(.22,1,.36,1)),
-    box-shadow 180ms var(--pp-ease, cubic-bezier(.22,1,.36,1)),
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-/* Keep the lift but make it feel "smooth", not twitchy */
-.quick-nav-item a:hover{
-  transform: translate3d(0,-1px,0);
-}
-
-/* Replace your pill shimmer with a background-position sheen (no geometry jitter) */
-@keyframes ppPillSheenPos{
-  0%   { background-position: -140% 0; opacity: 0; }
-  15%  { opacity: 0.18; }
-  60%  { opacity: 0.12; }
-  100% { background-position: 140% 0; opacity: 0; }
-}
-
-.quick-nav-item a::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-
-  /* sheen strip */
-  background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.70) 50%, transparent 100%);
-  background-size: 220% 100%;
-  background-position: -140% 0;
-
-  opacity: 0;
-}
-
-/* run sheen on hover/focus */
-.quick-nav-item a:hover::before,
-.quick-nav-item a:focus-visible::before{
-  animation: ppPillSheenPos 950ms cubic-bezier(.22,1,.36,1) 1;
-}
-
-/* Active pill: add a clearer readable glow + keep your underline */
-@keyframes ppActiveBreathe2{
-  0%,100%{
-    box-shadow:
-      0 16px 40px rgba(0,0,0,0.22),
-      0 0 0 3px rgba(190,242,100,0.14),
-      0 0 22px rgba(190,242,100,0.16);
-  }
-  50%{
-    box-shadow:
-      0 20px 54px rgba(0,0,0,0.28),
-      0 0 0 3px rgba(190,242,100,0.20),
-      0 0 34px rgba(190,242,100,0.20);
-  }
-}
-
-/* Dark mode active pill text must stay readable */
-[data-theme="dark"] .quick-nav-item a.active-nav-link{
-  color: rgba(234,242,255,0.96) !important;
-  text-shadow: 0 10px 26px rgba(0,0,0,0.45);
-  animation: ppActiveBreathe2 2400ms ease-in-out infinite;
-}
-
-/* Light mode active stays crisp */
-[data-theme="light"] .quick-nav-item a.active-nav-link{
-  color: #0b1220 !important;
-  animation: ppActiveBreathe2 2400ms ease-in-out infinite;
-}
-
-/* Respect reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .quick-nav-item a:hover{ transform: none !important; }
-  .quick-nav-item a::before{ animation: none !important; }
-  .quick-nav-item a.active-nav-link{ animation: none !important; }
-}
-
-/* =========================================================
-   HEADER BACKDROP GLAZE (top-of-page only)
-   - Softens the carbon/diagonal backing behind the header
-   - Matches the new premium glass header
-   ========================================================= */
-
-html, body { position: relative; }
-
-/* Dark mode: calm the busy top backing */
-html[data-theme="dark"]::before{
-  content:"";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 190px;
-  pointer-events: none;
-  z-index: 2;                 /* below header (z=30), above page bg */
-  background:
-    radial-gradient(900px 240px at 18% 0%, rgba(190,242,100,0.10), transparent 62%),
-    radial-gradient(900px 240px at 82% 0%, rgba(190,242,100,0.08), transparent 62%),
-    linear-gradient(180deg, rgba(2,6,23,0.85), rgba(2,6,23,0.40), rgba(2,6,23,0.00));
-  opacity: 0.85;
-}
-
-/* Light mode: subtle top polish (optional but keeps parity) */
-html[data-theme="light"]::before{
-  content:"";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 190px;
-  pointer-events: none;
-  z-index: 2;
-  background:
-    radial-gradient(900px 240px at 18% 0%, rgba(22,163,74,0.07), transparent 62%),
-    radial-gradient(900px 240px at 82% 0%, rgba(190,242,100,0.05), transparent 62%),
-    linear-gradient(180deg, rgba(255,255,255,0.90), rgba(246,248,252,0.55), rgba(246,248,252,0.00));
-  opacity: 0.80;
-}
-
-/* Give the quick-nav a tiny top "glare" so it visually merges upward */
-.quick-nav-container{
-  margin-top: 0.35rem; /* creates breathing room so it doesn't slam into the header */
-}
-
-.quick-nav-container::before{
-  content:"";
-  position:absolute;
-  left: 18px;
-  right: 18px;
-  top: -10px;
-  height: 10px;
-  pointer-events:none;
-  background: linear-gradient(180deg, rgba(255,255,255,0.10), transparent);
-  filter: blur(6px);
-  opacity: 0.35;
-}
-
-/* =========================================================
-   Quick-nav sticky follow fix (FINAL)
-   - Uses --pp-qnav-top set by JS from the real header height
-   ========================================================= */
-
-:root{
-  --pp-qnav-top: 5.5rem; /* safe fallback */
-}
-
-/* Force sticky + use dynamic top so it always sits below the header */
-.quick-nav-container{
-  position: sticky !important;
-  top: var(--pp-qnav-top) !important;
-  z-index: 25 !important; /* above content, below header (header is 30) */
-}
-
-/* Make anchor jumps land correctly under the sticky header + quick-nav */
-.category-title{
-  scroll-margin-top: calc(var(--pp-qnav-top) + 1.25rem) !important;
-}
-
-/* Active chip: readable + premium (dark mode) */
-[data-theme='dark'] .quick-nav-item a.active-nav-link{
-  color: rgba(234,242,255,0.96) !important;
-  text-shadow: 0 10px 26px rgba(0,0,0,0.45);
-
-  background:
-    radial-gradient(120% 140% at 20% 0%, rgba(190,242,100,0.18), transparent 55%),
-    radial-gradient(120% 140% at 80% 0%, rgba(190,242,100,0.14), transparent 58%),
-    rgba(255,255,255,0.06) !important;
-
-  border-color: rgba(190,242,100,0.45) !important;
-  box-shadow:
-    0 18px 44px rgba(0,0,0,0.28),
-    0 0 0 3px rgba(190,242,100,0.14),
-    0 0 26px rgba(190,242,100,0.16) !important;
-}
-
-/* =========================================================
-   PP HEADER + BUTTONS + ACTIVE PILL (PREMIUM FINAL)
-   Paste at VERY END of App.css
-   ========================================================= */
-
-:root{
-  --pp-hdr-blur: 18px;
-  --pp-hdr-sat: 165%;
-  --pp-hdr-rim: rgba(148,163,184,0.18);
-
-  --pp-glass-btn-blur: 12px;
-  --pp-glass-btn-sat: 155%;
-
-  --pp-activeGlowA: rgba(190,242,100,0.18);
-  --pp-activeGlowB: rgba(190,242,100,0.10);
-}
-
-/* ---------- BUTTONS: consistent premium glass ---------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  :where(
-    .pp-btn,
-    .simple-button,
-    .pp-theme-toggle,
-    .pp-topnav__iconBtn,
-    .quantity-btn:not([title="Close"])
-  ){
-    position: relative;
-    overflow: hidden;
-
-    backdrop-filter: blur(var(--pp-glass-btn-blur)) saturate(var(--pp-glass-btn-sat));
-    -webkit-backdrop-filter: blur(var(--pp-glass-btn-blur)) saturate(var(--pp-glass-btn-sat));
-
-    border: 1px solid rgba(148,163,184,0.26) !important;
-    box-shadow:
-      0 14px 34px rgba(0,0,0,0.18),
-      inset 0 1px 0 rgba(255,255,255,0.16),
-      inset 0 -1px 0 rgba(0,0,0,0.18) !important;
-    transform: translateY(0);
-    transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
-  }
-
-  [data-theme="dark"] :where(.pp-btn,.simple-button,.pp-theme-toggle,.pp-topnav__iconBtn,.quantity-btn:not([title="Close"])){
-    background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.12)) !important;
-    color: rgba(234,242,255,0.92) !important;
-  }
-
-  [data-theme="light"] :where(.pp-btn,.simple-button,.pp-theme-toggle,.pp-topnav__iconBtn,.quantity-btn:not([title="Close"])){
-    background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(241,245,251,0.58)) !important;
-  }
-
-  /* Specular sweep (classy, not loud) */
-  :where(.pp-btn,.simple-button,.pp-theme-toggle,.pp-topnav__iconBtn,.quantity-btn:not([title="Close"]))::before{
-    content:"";
-    position:absolute;
-    inset:-2px;
-    pointer-events:none;
-    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.62), transparent);
-    opacity: 0;
-    transform: translateX(-120%) skewX(-18deg);
-  }
-
-  :where(.pp-btn,.simple-button,.pp-theme-toggle,.pp-topnav__iconBtn,.quantity-btn:not([title="Close"])):hover::before{
-    opacity: 0.14;
-    transform: translateX(120%) skewX(-18deg);
-    transition: transform 520ms cubic-bezier(.22,1,.36,1), opacity 180ms ease;
-  }
-
-  :where(.pp-btn,.simple-button,.pp-theme-toggle,.pp-topnav__iconBtn,.quantity-btn:not([title="Close"])):hover{
-    transform: translateY(-1px);
-    box-shadow:
-      0 18px 48px rgba(0,0,0,0.22),
-      inset 0 1px 0 rgba(255,255,255,0.18),
-      inset 0 -1px 0 rgba(0,0,0,0.22) !important;
-    filter: brightness(1.03) saturate(1.06);
-  }
-
-  :where(.pp-btn,.simple-button,.pp-theme-toggle,.pp-topnav__iconBtn,.quantity-btn:not([title="Close"])):active{
-    transform: translateY(0) scale(0.99);
-    filter: brightness(0.99);
-  }
-}
-
-/* ---------- ACTIVE CATEGORY: readable + premium + "breathing" glow ---------- */
-@keyframes ppActiveBreathe {
-  0%,100%{
-    box-shadow:
-      0 18px 44px rgba(0,0,0,0.20),
-      0 0 0 3px rgba(190,242,100,0.14),
-      0 0 24px var(--pp-activeGlowA);
-  }
-  50%{
-    box-shadow:
-      0 22px 56px rgba(0,0,0,0.26),
-      0 0 0 3px rgba(190,242,100,0.20),
-      0 0 34px var(--pp-activeGlowA),
-      0 0 26px var(--pp-activeGlowB);
-  }
-}
-
-/* Force active pill background + readable text (this fixes the "black on dark") */
-.quick-nav-item a.active-nav-link{
-  background: linear-gradient(180deg, var(--brand-neon-green), rgba(190,242,100,0.70)) !important;
-  border-color: rgba(190,242,100,0.70) !important;
-
-  color: #0b1220 !important; /* readable on neon */
-  text-shadow: none !important;
-
-  animation: ppActiveBreathe 2400ms ease-in-out infinite;
-}
-
-/* Active underline stays loud + clear */
-.quick-nav-item a.active-nav-link::after{
-  content:"";
-  position:absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 5px;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand-neon-green), var(--brand-green));
-  opacity: 0.90;
-}
-
-/* Light mode active still clean */
-[data-theme="light"] .quick-nav-item a.active-nav-link{
-  background: linear-gradient(180deg, #bbf7d0, #86efac) !important;
-  border-color: rgba(22,163,74,0.40) !important;
-  animation: ppActiveBreathe 2400ms ease-in-out infinite;
-}
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .quick-nav-item a.active-nav-link{ animation: none !important; }
-  :where(.pp-btn,.simple-button,.pp-theme-toggle,.pp-topnav__iconBtn)::before{ transition: none !important; }
-}
-
-/* =========================================================
-   PREMIUM HEADER + BUTTONS + ACTIVE NAV (FINAL)
-   - Desktop: true glass header + controls
-   - Mobile: stays fast (your existing blur-off rules)
-   - Active pill: obvious + premium
-   ========================================================= */
-
-:root{
-  --pp-hdr-blur: 18px;
-  --pp-hdr-sat: 170%;
-  --pp-hdr-border: rgba(148,163,184,0.18);
-  --pp-hdr-shadow: 0 22px 70px rgba(0,0,0,0.55);
-
-  --pp-glass-btn-blur: 12px;
-  --pp-glass-btn-sat: 155%;
-}
-
-/* ---------- BUTTONS (SITE-WIDE PREMIUM GLASS) ---------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  :where(.pp-btn, .simple-button, .quantity-btn:not([title="Close"])){
-    position: relative;
-    overflow: hidden;
-
-    backdrop-filter: blur(12px) saturate(155%);
-    -webkit-backdrop-filter: blur(12px) saturate(155%);
-
-    border: 1px solid rgba(148,163,184,0.24) !important;
-    box-shadow:
-      0 14px 34px rgba(0,0,0,0.14),
-      inset 0 1px 0 rgba(255,255,255,0.18),
-      inset 0 -1px 0 rgba(0,0,0,0.18) !important;
-  }
-
-  /* keep your CTA gradient, just add a glass cap */
-  .place-order-button{
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(0,0,0,0.10) !important;
-  }
-
-  .place-order-button::before,
-  :where(.pp-btn, .simple-button, .quantity-btn:not([title="Close"]))::before{
-    content:"";
-    position:absolute;
-    inset:-2px;
-    pointer-events:none;
-    background:
-      linear-gradient(120deg, rgba(255,255,255,0.62), transparent 46%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,0.05) 0px,
-        rgba(255,255,255,0.05) 1px,
-        rgba(0,0,0,0.04) 1px,
-        rgba(0,0,0,0.04) 3px
-      );
-    opacity: 0.14;
-  }
-
-  :where(.pp-btn, .simple-button, .quantity-btn:not([title="Close"]), .place-order-button):hover:enabled{
-    transform: translateY(-1px);
-    filter: brightness(1.03) saturate(1.06);
-  }
-
-  :where(.pp-btn, .simple-button, .quantity-btn:not([title="Close"]), .place-order-button):active:enabled{
-    transform: translateY(0) scale(0.99);
-  }
-}
-
-/* ---------- ACTIVE CATEGORY: make it unmistakable ---------- */
-/* Don't touch ::before (that's your shimmer). Use ::after for the "active underline". */
-.quick-nav-item a.active-nav-link{
-  position: relative;
-  color: #0b1220 !important;
-
-  border-color: rgba(190,242,100,0.78) !important;
-  box-shadow:
-    0 18px 44px rgba(0,0,0,0.20),
-    0 0 0 3px rgba(190,242,100,0.18),
-    0 0 22px rgba(190,242,100,0.22) !important;
-
-  /* slightly richer fill so it reads as selected at a glance */
-  background: linear-gradient(180deg, rgba(190,242,100,1), rgba(190,242,100,0.70)) !important;
-}
-
-[data-theme="light"] .quick-nav-item a.active-nav-link{
-  border-color: rgba(22,163,74,0.40) !important;
-  box-shadow:
-    0 16px 40px rgba(2,6,23,0.14),
-    0 0 0 3px rgba(22,163,74,0.14) !important;
-
-  background: linear-gradient(180deg, #bbf7d0, #86efac) !important;
-}
-
-/* Active underline "indicator" */
-.quick-nav-item a.active-nav-link::after{
-  content:"";
-  position:absolute;
-  left: 14px;
-  right: 14px;
-  bottom: 5px;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand-neon-green), var(--brand-green));
-  opacity: 0.85;
-  filter: blur(0.2px);
-}
-
-/* Inactive pills: a touch more contrast so active stands out */
-[data-theme="dark"] .quick-nav-item a:not(.active-nav-link){
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.10);
-  color: rgba(226,232,240,0.78);
-}
-
-/* =========================================================
-   PREMIUM HEADER + QUICK NAV (v4) — FINAL OVERRIDE
-   Goal: less "blur slab", more "premium glass"
-   ========================================================= */
-
-:root{
-  --pp-hdr-blur: 16px;
-  --pp-hdr-sat: 160%;
-  --pp-hdr-rim: rgba(148,163,184,0.18);
-  --pp-hdr-shadow: 0 20px 60px rgba(0,0,0,0.35);
-
-  --pp-sheen-speed: 1200ms;
-  --pp-sheen-opacity: 0.16;
-}
-
-[data-theme="light"]{
-  --pp-hdr-rim: rgba(15,23,42,0.10);
-  --pp-hdr-shadow: 0 18px 50px rgba(2,6,23,0.12);
-  --pp-sheen-opacity: 0.12;
-}
-
-[data-theme="dark"]{
-  --pp-hdr-rim: rgba(148,163,184,0.18);
-  --pp-hdr-shadow: 0 24px 70px rgba(0,0,0,0.55);
-  --pp-sheen-opacity: 0.16;
-}
-
-/* ---------- QUICK NAV: premium rail + animated border ---------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-container{
-    backdrop-filter: blur(16px) saturate(160%) !important;
-    -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
-
-    border: 1px solid rgba(148,163,184,0.18) !important;
-    box-shadow: 0 18px 56px rgba(0,0,0,0.22) !important;
-
-    overflow: hidden !important;
-    isolation: isolate !important;
-  }
-
-  [data-theme="dark"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(2,6,23,0.48), rgba(2,6,23,0.22)) !important;
-  }
-  [data-theme="light"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(241,245,251,0.56)) !important;
-  }
-
-  /* animated "premium border glow" */
-  .quick-nav-container::after{
-    content:"";
-    position:absolute;
-    inset:-1px;
-    pointer-events:none;
-    border-radius: inherit;
-    background: linear-gradient(90deg, var(--brand-neon-green), var(--brand-green), var(--brand-neon-green));
-    opacity: 0.18;
-    filter: blur(10px);
-    animation: ppRailGlow 7.5s linear infinite;
-  }
-  @keyframes ppRailGlow{
-    0%{ transform: translateX(-20%); }
-    100%{ transform: translateX(20%); }
-  }
-}
-
-/* ---------- QUICK NAV PILLS: glass + sheen animation ---------- */
-@keyframes ppSheen {
-  0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
-  20%  { opacity: var(--pp-sheen-opacity); }
-  60%  { opacity: calc(var(--pp-sheen-opacity) * 0.7); }
-  100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
-}
-
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-item a{
-    position: relative;
-    overflow: hidden;
-    backdrop-filter: blur(10px) saturate(150%);
-    -webkit-backdrop-filter: blur(10px) saturate(150%);
-
-    /* more premium "glass cap" */
-    box-shadow:
-      0 10px 22px rgba(0,0,0,0.12),
-      inset 0 1px 0 rgba(255,255,255,0.16);
-
-    transition:
-      transform 160ms ease,
-      box-shadow 160ms ease,
-      border-color 160ms ease,
-      background-color 160ms ease,
-      color 160ms ease;
-  }
-
-  /* Sheen layer (runs on hover, and also gently on active) */
-  .quick-nav-item a::before{
-    content:"";
-    position:absolute;
-    top:-25%;
-    bottom:-25%;
-    width: 55%;
-    left: 0;
-    pointer-events:none;
-    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.70), transparent);
-    opacity: 0;
-    transform: translateX(-120%) skewX(-18deg);
-  }
-
-  .quick-nav-item a:hover{
-    transform: translateY(-1px);
-    border-color: rgba(190,242,100,0.30);
-    box-shadow:
-      0 14px 34px rgba(0,0,0,0.16),
-      inset 0 1px 0 rgba(255,255,255,0.18);
-  }
-
-  .quick-nav-item a:hover::before,
-  .quick-nav-item a:focus-visible::before{
-    animation: ppSheen var(--pp-sheen-speed) cubic-bezier(.22,1,.36,1) 1;
-  }
-
-  /* Active pill: keep your current green gradient, add subtle living sheen */
-  .quick-nav-item a.active-nav-link::before{
-    animation: ppSheen 2400ms cubic-bezier(.22,1,.36,1) infinite;
-    opacity: 0.10;
-  }
-
-  /* Make active look more "premium" (less flat neon block) */
-  .quick-nav-item a.active-nav-link{
-    box-shadow:
-      0 18px 44px rgba(0,0,0,0.18),
-      0 0 0 3px rgba(190,242,100,0.12),
-      inset 0 1px 0 rgba(255,255,255,0.22) !important;
-  }
-}
-
-/* Arrows match the premium glass */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-arrow,
-  .quick-nav-arrow--inscroll{
-    backdrop-filter: blur(12px) saturate(150%) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
-    background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.08)) !important;
-    border: 1px solid rgba(148,163,184,0.22) !important;
-    box-shadow:
-      0 14px 34px rgba(0,0,0,0.14),
-      inset 0 1px 0 rgba(255,255,255,0.18) !important;
-  }
-}
-
-/* Respect reduced motion */
-@media (prefers-reduced-motion: reduce){
-  .quick-nav-container::after{ animation: none !important; }
-  .quick-nav-item a::before{ animation: none !important; }
-}
-
-/* =========================================================
-   PP PREMIUM HEADER + QUICK NAV (FINAL OVERRIDE)
-   - Makes header + nav feel "premium glass" in both themes
-   - Adds modern animated shimmer to menu pills
-   ========================================================= */
-
-:root{
-  --pp-glass-blur-hd: 18px;
-  --pp-glass-sat-hd: 165%;
-  --pp-glass-rim: rgba(255,255,255,0.16);
-  --pp-glass-rim2: rgba(0,0,0,0.22);
-  --pp-glass-shadow: 0 18px 50px rgba(0,0,0,0.22);
-
-  --pp-shimmer-speed: 1100ms;
-  --pp-pulse-speed: 2200ms;
-}
-
-[data-theme="light"]{
-  --pp-glass-rim: rgba(15,23,42,0.10);
-  --pp-glass-rim2: rgba(15,23,42,0.08);
-  --pp-glass-shadow: 0 18px 50px rgba(2,6,23,0.10);
-}
-[data-theme="dark"]{
-  --pp-glass-rim: rgba(255,255,255,0.14);
-  --pp-glass-rim2: rgba(0,0,0,0.35);
-  --pp-glass-shadow: 0 22px 64px rgba(0,0,0,0.42);
-}
-
-/* -------- QUICK NAV BAR: premium rail -------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-container{
-    backdrop-filter: blur(16px) saturate(160%) !important;
-    -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
-    border: 1px solid var(--pp-glass-rim) !important;
-    box-shadow: 0 18px 50px rgba(0,0,0,0.18) !important;
-    overflow: hidden;
-    isolation: isolate;
-  }
-
-  [data-theme="dark"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(2,6,23,0.50), rgba(2,6,23,0.22)) !important;
-  }
-  [data-theme="light"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(255,255,255,0.76), rgba(241,245,251,0.56)) !important;
-  }
-
-  .quick-nav-container::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    background:
-      radial-gradient(900px 240px at 20% 0%, rgba(190,242,100,0.10), transparent 60%),
-      radial-gradient(900px 240px at 85% 0%, rgba(190,242,100,0.08), transparent 62%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,0.04) 0px,
-        rgba(255,255,255,0.04) 1px,
-        rgba(0,0,0,0.04) 1px,
-        rgba(0,0,0,0.04) 3px
-      );
-    opacity: 0.11;
-    mix-blend-mode: overlay;
-  }
-}
-
-/* -------- MENU PILLS: modern shimmer + premium active -------- */
-@keyframes ppShimmer {
-  0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
-  25%  { opacity: 0.18; }
-  60%  { opacity: 0.12; }
-  100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
-}
-@keyframes ppActivePulse {
-  0%, 100% { box-shadow: 0 12px 30px rgba(190,242,100,0.16); }
-  50%      { box-shadow: 0 18px 44px rgba(190,242,100,0.22); }
-}
-
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-item a{
-    position: relative;
-    overflow: hidden;
-    backdrop-filter: blur(10px) saturate(150%);
-    -webkit-backdrop-filter: blur(10px) saturate(150%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
-    transform: translateZ(0);
-  }
-
-  /* Shimmer layer (hover + focus-visible) */
-  .quick-nav-item a::before{
-    content:"";
-    position:absolute;
-    top:-20%;
-    bottom:-20%;
-    width: 55%;
-    left: 0;
-    pointer-events:none;
-    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.55), transparent);
-    opacity: 0;
-    transform: translateX(-120%) skewX(-18deg);
-  }
-
-  .quick-nav-item a:hover::before,
-  .quick-nav-item a:focus-visible::before{
-    animation: ppShimmer var(--pp-shimmer-speed) cubic-bezier(.22,1,.36,1) 1;
-  }
-
-  /* "Premium press" */
-  .quick-nav-item a:hover{
-    transform: translateY(-1px);
-  }
-  .quick-nav-item a:active{
-    transform: translateY(0) scale(0.99);
-  }
-
-  /* Active pill: richer glass + soft animated glow */
-  .quick-nav-item a.active-nav-link{
-    animation: ppActivePulse var(--pp-pulse-speed) ease-in-out infinite;
-    border-color: rgba(190,242,100,0.55) !important;
-  }
-
-  [data-theme="light"] .quick-nav-item a.active-nav-link{
-    border-color: rgba(22,163,74,0.35) !important;
-    animation: ppActivePulse var(--pp-pulse-speed) ease-in-out infinite;
-  }
-}
-
-/* -------- Arrow buttons: match premium glass -------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-arrow{
-    backdrop-filter: blur(12px) saturate(150%) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
-    border: 1px solid rgba(148,163,184,0.22) !important;
-    box-shadow:
-      0 16px 38px rgba(0,0,0,0.14),
-      inset 0 1px 0 rgba(255,255,255,0.18) !important;
-  }
-}
-
-/* Reduce motion */
-@media (prefers-reduced-motion: reduce){
-  .quick-nav-item a,
-  .quick-nav-item a::before,
-  .quick-nav-item a.active-nav-link{
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* =========================================================
-   DESKTOP PREMIUM GLASS (FINAL FINAL OVERRIDE)
-   - Re-enables blur that was forced OFF earlier
-   - Adds shimmer + soft pulse on quick-nav pills
-   ========================================================= */
-
-@media (min-width: 901px){
-  /* --- QUICK NAV RAIL (container) --- */
-  html[data-theme] .quick-nav-container{
-    backdrop-filter: blur(16px) saturate(165%) !important;
-    -webkit-backdrop-filter: blur(16px) saturate(165%) !important;
-
-    border: 1px solid rgba(148,163,184,0.18) !important;
-    box-shadow: 0 18px 56px rgba(0,0,0,0.26) !important;
-    overflow: hidden !important;
-    isolation: isolate !important;
-  }
-
-  html[data-theme="dark"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(2,6,23,0.52), rgba(2,6,23,0.26)) !important;
-  }
-  html[data-theme="light"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(255,255,255,0.74), rgba(241,245,251,0.56)) !important;
-  }
-
-  /* subtle highlight wash over the rail */
-  html[data-theme] .quick-nav-container::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    background:
-      radial-gradient(900px 240px at 18% 0%, rgba(190,242,100,0.10), transparent 62%),
-      radial-gradient(900px 240px at 82% 0%, rgba(190,242,100,0.08), transparent 62%);
-    opacity: 0.18;
-  }
-
-  /* --- NAV PILLS: glass + shimmer animation --- */
-  @keyframes ppPillShimmer{
-    0%   { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
-    20%  { opacity: 0.20; }
-    60%  { opacity: 0.10; }
-    100% { transform: translateX(120%) skewX(-18deg); opacity: 0; }
-  }
-  @keyframes ppPillPulse{
-    0%,100% { box-shadow: 0 12px 30px rgba(190,242,100,0.14); }
-    50%     { box-shadow: 0 18px 44px rgba(190,242,100,0.22); }
-  }
-
-  html[data-theme] .quick-nav-item a{
-    position: relative !important;
-    overflow: hidden !important;
-    backdrop-filter: blur(10px) saturate(155%) !important;
-    -webkit-backdrop-filter: blur(10px) saturate(155%) !important;
-
-    border: 1px solid rgba(148,163,184,0.16) !important;
-    background: rgba(255,255,255,0.04) !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14) !important;
-    transform: translateZ(0);
-  }
-
-  html[data-theme] .quick-nav-item a::before{
-    content:"";
-    position:absolute;
-    top:-25%;
-    bottom:-25%;
-    width: 55%;
-    left: 0;
-    pointer-events:none;
-    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.65), transparent);
-    opacity: 0;
-    transform: translateX(-120%) skewX(-18deg);
-  }
-
-  html[data-theme] .quick-nav-item a:hover::before,
-  html[data-theme] .quick-nav-item a:focus-visible::before{
-    animation: ppPillShimmer 1100ms cubic-bezier(.22,1,.36,1) 1;
-  }
-
-  html[data-theme] .quick-nav-item a:hover{
-    transform: translateY(-1px);
-    border-color: rgba(190,242,100,0.28) !important;
-  }
-
-  /* Active pill: keep your green gradient, just make it feel "alive" */
-  html[data-theme] .quick-nav-item a.active-nav-link{
-    animation: ppPillPulse 2200ms ease-in-out infinite;
-  }
-}
-
-@media (prefers-reduced-motion: reduce){
-  @media (min-width: 901px){
-    html[data-theme] .quick-nav-item a::before,
-    html[data-theme] .quick-nav-item a.active-nav-link{
-      animation: none !important;
-    }
-  }
-}
-
-/* =========================================================
    Login Modal (mobile) - modern friendly sheet
    ========================================================= */
 @media (max-width: 640px){
@@ -12528,7 +10269,6 @@ body[data-theme="light"]{
   .order-panel-container,
   .info-box,
   .about-panel-list-item,
-  .quick-nav-container,
   .pp-md-head,
   .pp-md-active,
   .pp-mdm-head,
@@ -12563,9 +10303,7 @@ body[data-theme="light"]{
   .pp-btn,
   .simple-button,
   .pp-mdp-toolBtn,
-  .pp-topnav__iconBtn,
   .pp-theme-toggle,
-  .quick-nav-arrow,
   .quantity-btn:not([title="Close"]){
     position: relative;
     overflow: hidden;
@@ -12582,9 +10320,7 @@ body[data-theme="light"]{
   .pp-btn::before,
   .simple-button::before,
   .pp-mdp-toolBtn::before,
-  .pp-topnav__iconBtn::before,
   .pp-theme-toggle::before,
-  .quick-nav-arrow::before,
   .quantity-btn:not([title="Close"])::before{
     content:"";
     position:absolute;
@@ -12607,9 +10343,7 @@ body[data-theme="light"]{
   .pp-btn:hover:enabled,
   .simple-button:hover:enabled,
   .pp-mdp-toolBtn:hover,
-  .pp-topnav__iconBtn:hover,
   .pp-theme-toggle:hover,
-  .quick-nav-arrow:hover:enabled,
   .quantity-btn:not([title="Close"]):hover{
     filter: brightness(1.04) saturate(1.06);
     box-shadow: 0 16px 44px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.18) !important;
@@ -12986,7 +10720,6 @@ html[data-theme="dark"], body[data-theme="dark"]{
   .menu-category,
   .menu-item-card,
   .order-panel-container,
-  .quick-nav-container,
   .info-box,
   .about-panel-list-item,
   .pp-modal,
@@ -13014,7 +10747,6 @@ html[data-theme="dark"], body[data-theme="dark"]{
   .menu-category,
   .menu-item-card,
   .order-panel-container,
-  .quick-nav-container,
   .info-box,
   .about-panel-list-item,
   .pp-modal,
@@ -13055,7 +10787,6 @@ html[data-theme="dark"], body[data-theme="dark"]{
   .menu-category,
   .menu-item-card,
   .order-panel-container,
-  .quick-nav-container,
   .info-box,
   .about-panel-list-item,
   .pp-modal,
@@ -13074,7 +10805,6 @@ html[data-theme="dark"], body[data-theme="dark"]{
   .menu-category,
   .menu-item-card,
   .order-panel-container,
-  .quick-nav-container,
   .info-box,
   .about-panel-list-item,
   .pp-modal,
@@ -13094,7 +10824,7 @@ html[data-theme="dark"], body[data-theme="dark"]{
    2) BUTTONS: "THICK GLASS"
    ----------------------------- */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  :where(.pp-btn, .simple-button, .pp-mdp-toolBtn, .pp-topnav__iconBtn, .pp-theme-toggle, .quick-nav-arrow){
+  :where(.pp-btn, .simple-button, .pp-mdp-toolBtn, .pp-theme-toggle){
     border-color: color-mix(in srgb, var(--pp-glass-rim-1) 70%, transparent) !important;
     box-shadow:
       0 14px 34px rgba(0,0,0,0.18),
@@ -13103,7 +10833,7 @@ html[data-theme="dark"], body[data-theme="dark"]{
   }
 
   /* tighten hover so it feels "weighty" not floaty */
-  :where(.pp-btn, .simple-button, .pp-mdp-toolBtn, .pp-topnav__iconBtn, .pp-theme-toggle, .quick-nav-arrow):hover{
+  :where(.pp-btn, .simple-button, .pp-mdp-toolBtn, .pp-theme-toggle):hover{
     transform: translateY(-1px);
     filter: brightness(1.03) saturate(1.06);
     box-shadow:
@@ -13116,212 +10846,6 @@ html[data-theme="dark"], body[data-theme="dark"]{
 /* Keep close buttons clean (they draw their own X bars) */
 :where(button.pp-modal-close, button.quantity-btn[title="Close"], button.pp-btn.pp-btn-subtle[aria-label="Close"]){
   box-shadow: none !important;
-}
-
-/* ======================================================================
-   PP HEADER + NAV + BUTTON GLASS v3 (FINAL OVERRIDE)
-   Targets: pp-topnav, quick-nav, and all primary button styles
-   ====================================================================== */
-
-/* Glass tokens */
-:root{
-  --pp-glass-blur: 14px;
-  --pp-glass-sat: 155%;
-
-  --pp-rim-hi: rgba(255,255,255,0.22);
-  --pp-rim-lo: rgba(0,0,0,0.22);
-
-  --pp-spec-a: rgba(255,255,255,0.55);
-  --pp-spec-b: rgba(255,255,255,0.10);
-
-  --pp-grain-hi: 0.07;
-  --pp-grain-lo: 0.05;
-}
-
-/* Theme tuning so BOTH modes feel equally "glassy" */
-html[data-theme="light"], body[data-theme="light"]{
-  --pp-glass-blur: 16px;
-  --pp-glass-sat: 165%;
-  --pp-rim-hi: rgba(255,255,255,0.75);
-  --pp-rim-lo: rgba(15,23,42,0.10);
-  --pp-spec-a: rgba(255,255,255,0.85);
-  --pp-spec-b: rgba(15,23,42,0.06);
-  --pp-grain-hi: 0.05;
-  --pp-grain-lo: 0.04;
-}
-
-html[data-theme="dark"], body[data-theme="dark"]{
-  --pp-glass-blur: 14px;
-  --pp-glass-sat: 155%;
-  --pp-rim-hi: rgba(255,255,255,0.18);
-  --pp-rim-lo: rgba(0,0,0,0.35);
-  --pp-spec-a: rgba(255,255,255,0.45);
-  --pp-spec-b: rgba(255,255,255,0.08);
-  --pp-grain-hi: 0.08;
-  --pp-grain-lo: 0.06;
-}
-
-/* -----------------------------------
-   2) QUICK NAV BAR (container + arrows)
-   ----------------------------------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-container{
-    background: transparent !important;
-    backdrop-filter: blur(calc(var(--pp-glass-blur) - 2px)) saturate(var(--pp-glass-sat));
-    -webkit-backdrop-filter: blur(calc(var(--pp-glass-blur) - 2px)) saturate(var(--pp-glass-sat));
-
-    border: 1px solid var(--border-color) !important;
-    box-shadow:
-      0 16px 40px rgba(0,0,0,0.16),
-      inset 0 1px 0 var(--pp-rim-hi),
-      inset 0 -1px 0 var(--pp-rim-lo) !important;
-
-    overflow: hidden;
-    isolation: isolate;
-  }
-
-  [data-theme="dark"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(2,6,23,0.50), rgba(2,6,23,0.22)) !important;
-  }
-  [data-theme="light"] .quick-nav-container{
-    background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(241,245,251,0.56)) !important;
-  }
-
-  .quick-nav-container::before{
-    content:"";
-    position:absolute;
-    inset:0;
-    pointer-events:none;
-    background:
-      radial-gradient(900px 240px at 20% 0%, rgba(190,242,100,0.10), transparent 60%),
-      radial-gradient(900px 240px at 85% 0%, rgba(190,242,100,0.08), transparent 62%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,var(--pp-grain-hi)) 0px,
-        rgba(255,255,255,var(--pp-grain-hi)) 1px,
-        rgba(0,0,0,var(--pp-grain-lo)) 1px,
-        rgba(0,0,0,var(--pp-grain-lo)) 3px
-      );
-    opacity: 0.11;
-    mix-blend-mode: overlay;
-  }
-
-  /* Arrows become "thick glass buttons" */
-  .quick-nav-arrow,
-  .quick-nav-arrow--inscroll{
-    background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.10)) !important;
-    border: 1px solid rgba(148,163,184,0.26) !important;
-    box-shadow:
-      0 14px 34px rgba(0,0,0,0.14),
-      inset 0 1px 0 rgba(255,255,255,0.22),
-      inset 0 -1px 0 rgba(0,0,0,0.18) !important;
-    backdrop-filter: blur(10px) saturate(140%);
-    -webkit-backdrop-filter: blur(10px) saturate(140%);
-  }
-}
-
-/* Quick-nav pills: add a real glass cap so they don't look like plastic chips */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  .quick-nav-item a{
-    position: relative;
-    overflow: hidden;
-    backdrop-filter: blur(10px) saturate(145%);
-    -webkit-backdrop-filter: blur(10px) saturate(145%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
-  }
-
-  .quick-nav-item a::before{
-    content:"";
-    position:absolute;
-    inset:-2px;
-    pointer-events:none;
-    background: linear-gradient(120deg, rgba(255,255,255,0.45), transparent 48%);
-    opacity: 0.16;
-  }
-}
-
-/* -----------------------------------
-   3) BUTTONS: premium glass everywhere
-   ----------------------------------- */
-@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))){
-  :where(
-    .pp-btn,
-    .place-order-button,
-    .simple-button,
-    .quantity-btn:not([title="Close"]),
-    .pp-theme-toggle,
-    .pp-topnav__iconBtn,
-    .pp-mdp-toolBtn
-  ){
-    position: relative;
-    overflow: hidden;
-
-    backdrop-filter: blur(12px) saturate(150%);
-    -webkit-backdrop-filter: blur(12px) saturate(150%);
-
-    border: 1px solid rgba(148,163,184,0.22) !important;
-    box-shadow:
-      0 14px 34px rgba(0,0,0,0.14),
-      inset 0 1px 0 rgba(255,255,255,0.22),
-      inset 0 -1px 0 rgba(0,0,0,0.18) !important;
-  }
-
-  /* Neutral glass base (don't kill your CTA gradients) */
-  [data-theme="dark"] :where(.pp-btn, .simple-button, .pp-theme-toggle, .pp-topnav__iconBtn, .pp-mdp-toolBtn){
-    background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.12)) !important;
-  }
-  [data-theme="light"] :where(.pp-btn, .simple-button, .pp-theme-toggle, .pp-topnav__iconBtn, .pp-mdp-toolBtn){
-    background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(241,245,251,0.58)) !important;
-  }
-
-  /* Specular + micro grain on buttons */
-  :where(
-    .pp-btn,
-    .place-order-button,
-    .simple-button,
-    .quantity-btn:not([title="Close"]),
-    .pp-theme-toggle,
-    .pp-topnav__iconBtn,
-    .pp-mdp-toolBtn
-  )::before{
-    content:"";
-    position:absolute;
-    inset:-2px;
-    pointer-events:none;
-    background:
-      linear-gradient(120deg, rgba(255,255,255,0.62), transparent 46%),
-      repeating-linear-gradient(
-        135deg,
-        rgba(255,255,255,0.06) 0px,
-        rgba(255,255,255,0.06) 1px,
-        rgba(0,0,0,0.05) 1px,
-        rgba(0,0,0,0.05) 3px
-      );
-    opacity: 0.16;
-  }
-
-  /* Hover/press: weighty glass, not "floaty plastic" */
-  :where(.pp-btn, .place-order-button, .simple-button, .pp-theme-toggle, .pp-topnav__iconBtn, .pp-mdp-toolBtn):hover{
-    transform: translateY(-1px);
-    filter: brightness(1.03) saturate(1.06);
-    box-shadow:
-      0 18px 48px rgba(0,0,0,0.18),
-      inset 0 1px 0 rgba(255,255,255,0.26),
-      inset 0 -1px 0 rgba(0,0,0,0.20) !important;
-  }
-
-  :where(.pp-btn, .place-order-button, .simple-button, .pp-theme-toggle, .pp-topnav__iconBtn, .pp-mdp-toolBtn):active{
-    transform: translateY(0) scale(0.99);
-    filter: brightness(0.99);
-  }
-
-  /* Don't mess with your custom close buttons (they draw their own X) */
-  button.pp-modal-close,
-  button.quantity-btn[title="Close"],
-  button.pp-btn.pp-btn-subtle[aria-label="Close"]{
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
 }
 
 /* =========================================================
@@ -13347,103 +10871,6 @@ body[data-theme="light"] .menu-content::after{
   display: none !important;
 }
 
-@media (max-width: 900px){
-  .quick-nav-container{
-    /* blur is expensive while scrolling on mobile */
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-
-    /* keep it looking good without blur */
-    background: color-mix(in srgb, var(--panel) 92%, transparent) !important;
-  }
-}
-
-/* =========================================================
-   Mobile QuickNav - smaller + tighter
-   ========================================================= */
-@media (max-width: 900px){
-  .quick-nav-container{
-    margin: 0 0 0.7rem;
-    padding: 0.28rem;
-    min-height: 48px;
-    border-radius: 16px;
-
-    /* keep it fast on phones */
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  .quick-nav-scroll{
-    padding: 6px 8px;
-    gap: 6px;
-  }
-
-  .quick-nav-list{
-    gap: 0.4rem;
-  }
-
-  .quick-nav-item a{
-    height: 32px;
-    padding: 0 0.70rem;
-    font-size: 0.68rem;
-    letter-spacing: 0.09em;
-  }
-}
-
-/* =========================================================
-   Mobile QuickNav — ultra-compact (wins over earlier blocks)
-   ========================================================= */
-@media (max-width: 900px){
-  .quick-nav-container{
-    margin: 0 0 0.55rem;
-    padding: 0.18rem;
-    min-height: 40px;          /* was 60px */
-    border-radius: 14px;
-
-    /* keep it snappy on mobile */
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-
-    /* sit closer to header (less wasted space) */
-    top: calc(3.35rem + env(safe-area-inset-top));
-  }
-
-  .quick-nav-scroll{
-    padding: 4px 6px;          /* was much larger */
-    gap: 6px;
-  }
-
-  .quick-nav-list{
-    gap: 0.35rem;
-  }
-
-  .quick-nav-item a{
-    height: 28px;              /* was 38px */
-    padding: 0 0.62rem;
-    font-size: 0.62rem;
-    letter-spacing: 0.085em;
-  }
-}
-
-/* extra-tight on tiny phones */
-@media (max-width: 420px){
-  .quick-nav-container{
-    min-height: 36px;
-    padding: 0.14rem;
-    border-radius: 13px;
-  }
-
-  .quick-nav-scroll{
-    padding: 3px 5px;
-  }
-
-  .quick-nav-item a{
-    height: 26px;
-    padding: 0 0.56rem;
-    font-size: 0.60rem;
-    letter-spacing: 0.08em;
-  }
-}
 
 /* =========================================================
    SOLID HEADER (MOBILE ONLY) - keep scroll smooth on phones
@@ -13463,22 +10890,14 @@ body[data-theme="light"] .menu-content::after{
   -webkit-backdrop-filter: none !important;
 }
 
-/* If you still use the legacy navbar anywhere */
-.navbar{
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
 /* Theme-opaque backgrounds */
 [data-theme='dark'] .pp-topnav,
-[data-theme='dark'] .pp-topnav__mobileRow,
-[data-theme='dark'] .navbar{
+[data-theme='dark'] .pp-topnav__mobileRow{
   background: #0f172a !important; /* solid dark */
 }
 
 [data-theme='light'] .pp-topnav,
-[data-theme='light'] .pp-topnav__mobileRow,
-[data-theme='light'] .navbar{
+[data-theme='light'] .pp-topnav__mobileRow{
   background: #ffffff !important; /* solid light */
 }
 
@@ -13493,7 +10912,6 @@ body[data-theme="light"] .menu-content::after{
 /* Ensure emoji glyphs render even if the main font doesn't support them */
 .pp-cart-fab__icon,
 .pp-bottomnav__icon,
-.pp-topnav__iconBtn,
 .pp-theme-toggle__emoji{
   font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
 }
@@ -13569,22 +10987,6 @@ body[data-theme="light"] .menu-content::after{
     display: none !important;
   }
 }
-
-/* Quick Nav: remove the grey "track" bar behind chips */
-.quick-nav-scroll{
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-}
-
-/* If any older attempt drew a track as a pseudo-element, nuke it */
-.quick-nav-scroll::before,
-.quick-nav-scroll::after{
-  content: none !important;
-  display: none !important;
-}
-
-
 
 /* =========================================================
    Image SHIFT (Y axis) — ONLY tagged list, exclude specials

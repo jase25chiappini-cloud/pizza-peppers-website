@@ -6567,8 +6567,8 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
             const chipRect = chipEl.getBoundingClientRect();
 
             // Treat the sticky arrow buttons as "unsafe areas"
-            const leftBtn = rail.querySelector(".quick-nav-arrow--left");
-            const rightBtn = rail.querySelector(".quick-nav-arrow--right");
+            const leftBtn = shellRef.current?.querySelector(".quick-nav-arrow--left");
+            const rightBtn = shellRef.current?.querySelector(".quick-nav-arrow--right");
 
             const leftEdge = leftBtn
               ? leftBtn.getBoundingClientRect().right + 10
@@ -7341,16 +7341,11 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
       ref={shellRef}
       aria-label="Menu categories"
     >
-      <div
-        id={scrollId}
-        className="quick-nav-scroll"
-        ref={scrollerRef}
-        onKeyDown={onQuickNavKeyDown}
-      >
+      <div className="quick-nav-scroll">
         {!isMobileQnav ? (
           <button
             type="button"
-            className="quick-nav-arrow quick-nav-arrow--left quick-nav-arrow--inscroll"
+            className="quick-nav-arrow quick-nav-arrow--left"
             aria-label="Scroll categories left"
             aria-disabled={!canScrollLeft}
             data-disabled={!canScrollLeft ? "1" : "0"}
@@ -7365,45 +7360,52 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
           </button>
         ) : null}
 
-        <ul className="quick-nav-list" role="list">
-          {(menuData?.categories || []).map((category) => {
-            const categoryId = formatId(category.name);
-            const isActive = effectiveActive === categoryId;
+        <div
+          id={scrollId}
+          className="quick-nav-rail"
+          ref={scrollerRef}
+          onKeyDown={onQuickNavKeyDown}
+        >
+          <ul className="quick-nav-list" role="list">
+            {(menuData?.categories || []).map((category) => {
+              const categoryId = formatId(category.name);
+              const isActive = effectiveActive === categoryId;
 
-            return (
-              <li key={category.name} className="quick-nav-item">
-                <a
-                  data-qnav-link="1"
-                  href={`#${categoryId}`}
-                  className={isActive ? "active-nav-link" : ""}
-                  aria-current={isActive ? "page" : undefined}
-                  ref={(el) => {
-                    if (el) chipRefs.current[categoryId] = el;
-                  }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  scrollToCategory(categoryId);
-                  try {
-                    requestAnimationFrame(() => {
-                      adjustNavForCategory(categoryId);
-                    });
-                  } catch {}
-                  try {
-                    window.history.replaceState(null, "", `#${categoryId}`);
-                  } catch {}
-                }}
-                >
-                  {category.name}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
+              return (
+                <li key={category.name} className="quick-nav-item">
+                  <a
+                    data-qnav-link="1"
+                    href={`#${categoryId}`}
+                    className={isActive ? "active-nav-link" : ""}
+                    aria-current={isActive ? "page" : undefined}
+                    ref={(el) => {
+                      if (el) chipRefs.current[categoryId] = el;
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      scrollToCategory(categoryId);
+                      try {
+                        requestAnimationFrame(() => {
+                          adjustNavForCategory(categoryId);
+                        });
+                      } catch {}
+                      try {
+                        window.history.replaceState(null, "", `#${categoryId}`);
+                      } catch {}
+                    }}
+                  >
+                    {category.name}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
         {!isMobileQnav ? (
           <button
             type="button"
-            className="quick-nav-arrow quick-nav-arrow--right quick-nav-arrow--inscroll"
+            className="quick-nav-arrow quick-nav-arrow--right"
             aria-label="Scroll categories right"
             aria-disabled={!canScrollRight}
             data-disabled={!canScrollRight ? "1" : "0"}
@@ -12684,7 +12686,7 @@ function Navbar({
   // Desktop search pill "hug" widths (measured from placeholder + real padding)
   const desktopNameInputRef = useRef(null);
   const desktopToppingInputRef = useRef(null);
-  const [collapsedNameW, setCollapsedNameW] = useState(108);
+  const [collapsedNameW, setCollapsedNameW] = useState(124);
   const [collapsedToppingW, setCollapsedToppingW] = useState(124);
 
   useEffect(() => {
@@ -12714,14 +12716,20 @@ function Navbar({
 
       const w = Math.ceil(textW + padL + padR + borderL + borderR + extra);
       // clamp so it never gets silly
-      return Math.max(92, Math.min(w, 170));
+      return Math.max(84, Math.min(w, 150));
     };
 
     const measure = () => {
       const w1 = measureOne(desktopNameInputRef.current);
       const w2 = measureOne(desktopToppingInputRef.current);
-      if (typeof w1 === "number") setCollapsedNameW(w1);
-      if (typeof w2 === "number") setCollapsedToppingW(w2);
+      const maxW = Math.max(
+        typeof w1 === "number" ? w1 : 0,
+        typeof w2 === "number" ? w2 : 0,
+      );
+      if (maxW > 0) {
+        setCollapsedNameW(maxW);
+        setCollapsedToppingW(maxW);
+      }
     };
 
     measure();
@@ -12891,7 +12899,7 @@ function Navbar({
         ) : (
           <>
             <div className="pp-topnav__left">
-              <ThemeSwitcher compact={false} />
+              <ThemeSwitcher compact />
 
               {/* Desktop: keep the inline searches */}
               <div className="pp-topnav__searchWrap">
@@ -12900,7 +12908,7 @@ function Navbar({
                     position: "relative",
                     width:
                       isNameFocused || (searchName && searchName.length > 0)
-                        ? "190px"
+                        ? "var(--pp-input-expanded-w, 150px)"
                         : `${collapsedNameW}px`,
                     transition: "width 170ms ease-out",
                     willChange: "width",
@@ -12926,7 +12934,7 @@ function Navbar({
                     width:
                       isToppingFocused ||
                       (searchTopping && searchTopping.length > 0)
-                        ? "190px"
+                        ? "var(--pp-input-expanded-w, 150px)"
                         : `${collapsedToppingW}px`,
                     transition: "width 170ms ease-out",
                     willChange: "width",
@@ -12979,7 +12987,7 @@ function Navbar({
                     onClick={onAboutClick}
                     className="pp-topnav__linkBtn"
                   >
-                    About Us
+                    About
                   </button>
 
                   <button
@@ -13043,8 +13051,6 @@ function Navbar({
           </>
         )}
       </div>
-
-      <div className="pp-qnav-slot" />
 
       {/* Mobile search drawer (PORTAL) — fixes cases where the drawer is clipped/hidden */}
       {isMobile && mobileSearchOpen && typeof document !== "undefined" && document.body
@@ -13187,7 +13193,6 @@ function Home({
   setHhMobileDraft,
   mealDealDraft,
   onResumeMealDeal,
-  isMobile,
 }) {
   // --- Meal deal "resume" banner dismiss (does NOT delete the draft) ---
   const mealDealDraftKey = React.useMemo(() => {
@@ -13299,11 +13304,7 @@ function Home({
           </div>
         </div>
       )}
-      <QuickNav
-        menuData={menuData}
-        activeCategory={activeCategory}
-        usePortal={isMobile}
-      />
+      <QuickNav menuData={menuData} activeCategory={activeCategory} usePortal />
       {hhMobilePicking && (
         <div className="pp-hh-pickNotice" role="status" aria-live="polite">
           <div className="pp-hh-pickNotice__top">
@@ -14864,17 +14865,20 @@ function AppLayout({ isMapsLoaded }) {
       <div className="app-grid-layout">
         <div className="left-pane">
           {!isAdminRoute ? (
-            <Navbar
-              onAboutClick={showAboutPanel}
-              onMenuClick={showOrderPanel}
-              onCartClick={showCartPanel}
-              onLoginClick={(tab) => authCtx.openLogin(tab)}
-              onProfileClick={handleProfileOpen}
-              searchName={searchName}
-              searchTopping={searchTopping}
-              onSearchNameChange={setSearchName}
-              onSearchToppingChange={setSearchTopping}
-            />
+            <>
+              <Navbar
+                onAboutClick={showAboutPanel}
+                onMenuClick={showOrderPanel}
+                onCartClick={showCartPanel}
+                onLoginClick={(tab) => authCtx.openLogin(tab)}
+                onProfileClick={handleProfileOpen}
+                searchName={searchName}
+                searchTopping={searchTopping}
+                onSearchNameChange={setSearchName}
+                onSearchToppingChange={setSearchTopping}
+              />
+              <div className="pp-qnav-slot" />
+            </>
           ) : null}
 
           <main className="main-content-area">
@@ -14896,7 +14900,6 @@ function AppLayout({ isMapsLoaded }) {
                     setHhMobileDraft={setHhMobileDraft}
                     mealDealDraft={mealDealDraft}
                     onResumeMealDeal={handleResumeMealDeal}
-                    isMobile={isMobileScreen}
                   />
                 }
               />
