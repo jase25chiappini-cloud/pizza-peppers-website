@@ -6370,6 +6370,34 @@ function QuickNav({ menuData, activeCategory, usePortal }) {
   const lastScrollTargetRef = React.useRef(null);
   const effectiveActive = liveActive || activeCategory || null;
 
+  // Keep CSS in sync with the ACTUAL sticky header height (2-row layouts, zoom, etc.)
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    const root = document.documentElement;
+    const headerEl = document.querySelector(".pp-topnav");
+    if (!headerEl) return;
+
+    const apply = () => {
+      const h = Math.ceil(headerEl.getBoundingClientRect().height || 0);
+      if (h > 0) root.style.setProperty("--pp-topnav-h", `${h}px`);
+    };
+
+    apply();
+
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => apply());
+      ro.observe(headerEl);
+    }
+
+    window.addEventListener("resize", apply);
+    return () => {
+      window.removeEventListener("resize", apply);
+      try { ro?.disconnect?.(); } catch {}
+    };
+  }, []);
+
   const suppressActiveFollow = React.useCallback((ms = 900) => {
     qnavSuppressFollowUntilRef.current = Date.now() + ms;
   }, []);

@@ -866,7 +866,7 @@ body {
   margin: 0.25rem 0 0.55rem;
 
   position: sticky;
-  top: calc(var(--pp-hdr-h, 90px) + 6px + env(safe-area-inset-top));
+  top: calc(var(--pp-topnav-h, var(--pp-hdr-h, 90px)) + 6px + env(safe-area-inset-top));
   z-index: 29;
 }
 
