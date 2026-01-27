@@ -4302,6 +4302,8 @@ const OPEN_WINDOWS_ADEL = {
   5: [17 * 60, 20 * 60 + 45], // Fri
   6: [17 * 60, 20 * 60 + 45], // Sat
 };
+const PREORDER_START_MINS = 17 * 60 + 15; // 5:15pm
+const PREORDER_END_MINS = 20 * 60 + 30; // 8:30pm
 
 function _zonedParts(date, timeZone) {
   const dtf = new Intl.DateTimeFormat("en-AU", {
@@ -9129,6 +9131,8 @@ function ReviewOrderPanel({
   estimatedTime,
   storeOpenNow,
   preorderPickupLabel,
+  pickupWhen,
+  pickupScheduledUtcIso,
 }) {
   const { cart, totalPrice, clearCart } = useCart();
   const { currentUser } = useAuth();
@@ -9138,7 +9142,8 @@ function ReviewOrderPanel({
   const profileAddress = pickProfileAddress(localProfile);
   const [voucherCode, setVoucherCode] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
-  const isPreorder = orderType === "Pickup" && !storeOpenNow;
+  const isPreorder =
+    orderType === "Pickup" && (pickupWhen === "SCHEDULE" || !storeOpenNow);
   const [placing, setPlacing] = React.useState(false);
   const [placeErr, setPlaceErr] = React.useState("");
   const [placeOk, setPlaceOk] = React.useState("");
@@ -9158,6 +9163,19 @@ function ReviewOrderPanel({
     !needsPhone &&
     !needsLocation &&
     !(orderType === "Delivery" && (!deliveryAddress || !!orderAddressError));
+  const scheduledLabel = pickupScheduledUtcIso
+    ? new Intl.DateTimeFormat("en-AU", {
+        timeZone: ADEL_TZ,
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(pickupScheduledUtcIso))
+    : (preorderPickupLabel || "15 min after opening");
+  const pickupTimeLabel = storeOpenNow && pickupWhen !== "SCHEDULE"
+    ? `ASAP (Approx. ${estimatedTime} mins)`
+    : `Pre-order (Ready ${scheduledLabel || "15 min after opening"})`;
 
   const buildOrderPayload = React.useCallback(() => {
     const dollarsToCents = (n) => {
@@ -9250,6 +9268,14 @@ function ReviewOrderPanel({
       },
     };
 
+    if (fulfilment === "pickup") {
+      payload.pickup = {
+        when: isPreorder ? "scheduled" : "asap",
+        requested_ready_at_utc: isPreorder ? (pickupScheduledUtcIso || null) : null,
+        requested_ready_label: isPreorder ? scheduledLabel : null,
+      };
+    }
+
     return payload;
   }, [
     cart,
@@ -9268,6 +9294,9 @@ function ReviewOrderPanel({
     localProfile?.postcode,
     localProfile?.displayName,
     localProfile?.phoneNumber,
+    isPreorder,
+    pickupScheduledUtcIso,
+    scheduledLabel,
   ]);
 
   const handlePlaceOrder = React.useCallback(async () => {
@@ -9318,10 +9347,6 @@ function ReviewOrderPanel({
     }
   }, [canPlaceStrict, placing, buildOrderPayload, clearCart, onBack, onOpenProfile]);
 
-  const pickupTimeLabel = storeOpenNow
-    ? `ASAP (Approx. ${estimatedTime} mins)`
-    : `Pre-order (Ready ${preorderPickupLabel || "15 min after opening"})`;
-
   return (
     <>
       <h2 className="panel-title">Review Order</h2>
@@ -9369,7 +9394,7 @@ function ReviewOrderPanel({
             <p>
               Pickup time: <strong>{pickupTimeLabel}</strong>
             </p>
-            {isPreorder ? (
+            {!storeOpenNow ? (
               <p
                 style={{
                   marginTop: "0.35rem",
@@ -9377,7 +9402,7 @@ function ReviewOrderPanel({
                   fontSize: "0.85rem",
                 }}
               >
-                Store is closed - pickup will be scheduled as a pre-order (Adelaide time).
+                Store is closed — pickup is scheduled as a pre-order.
               </p>
             ) : null}
           </>
@@ -9560,6 +9585,10 @@ function OrderInfoPanel({
   estimatedTime,
   storeOpenNow,
   preorderPickupLabel,
+  pickupWhen,
+  setPickupWhen,
+  pickupScheduledUtcIso,
+  setPickupScheduledUtcIso,
   onProceed,
 }) {
   const { cart, totalPrice } = useCart();
@@ -9572,11 +9601,123 @@ function OrderInfoPanel({
   const deliveryPlacesElRef = React.useRef(null);
   const [addressAutoErr, setAddressAutoErr] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
-  const isPreorder = orderType === "Pickup" && !storeOpenNow;
   const canUsePlacesWidget =
     isMapsLoaded &&
     typeof window !== "undefined" &&
     typeof window.google?.maps?.importLibrary === "function";
+
+  const fmtAdelLabel = (utcIso) => {
+    if (!utcIso) return "";
+    const d = new Date(utcIso);
+    if (!Number.isFinite(d.getTime())) return "";
+    return new Intl.DateTimeFormat("en-AU", {
+      timeZone: ADEL_TZ,
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d);
+  };
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+
+  const ymdFromUtcIsoAdel = (utcIso) => {
+    const d = utcIso ? new Date(utcIso) : new Date();
+    const z = _zonedParts(d, ADEL_TZ);
+    return `${z.year}-${pad2(z.month)}-${pad2(z.day)}`;
+  };
+
+  const openDayOptions = React.useMemo(() => {
+    const out = [];
+    const now = new Date();
+    const nowZ = _zonedParts(now, ADEL_TZ);
+
+    // Adelaide "midnight" in UTC for today
+    const baseUtc = _zonedTimeToUtc(
+      { year: nowZ.year, month: nowZ.month, day: nowZ.day, hour: 0, minute: 0, second: 0 },
+      ADEL_TZ,
+    );
+
+    for (let i = 0; i < 10; i++) {
+      const dayUtc = new Date(baseUtc.getTime() + i * 86400000);
+      const z = _zonedParts(dayUtc, ADEL_TZ);
+      const win = OPEN_WINDOWS_ADEL[z.weekday];
+      if (!win) continue;
+
+      const key = `${z.year}-${pad2(z.month)}-${pad2(z.day)}`;
+      const label =
+        i === 0 ? "Today" : i === 1 ? "Tomorrow" : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][z.weekday];
+
+      out.push({ key, label });
+      if (out.length >= 6) break;
+    }
+    return out;
+  }, []);
+
+  const [schedDayKey, setSchedDayKey] = React.useState(() =>
+    ymdFromUtcIsoAdel(pickupScheduledUtcIso),
+  );
+  React.useEffect(() => {
+    // keep local day selector synced when scheduled iso changes externally
+    if (!pickupScheduledUtcIso) return;
+    setSchedDayKey(ymdFromUtcIsoAdel(pickupScheduledUtcIso));
+  }, [pickupScheduledUtcIso]);
+
+  const timeOptionsForDay = React.useCallback((dayKey) => {
+    if (!dayKey) return [];
+    const [yy, mm, dd] = dayKey.split("-").map((x) => Number(x));
+    if (![yy, mm, dd].every(Number.isFinite)) return [];
+
+    const dayUtc = _zonedTimeToUtc(
+      { year: yy, month: mm, day: dd, hour: 0, minute: 0, second: 0 },
+      ADEL_TZ,
+    );
+    const z = _zonedParts(dayUtc, ADEL_TZ);
+    const win = OPEN_WINDOWS_ADEL[z.weekday];
+    if (!win) return [];
+    const [openStartMins, openEndMins] = win;
+
+    // Pre-order window (still respects store open hours)
+    const startMins = Math.max(openStartMins, PREORDER_START_MINS);
+    const endMins = Math.min(openEndMins, PREORDER_END_MINS);
+    if (startMins > endMins) return [];
+
+    const now = new Date();
+    const nowZ = _zonedParts(now, ADEL_TZ);
+    const isToday = `${nowZ.year}-${pad2(nowZ.month)}-${pad2(nowZ.day)}` === dayKey;
+
+    const leadMins = 20;
+    let minMins = startMins;
+    if (isToday) minMins = Math.max(minMins, (nowZ.hour * 60 + nowZ.minute) + leadMins);
+
+    // round up to 15-min
+    minMins = Math.ceil(minMins / 15) * 15;
+
+    const opts = [];
+    for (let m = minMins; m <= endMins; m += 15) {
+      const h = Math.floor(m / 60);
+      const mi = m % 60;
+
+      const utc = _zonedTimeToUtc(
+        { year: yy, month: mm, day: dd, hour: h, minute: mi, second: 0 },
+        ADEL_TZ,
+      );
+      const iso = utc.toISOString();
+
+      const label = new Intl.DateTimeFormat("en-AU", {
+        timeZone: ADEL_TZ,
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(iso));
+
+      opts.push({ iso, label });
+    }
+    return opts;
+  }, []);
+
+  const isPreorder =
+    orderType === "Pickup" && (pickupWhen === "SCHEDULE" || !storeOpenNow);
 
   React.useEffect(() => {
     if (orderType !== "Delivery") return;
@@ -9859,24 +10000,85 @@ function OrderInfoPanel({
             <p>
               Pickup time:{" "}
               <strong>
-                {storeOpenNow
-                  ? `ASAP (Approx. ${estimatedTime} mins)`
-                  : `Pre-order (Ready ${
-                      preorderPickupLabel || "15 min after opening"
-                    })`}
+                {orderType !== "Pickup"
+                  ? "-"
+                  : (pickupWhen === "SCHEDULE" || !storeOpenNow)
+                    ? `Pre-order (Ready ${pickupScheduledUtcIso ? fmtAdelLabel(pickupScheduledUtcIso) : (preorderPickupLabel || "15 min after opening")})`
+                    : `ASAP (Approx. ${estimatedTime} mins)`}
               </strong>
             </p>
-            {!storeOpenNow && (
-              <p
-                style={{
-                  marginTop: "0.35rem",
-                  color: "var(--text-medium)",
-                  fontSize: "0.85rem",
+            <div className="pp-pickupWhenSwitch">
+              <button
+                type="button"
+                className={[
+                  "pp-pickupWhenBtn",
+                  pickupWhen === "ASAP" ? "is-active" : "",
+                ].join(" ")}
+                disabled={!storeOpenNow}
+                onClick={() => setPickupWhen("ASAP")}
+                title={!storeOpenNow ? "Store is closed" : "Order ASAP"}
+              >
+                ASAP
+              </button>
+
+              <button
+                type="button"
+                className={[
+                  "pp-pickupWhenBtn",
+                  pickupWhen === "SCHEDULE" ? "is-active" : "",
+                ].join(" ")}
+                onClick={() => {
+                  setPickupWhen("SCHEDULE");
+                  if (!pickupScheduledUtcIso) {
+                    // default = soon-ish, rounded, within open hours
+                    const firstDay = openDayOptions[0]?.key || ymdFromUtcIsoAdel("");
+                    const opts = timeOptionsForDay(firstDay);
+                    if (opts[0]?.iso) setPickupScheduledUtcIso(opts[0].iso);
+                  }
                 }}
               >
-                Store is closed - pickup defaults to pre-order (Adelaide time).
-              </p>
-            )}
+                Schedule
+              </button>
+            </div>
+
+            {(pickupWhen === "SCHEDULE" || !storeOpenNow) ? (
+              <div className="pp-pickupScheduleGrid">
+                <div className="pp-pickupScheduleRow">
+                  <label>Day</label>
+                  <select
+                    className="pp-pickupScheduleSelect"
+                    value={schedDayKey}
+                    onChange={(e) => {
+                      const nextDay = e.target.value;
+                      setSchedDayKey(nextDay);
+                      const opts = timeOptionsForDay(nextDay);
+                      if (opts[0]?.iso) setPickupScheduledUtcIso(opts[0].iso);
+                    }}
+                  >
+                    {openDayOptions.map((d) => (
+                      <option key={d.key} value={d.key}>{d.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pp-pickupScheduleRow">
+                  <label>Time</label>
+                  <select
+                    className="pp-pickupScheduleSelect"
+                    value={pickupScheduledUtcIso || ""}
+                    onChange={(e) => setPickupScheduledUtcIso(e.target.value)}
+                  >
+                    {timeOptionsForDay(schedDayKey).map((t) => (
+                      <option key={t.iso} value={t.iso}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pp-disclaimer">
+                  15-minute slots, between 5:15pm and 8:30pm. If the store is closed, ASAP is disabled.
+                </div>
+              </div>
+            ) : null}
           </>
         ) : (
           <>
@@ -13802,6 +14004,9 @@ function AppLayout({ isMapsLoaded }) {
   const [orderAddressError, setOrderAddressError] = useState("");
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [storeOpenNow, setStoreOpenNow] = useState(() => isOpenNowAdelaide());
+  // Pickup scheduling (works even when store is open)
+  const [pickupWhen, setPickupWhen] = useState("ASAP"); // "ASAP" | "SCHEDULE"
+  const [pickupScheduledUtcIso, setPickupScheduledUtcIso] = useState(""); // ISO UTC
 
   useEffect(() => {
     const base = 20;
@@ -13820,6 +14025,28 @@ function AppLayout({ isMapsLoaded }) {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    if (orderType !== "Pickup") return;
+
+    // If store closes, force scheduling and auto-pick next opening + 15 mins
+    if (!storeOpenNow) {
+      setPickupWhen("SCHEDULE");
+      if (!pickupScheduledUtcIso) {
+        const openUtc = getNextOpeningUtcAdelaide(new Date());
+        if (openUtc) {
+          const readyUtc = new Date(openUtc.getTime() + 15 * 60 * 1000);
+          setPickupScheduledUtcIso(readyUtc.toISOString());
+        }
+      }
+    }
+  }, [orderType, storeOpenNow, pickupScheduledUtcIso]);
+
+  useEffect(() => {
+    if (orderType === "Delivery") {
+      setPickupWhen("ASAP");
+    }
+  }, [orderType]);
+
   const preorderPickupLabel = useMemo(() => {
     if (orderType !== "Pickup") return null;
     if (storeOpenNow) return null;
@@ -13833,7 +14060,6 @@ function AppLayout({ isMapsLoaded }) {
       month: "short",
       hour: "numeric",
       minute: "2-digit",
-      timeZoneName: "short",
     }).format(readyUtc);
   }, [orderType, storeOpenNow]);
 
@@ -14801,6 +15027,8 @@ function AppLayout({ isMapsLoaded }) {
             estimatedTime={estimatedTime}
             storeOpenNow={storeOpenNow}
             preorderPickupLabel={preorderPickupLabel}
+            pickupWhen={pickupWhen}
+            pickupScheduledUtcIso={pickupScheduledUtcIso}
           />
         ) : (
           <OrderInfoPanel
@@ -14817,6 +15045,10 @@ function AppLayout({ isMapsLoaded }) {
             estimatedTime={estimatedTime}
             storeOpenNow={storeOpenNow}
             preorderPickupLabel={preorderPickupLabel}
+            pickupWhen={pickupWhen}
+            setPickupWhen={setPickupWhen}
+            pickupScheduledUtcIso={pickupScheduledUtcIso}
+            setPickupScheduledUtcIso={setPickupScheduledUtcIso}
             onProceed={() => {
               setRightPanelView("review");
               if (isMobile) setCartModalOpen(true);

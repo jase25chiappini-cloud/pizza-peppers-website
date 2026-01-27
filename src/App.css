@@ -1390,12 +1390,20 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 [data-theme='light'] .quick-nav-item a{
   background: rgba(15,23,42,0.04);
   border-color: rgba(15,23,42,0.10);
+  color: rgba(15,23,42,0.72);
 }
 
 .quick-nav-item a:hover{
   color: var(--text-primary);
   border-color: rgba(190,242,100,0.22);
   background: rgba(17,28,51,0.72);
+  transform: translateY(-1px);
+}
+
+[data-theme='light'] .quick-nav-item a:hover{
+  background: rgba(22,163,74,0.08);
+  border-color: rgba(22,163,74,0.18);
+  color: var(--text-primary);
   transform: translateY(-1px);
 }
 
@@ -1427,6 +1435,13 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   box-shadow: 0 10px 22px rgba(0,0,0,0.10);
 }
 
+[data-theme='light'] .quick-nav-arrow{
+  background: rgba(255,255,255,0.90);
+  border-color: rgba(15,23,42,0.12);
+  color: var(--text-primary);
+  box-shadow: 0 10px 22px rgba(2,6,23,0.10);
+}
+
 .quick-nav-arrow[aria-disabled="true"],
 .quick-nav-arrow[data-disabled="1"]{
   opacity: 0.35;
@@ -1437,6 +1452,11 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 [data-theme='dark'] .quick-nav-arrow:hover{
   border-color: rgba(190,242,100,0.24);
   background: rgba(17,28,51,0.74);
+}
+
+[data-theme='light'] .quick-nav-arrow:hover{
+  background: rgba(22,163,74,0.08);
+  border-color: rgba(22,163,74,0.18);
 }
 
 /* mobile: free scroll, no arrows */
@@ -2139,6 +2159,32 @@ footer,
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
   }
 
+  [data-theme='light'] .pp-topnav__left,
+  [data-theme='light'] .pp-topnav__rightStack{
+    background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(241,245,251,0.88));
+    border-color: rgba(15,23,42,0.12);
+    box-shadow:
+      0 12px 28px rgba(2,6,23,0.10),
+      inset 0 1px 0 rgba(255,255,255,0.75);
+  }
+
+  /* Right-side buttons should not use "dark glass" backgrounds in light mode */
+  [data-theme='light'] .pp-topnav__right .pp-topnav__link,
+  [data-theme='light'] .pp-topnav__right .pp-topnav__linkBtn,
+  [data-theme='light'] .pp-topnav__acctBtn{
+    background: rgba(15,23,42,0.03);
+    border-color: rgba(15,23,42,0.12);
+    color: var(--text-primary);
+  }
+
+  [data-theme='light'] .pp-topnav__right .pp-topnav__link:hover,
+  [data-theme='light'] .pp-topnav__right .pp-topnav__linkBtn:hover,
+  [data-theme='light'] .pp-topnav__acctBtn:hover{
+    background: rgba(22,163,74,0.08);
+    border-color: rgba(22,163,74,0.18);
+    color: var(--text-primary);
+  }
+
   /* Row 1: About + Cart */
   .pp-topnav__rightActions{
     display: grid;
@@ -2436,6 +2482,12 @@ footer,
   box-shadow: 0 14px 40px rgba(0,0,0,0.20);
   overflow: hidden;
   position: relative;
+}
+
+[data-theme='light'] .pp-topnav__brandCard{
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(241,245,251,0.90));
+  border-color: rgba(15,23,42,0.12);
+  box-shadow: 0 12px 26px rgba(2,6,23,0.10);
 }
 
 .pp-topnav__logoImg:not(.pp-topnav__logoImg--banner){
@@ -7988,6 +8040,195 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 
 [data-theme="light"] .order-panel-container .pp-orderTypeSwitch{
   background: rgba(15,23,42,0.03);
+}
+
+/* Pickup time (ASAP / Schedule) */
+.order-panel-container .pp-pickupWhenSwitch{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  padding: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.20);
+  background: rgba(0,0,0,0.12);
+  box-shadow: var(--shadow-card);
+  margin-top: 0.65rem;
+}
+
+[data-theme="light"] .order-panel-container .pp-pickupWhenSwitch{
+  background: rgba(15,23,42,0.03);
+}
+
+.order-panel-container .pp-pickupWhenBtn{
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.order-panel-container .pp-pickupWhenBtn.is-active{
+  border-color: rgba(190,242,100,0.55);
+  background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(190,242,100,0.70));
+  color: #0b1220;
+  box-shadow: 0 18px 46px rgba(190,242,100,0.18);
+}
+
+[data-theme="light"] .order-panel-container .pp-pickupWhenBtn.is-active{
+  border-color: rgba(22,163,74,0.28);
+  background: linear-gradient(180deg, #bbf7d0, #86efac);
+  color: #0b1220;
+}
+
+.order-panel-container .pp-pickupWhenBtn:disabled{
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Schedule grid */
+.order-panel-container .pp-pickupScheduleGrid{
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.order-panel-container .pp-pickupScheduleRow{
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.order-panel-container .pp-pickupScheduleRow label{
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-medium);
+}
+
+/* Enterprise dropdowns (Day / Time) */
+.order-panel-container .pp-pickupScheduleSelect{
+  width: 100%;
+  min-height: 46px;
+
+  border-radius: 16px;
+  border: 1px solid rgba(148,163,184,0.20);
+
+  background:
+    radial-gradient(520px 180px at 30% 0%, rgba(190,242,100,0.10), transparent 58%),
+    linear-gradient(180deg, rgba(17,28,51,0.62), rgba(2,6,23,0.34));
+
+  color: rgba(234,242,255,0.92);
+  padding: 0 2.6rem 0 0.9rem; /* room for the caret */
+  font-weight: 800;
+  letter-spacing: 0.02em;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  box-shadow:
+    0 14px 34px rgba(0,0,0,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+/* --- Scheduler selects: FIX native dropdown visibility (dark/light) --- */
+.order-panel-container .pp-pickupScheduleSelect{
+  color: var(--text-primary);
+}
+
+/* Dark mode: force native dropdown to dark + readable options */
+[data-theme="dark"] .order-panel-container .pp-pickupScheduleSelect{
+  color-scheme: dark;
+  background:
+    radial-gradient(520px 180px at 30% 0%, rgba(190,242,100,0.10), transparent 58%),
+    linear-gradient(180deg, rgba(15,23,42,0.88), rgba(2,6,23,0.48));
+  border-color: rgba(148,163,184,0.22);
+}
+
+[data-theme="dark"] .order-panel-container .pp-pickupScheduleSelect option{
+  background-color: #0f172a;
+  color: #eaf2ff;
+}
+
+/* Light mode: crisp, readable options */
+[data-theme="light"] .order-panel-container .pp-pickupScheduleSelect{
+  color-scheme: light;
+  background:
+    radial-gradient(520px 180px at 30% 0%, rgba(34,197,94,0.10), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,251,0.90));
+  border-color: rgba(15,23,42,0.14);
+  color: #0b1220;
+}
+
+[data-theme="light"] .order-panel-container .pp-pickupScheduleSelect option{
+  background-color: #ffffff;
+  color: #0b1220;
+}
+
+.order-panel-container .pp-pickupScheduleRow{
+  position: relative;
+}
+.order-panel-container .pp-pickupScheduleRow::after{
+  content: "▾";
+  position: absolute;
+  right: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(234,242,255,0.72);
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+[data-theme="light"] .order-panel-container .pp-pickupScheduleRow::after{
+  color: rgba(15,23,42,0.60);
+}
+
+.order-panel-container .pp-pickupScheduleSelect:focus{
+  outline: none;
+  border-color: rgba(190,242,100,0.55);
+  box-shadow:
+    0 16px 44px rgba(190,242,100,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+  transform: translateY(-1px);
+}
+
+/* Custom caret (keeps it consistent across browsers) */
+.order-panel-container .pp-pickupScheduleRow{
+  position: relative;
+}
+.order-panel-container .pp-pickupScheduleRow::after{
+  content: "▾";
+  position: absolute;
+  right: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(234,242,255,0.72);
+  pointer-events: none;
+  font-size: 0.95rem;
+}
+
+/* Light mode variant */
+[data-theme="light"] .order-panel-container .pp-pickupScheduleSelect{
+  border-color: rgba(15,23,42,0.14);
+  background:
+    radial-gradient(520px 180px at 30% 0%, rgba(34,197,94,0.10), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,251,0.90));
+  color: #0b1220;
+  box-shadow:
+    0 12px 26px rgba(15,23,42,0.10),
+    inset 0 1px 0 rgba(255,255,255,0.75);
+}
+[data-theme="light"] .order-panel-container .pp-pickupScheduleRow::after{
+  color: rgba(15,23,42,0.60);
 }
 
 .order-panel-container .pp-orderTypeBtn{
