@@ -12712,11 +12712,11 @@ function Navbar({
       const borderR = parseFloat(cs.borderRightWidth || "0") || 0;
 
       // Tiny safety buffer so it never clips, but still hugs
-      const extra = 2;
+      const extra = 8; // bigger safety buffer at larger header scale
 
       const w = Math.ceil(textW + padL + padR + borderL + borderR + extra);
       // clamp so it never gets silly
-      return Math.max(84, Math.min(w, 150));
+      return Math.max(110, Math.min(w, 260));
     };
 
     const measure = () => {
@@ -12906,12 +12906,8 @@ function Navbar({
                 <div
                   style={{
                     position: "relative",
-                    width:
-                      isNameFocused || (searchName && searchName.length > 0)
-                        ? "var(--pp-input-expanded-w, 150px)"
-                        : `${collapsedNameW}px`,
-                    transition: "width 170ms ease-out",
-                    willChange: "width",
+                    width: "100%",
+                    maxWidth: "100%",
                   }}
                 >
                   <input
@@ -12931,13 +12927,8 @@ function Navbar({
                 <div
                   style={{
                     position: "relative",
-                    width:
-                      isToppingFocused ||
-                      (searchTopping && searchTopping.length > 0)
-                        ? "var(--pp-input-expanded-w, 150px)"
-                        : `${collapsedToppingW}px`,
-                    transition: "width 170ms ease-out",
-                    willChange: "width",
+                    width: "100%",
+                    maxWidth: "100%",
                   }}
                 >
                   <input
