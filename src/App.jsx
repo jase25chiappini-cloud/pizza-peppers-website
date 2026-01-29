@@ -13519,19 +13519,16 @@ function Navbar({
   );
 }
 
-function LoyaltyModal({ onClose }) {
-  const { currentUser } = useAuth();
-  const localProfile = useLocalProfile(currentUser);
-  const [saving, setSaving] = React.useState(false);
-  const [okMsg, setOkMsg] = React.useState("");
-  const [errMsg, setErrMsg] = React.useState("");
+function LoyaltyModal({ isOpen, onClose }) {
+  const { currentUser, openLogin } = useAuth();
+  const user = currentUser;
 
+  const localProfile = useLocalProfile(user);
   const joined = !!(localProfile?.loyalty?.joined || localProfile?.loyaltyJoined);
-  const pointsRaw =
-    localProfile?.loyalty?.points ?? localProfile?.loyaltyPoints ?? 0;
-  const points = Number(pointsRaw) || 0;
-  const joinedAt =
-    localProfile?.loyalty?.joinedAt || localProfile?.loyaltyJoinedAt || null;
+
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  const [ok, setOk] = React.useState("");
 
   const AUTH_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(
     /\/+$/,
@@ -13547,12 +13544,16 @@ function LoyaltyModal({ onClose }) {
     }
   }, []);
 
-  const persistProfile = React.useCallback(
-    async (nextProfile, loyaltyPayload) => {
+  const saveProfileEverywhere = React.useCallback(
+    async (nextProfile) => {
+      if (!user) return;
+
+      // 1) local cache (instant UI)
       try {
-        writeLocalProfile(currentUser, nextProfile);
+        writeLocalProfile(user, nextProfile);
       } catch {}
 
+      // 2) your Flask DB via /me (if token exists)
       try {
         const token = readSessionToken();
         if (AUTH_BASE && token) {
@@ -13565,142 +13566,175 @@ function LoyaltyModal({ onClose }) {
             body: JSON.stringify({ profile: nextProfile }),
           });
         }
-      } catch (e) {
-        console.warn("[PP][Loyalty] /me save failed:", e?.message || e);
-      }
-
-      try {
-        const sdk = await getFirebase();
-        if (sdk?.db && currentUser?.uid) {
-          const ref = sdk.doc(sdk.db, "users", currentUser.uid);
-          await sdk.setDoc(ref, loyaltyPayload, { merge: true });
-        }
-      } catch (e) {
-        console.warn("[PP][Loyalty] Firestore save failed:", e?.message || e);
-      }
+      } catch {}
     },
-    [AUTH_BASE, currentUser, readSessionToken],
+    [user, AUTH_BASE, readSessionToken],
   );
 
-  const handleJoin = React.useCallback(async () => {
-    if (saving || joined) return;
-    if (!currentUser) {
-      setErrMsg("Please login to join the loyalty program.");
+  const handlePrimary = React.useCallback(async () => {
+    setErr("");
+    setOk("");
+
+    // ✅ If not logged in: go straight to login
+    if (!user) {
+      try {
+        onClose?.();
+      } catch {}
+      openLogin?.("providers");
       return;
     }
 
+    // If already joined, nothing to do yet (placeholder program)
+    if (joined) return;
+
+    // Join + persist (profile_json)
     setSaving(true);
-    setErrMsg("");
-    setOkMsg("");
+    try {
+      const nowIso = new Date().toISOString();
 
-    const nowIso = new Date().toISOString();
-    const nextLoyalty = {
-      joined: true,
-      joinedAt: joinedAt || nowIso,
-      points,
-    };
-    const baseProfile =
-      localProfile && typeof localProfile === "object" ? localProfile : {};
-    const nextProfile = {
-      ...baseProfile,
-      loyalty: nextLoyalty,
-      loyaltyJoined: true,
-      loyaltyJoinedAt: nextLoyalty.joinedAt,
-      loyaltyPoints: nextLoyalty.points || 0,
-    };
-    const loyaltyPayload = {
-      loyalty: nextLoyalty,
-      loyaltyJoined: true,
-      loyaltyPoints: nextLoyalty.points || 0,
-    };
+      const prev = (localProfile && typeof localProfile === "object") ? localProfile : {};
+      const prevL = (prev.loyalty && typeof prev.loyalty === "object") ? prev.loyalty : {};
 
-    await persistProfile(nextProfile, loyaltyPayload);
-    setOkMsg("You are now in the loyalty program.");
-    setSaving(false);
-  }, [saving, joined, currentUser, localProfile, joinedAt, points, persistProfile]);
+      const nextProfile = {
+        ...prev,
+        loyaltyJoined: true,
+        loyalty: {
+          ...prevL,
+          joined: true,
+          joinedAt: prevL.joinedAt || nowIso,
+          points: Number(prevL.points ?? prev.loyaltyPoints ?? 0) || 0,
+        },
+      };
 
-  return (
-    <div className="modal-overlay pp-loyaltyOverlay" onClick={() => onClose?.()}>
-      <div className="pp-modal pp-loyaltyModal" onClick={(e) => e.stopPropagation()}>
-        <div className="pp-modal-header">
-          <div className="pp-modal-title">Loyalty Program</div>
+      await saveProfileEverywhere(nextProfile);
+      setOk("Welcome! Loyalty is now active (features coming soon).");
+    } catch (e) {
+      setErr(e?.message || "Couldn’t join right now.");
+    } finally {
+      setSaving(false);
+    }
+  }, [user, joined, localProfile, saveProfileEverywhere, onClose, openLogin]);
+
+  const handleClose = React.useCallback(() => onClose?.(), [onClose]);
+
+  if (!isOpen) return null;
+
+  const points = Number(localProfile?.loyalty?.points ?? localProfile?.loyaltyPoints ?? 0) || 0;
+  const tierLabel = joined ? "Member" : "Not joined";
+  const primaryLabel = !user
+    ? `Join loyalty program ${EM.CROWN}`
+    : joined
+      ? `${EM.CROWN} Loyalty`
+      : `Join loyalty program ${EM.CROWN}`;
+
+  const content = (
+    <div className="modal-overlay pp-loyaltyOverlay" onClick={handleClose}>
+      <div className="pp-modal pp-loyaltyModal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="pp-loyaltyTop">
+          <div className="pp-loyaltyBadge">
+            <span className="pp-loyaltyBadgeIcon" aria-hidden="true">{EM.CROWN}</span>
+            <span>Pizza Peppers Rewards</span>
+          </div>
+
           <button
-            className="pp-modal-close"
+            type="button"
+            className="pp-modal-close pp-loyaltyClose"
             aria-label="Close loyalty"
             title="Close"
-            onClick={() => onClose?.()}
+            onClick={handleClose}
           >
             {"\u00d7"}
           </button>
         </div>
 
-        <div className="pp-modal-body">
-          <div className="pp-loyaltyCard">
-            <div className="pp-loyaltyHero">
-              <div className="pp-loyaltyBadge" aria-hidden="true">
-                {EM.CROWN}
-              </div>
-              <div>
-                <div className="pp-loyaltyTitle">
-                  {joined ? "Loyalty active" : "Join Pizza Peppers loyalty"}
+        <div className="pp-loyaltyHero">
+          <div className="pp-loyaltyTitle">
+            {joined ? "You’re in 👑" : "Join the Loyalty Program"}
+          </div>
+          <div className="pp-loyaltySub">
+            Earn points, unlock perks, and get surprises. <span className="pp-loyaltySoon">(Content coming soon)</span>
+          </div>
+        </div>
+
+        <div className="pp-loyaltyBody">
+          {(err || ok) && (
+            <div className={["pp-loyaltyMsg", err ? "is-err" : "is-ok"].join(" ")}>
+              {err || ok}
+            </div>
+          )}
+
+          <div className="pp-loyaltyGrid">
+            <div className="pp-loyaltyCard">
+              <div className="pp-loyaltyCardLabel">Status</div>
+              <div className="pp-loyaltyStatRow">
+                <div className="pp-loyaltyStat">
+                  <div className="pp-loyaltyStatNum">{tierLabel}</div>
+                  <div className="pp-loyaltyStatSub">Tier</div>
                 </div>
-                <div className="pp-loyaltySub">
-                  {joined
-                    ? "Points and rewards will appear here."
-                    : "Earn points and unlock rewards with every order."}
+                <div className="pp-loyaltyStat">
+                  <div className="pp-loyaltyStatNum">{points}</div>
+                  <div className="pp-loyaltyStatSub">Points</div>
+                </div>
+              </div>
+
+              <div className="pp-loyaltyProgress">
+                <div className="pp-loyaltyProgressTop">
+                  <span>Progress</span>
+                  <span className="pp-loyaltyProgressHint">placeholder</span>
+                </div>
+                <div className="pp-loyaltyBar" aria-hidden="true">
+                  <div className="pp-loyaltyBarFill" style={{ width: joined ? "22%" : "6%" }} />
                 </div>
               </div>
             </div>
 
-            <div className="pp-loyaltyStats">
-              <div className="pp-loyaltyStat">
-                <div className="pp-loyaltyStatLabel">Points</div>
-                <div className="pp-loyaltyStatValue">{points}</div>
+            <div className="pp-loyaltyCard">
+              <div className="pp-loyaltyCardLabel">Perks (preview)</div>
+              <div className="pp-loyaltyPills">
+                <span className="pp-loyaltyPill">Bonus points</span>
+                <span className="pp-loyaltyPill">Birthday treat</span>
+                <span className="pp-loyaltyPill">Member offers</span>
+                <span className="pp-loyaltyPill">Surprise drops</span>
               </div>
-              <div className="pp-loyaltyStat">
-                <div className="pp-loyaltyStatLabel">Status</div>
-                <div className="pp-loyaltyStatValue">
-                  {joined ? "Member" : "Guest"}
-                </div>
-              </div>
-              <div className="pp-loyaltyStat">
-                <div className="pp-loyaltyStatLabel">Joined</div>
-                <div className="pp-loyaltyStatValue">
-                  {joinedAt ? new Date(joinedAt).toLocaleDateString("en-AU") : "-"}
-                </div>
-              </div>
-            </div>
 
-            <div className="pp-loyaltyActions">
-              <button
-                type="button"
-                className="place-order-button"
-                onClick={handleJoin}
-                disabled={saving || joined}
-              >
-                {saving ? "Joining..." : joined ? "Loyalty active" : "Join loyalty program"}
-              </button>
-              <button type="button" className="pp-btn pp-btn-subtle" onClick={() => onClose?.()}>
-                Close
-              </button>
+              <div className="pp-loyaltyHintText">
+                We’ll light this up once the loyalty rules + rewards are added.
+              </div>
             </div>
           </div>
 
-          {errMsg ? (
-            <div className="pp-loyaltyNote pp-loyaltyNote--error">{errMsg}</div>
-          ) : null}
-          {okMsg ? (
-            <div className="pp-loyaltyNote pp-loyaltyNote--ok">{okMsg}</div>
-          ) : null}
-          {!joined ? (
-            <div className="pp-loyaltyNote">
-              Loyalty rewards are a work in progress. We will add points and perks soon.
+          <div className="pp-loyaltyActions">
+            <button
+              type="button"
+              className="pp-loyaltyBtn pp-loyaltyBtn--primary"
+              onClick={handlePrimary}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : primaryLabel}
+            </button>
+
+            <button
+              type="button"
+              className="pp-loyaltyBtn pp-loyaltyBtn--ghost"
+              onClick={handleClose}
+            >
+              Close
+            </button>
+          </div>
+
+          {!user && (
+            <div className="pp-loyaltyFootnote">
+              You need to sign in before you can join and save progress.
             </div>
-          ) : null}
+          )}
         </div>
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" && document.body
+    ? createPortal(content, document.body)
+    : content;
 }
 
 // Mobile bottom nav (Menu / About / Profile)
@@ -14202,6 +14236,12 @@ function AppLayout({ isMapsLoaded }) {
     !isProfileOpen &&
     !isLoyaltyOpen &&
     !selectedItem; // hides during item detail + meal deal editor + half&half, etc.
+
+  const openLoyalty = React.useCallback(() => {
+    setCartModalOpen(false);
+    setIsProfileOpen(false);
+    setIsLoyaltyOpen(true);
+  }, []);
 
   const prevIsHalfHalfOpenRef = React.useRef(false);
 
@@ -15498,9 +15538,10 @@ function AppLayout({ isMapsLoaded }) {
           onClose={() => setIsProfileOpen(false)}
         />
       )}
-      {isLoyaltyOpen && (
-        <LoyaltyModal onClose={() => setIsLoyaltyOpen(false)} />
-      )}
+      <LoyaltyModal
+        isOpen={isLoyaltyOpen}
+        onClose={() => setIsLoyaltyOpen(false)}
+      />
 
       <div className="app-grid-layout">
         <div className="left-pane">
@@ -15512,7 +15553,7 @@ function AppLayout({ isMapsLoaded }) {
                 onCartClick={showCartPanel}
                 onLoginClick={(tab) => authCtx.openLogin(tab)}
                 onProfileClick={handleProfileOpen}
-                onLoyaltyClick={() => setIsLoyaltyOpen(true)}
+                onLoyaltyClick={openLoyalty}
                 loyaltyJoined={loyaltyJoined}
                 searchName={searchName}
                 searchTopping={searchTopping}
@@ -15625,10 +15666,7 @@ function AppLayout({ isMapsLoaded }) {
               handleProfileOpen();
             }}
             loyaltyJoined={loyaltyJoined}
-            onLoyalty={() => {
-              setCartModalOpen(false);
-              setIsLoyaltyOpen(true);
-            }}
+            onLoyalty={openLoyalty}
             onLogin={() => authCtx.openLogin?.("providers")}
           />
         )}
