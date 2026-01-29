@@ -13376,9 +13376,9 @@ function Navbar({
                     type="button"
                     onClick={onLoyaltyClick}
                     className="pp-topnav__linkBtn pp-topnav__linkBtn--loyalty"
-                    title={loyaltyJoined ? "Loyalty" : "Join loyalty program"}
+                    title="Loyalty"
                   >
-                    {loyaltyJoined ? `${EM.CROWN} Loyalty` : `Join loyalty program ${EM.CROWN}`}
+                    {`${EM.CROWN} Loyalty`}
                   </button>
 
                   <button
@@ -13744,7 +13744,7 @@ function MobileBottomNav({
       {item(
         "loyalty",
         EM.CROWN,
-        loyaltyJoined ? "Loyalty" : "Join loyalty program",
+        "Loyalty",
         () => onLoyalty?.(),
         "pp-bottomnav__item--loyalty",
       )}
