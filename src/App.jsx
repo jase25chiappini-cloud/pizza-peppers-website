@@ -2317,6 +2317,7 @@ const EM = {
   CHECK: "\u2705",             // check
   DOTS: "\u2026",              // ellipsis
   PUZZLE: "\uD83E\uDDE9",      // puzzle
+  CROWN: "\uD83D\uDC51",       // crown
 };
 const MEAL_SLOT_EMOJI = {
   pizza: "\uD83C\uDF55",     // pizza
@@ -4290,7 +4291,7 @@ const HOURS_DISPLAY = [
   { d: "Sunday", h: "05:00 PM - 07:45 PM" },
 ];
 
-// Open/closed evaluation in Australia/Adelaide time
+// Open/closed evaluation in Australia/Adelaide TZ
 const ADEL_TZ = "Australia/Adelaide";
 // JS getDay(): 0=Sun - 6=Sat
 const OPEN_WINDOWS_ADEL = {
@@ -9133,6 +9134,8 @@ function ReviewOrderPanel({
   preorderPickupLabel,
   pickupWhen,
   pickupScheduledUtcIso,
+  deliveryWhen,
+  deliveryScheduledUtcIso,
 }) {
   const { cart, totalPrice, clearCart } = useCart();
   const { currentUser } = useAuth();
@@ -9142,8 +9145,24 @@ function ReviewOrderPanel({
   const profileAddress = pickProfileAddress(localProfile);
   const [voucherCode, setVoucherCode] = React.useState("");
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
+  const fmtAdelLabel = (utcIso) => {
+    if (!utcIso) return "";
+    const d = new Date(utcIso);
+    if (!Number.isFinite(d.getTime())) return "";
+    return new Intl.DateTimeFormat("en-AU", {
+      timeZone: ADEL_TZ,
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d);
+  };
+  const pickupIsPreorder = pickupWhen === "SCHEDULE" || !storeOpenNow;
+  const deliveryIsPreorder = deliveryWhen === "SCHEDULE" || !storeOpenNow;
   const isPreorder =
-    orderType === "Pickup" && (pickupWhen === "SCHEDULE" || !storeOpenNow);
+    (orderType === "Pickup" && pickupIsPreorder) ||
+    (orderType === "Delivery" && deliveryIsPreorder);
   const [placing, setPlacing] = React.useState(false);
   const [placeErr, setPlaceErr] = React.useState("");
   const [placeOk, setPlaceOk] = React.useState("");
@@ -9163,19 +9182,18 @@ function ReviewOrderPanel({
     !needsPhone &&
     !needsLocation &&
     !(orderType === "Delivery" && (!deliveryAddress || !!orderAddressError));
-  const scheduledLabel = pickupScheduledUtcIso
-    ? new Intl.DateTimeFormat("en-AU", {
-        timeZone: ADEL_TZ,
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(new Date(pickupScheduledUtcIso))
-    : (preorderPickupLabel || "15 min after opening");
-  const pickupTimeLabel = storeOpenNow && pickupWhen !== "SCHEDULE"
-    ? `ASAP (Approx. ${estimatedTime} mins)`
-    : `Pre-order (Ready ${scheduledLabel || "15 min after opening"})`;
+  const pickupScheduledLabel =
+    fmtAdelLabel(pickupScheduledUtcIso) ||
+    preorderPickupLabel ||
+    "15 min after opening";
+  const pickupTimeLabel = pickupIsPreorder
+    ? `Pre-order (Ready ${pickupScheduledLabel})`
+    : `ASAP (Approx. ${estimatedTime} mins)`;
+  const deliveryScheduledLabel =
+    fmtAdelLabel(deliveryScheduledUtcIso) || "after opening";
+  const deliveryTimeLabel = deliveryIsPreorder
+    ? `Pre-order (Deliver ${deliveryScheduledLabel})`
+    : `ASAP (Approx. ${estimatedTime} mins)`;
 
   const buildOrderPayload = React.useCallback(() => {
     const dollarsToCents = (n) => {
@@ -9270,9 +9288,9 @@ function ReviewOrderPanel({
 
     if (fulfilment === "pickup") {
       payload.pickup = {
-        when: isPreorder ? "scheduled" : "asap",
-        requested_ready_at_utc: isPreorder ? (pickupScheduledUtcIso || null) : null,
-        requested_ready_label: isPreorder ? scheduledLabel : null,
+        when: pickupIsPreorder ? "scheduled" : "asap",
+        requested_ready_at_utc: pickupIsPreorder ? (pickupScheduledUtcIso || null) : null,
+        requested_ready_label: pickupIsPreorder ? pickupScheduledLabel : null,
       };
     }
 
@@ -9294,9 +9312,9 @@ function ReviewOrderPanel({
     localProfile?.postcode,
     localProfile?.displayName,
     localProfile?.phoneNumber,
-    isPreorder,
+    pickupIsPreorder,
     pickupScheduledUtcIso,
-    scheduledLabel,
+    pickupScheduledLabel,
   ]);
 
   const handlePlaceOrder = React.useCallback(async () => {
@@ -9412,12 +9430,9 @@ function ReviewOrderPanel({
               Delivery address:{" "}
               <strong>{normalizeAddressText(deliveryAddress) || "-"}</strong>
             </p>
-            {estimatedTime > 0 ? (
-              <p>
-                Estimated delivery time:{" "}
-                <strong>ASAP (Approx. {estimatedTime} mins)</strong>
-              </p>
-            ) : null}
+            <p>
+              Delivery time: <strong>{deliveryTimeLabel}</strong>
+            </p>
           </>
         )}
       </div>
@@ -9589,6 +9604,10 @@ function OrderInfoPanel({
   setPickupWhen,
   pickupScheduledUtcIso,
   setPickupScheduledUtcIso,
+  deliveryWhen,
+  setDeliveryWhen,
+  deliveryScheduledUtcIso,
+  setDeliveryScheduledUtcIso,
   onProceed,
 }) {
   const { cart, totalPrice } = useCart();
@@ -9600,11 +9619,14 @@ function OrderInfoPanel({
   const addressInputRef = useRef(null);
   const deliveryPlacesElRef = React.useRef(null);
   const [addressAutoErr, setAddressAutoErr] = React.useState("");
+  const [showDeliverySchedule, setShowDeliverySchedule] = React.useState(false);
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const canUsePlacesWidget =
     isMapsLoaded &&
     typeof window !== "undefined" &&
     typeof window.google?.maps?.importLibrary === "function";
+  const pickupLeadMins = 20;
+  const deliveryLeadMins = 45;
 
   const fmtAdelLabel = (utcIso) => {
     if (!utcIso) return "";
@@ -9655,16 +9677,17 @@ function OrderInfoPanel({
     return out;
   }, []);
 
+  const activeScheduledUtcIso =
+    orderType === "Delivery" ? deliveryScheduledUtcIso : pickupScheduledUtcIso;
   const [schedDayKey, setSchedDayKey] = React.useState(() =>
-    ymdFromUtcIsoAdel(pickupScheduledUtcIso),
+    ymdFromUtcIsoAdel(activeScheduledUtcIso),
   );
   React.useEffect(() => {
     // keep local day selector synced when scheduled iso changes externally
-    if (!pickupScheduledUtcIso) return;
-    setSchedDayKey(ymdFromUtcIsoAdel(pickupScheduledUtcIso));
-  }, [pickupScheduledUtcIso]);
+    setSchedDayKey(ymdFromUtcIsoAdel(activeScheduledUtcIso));
+  }, [activeScheduledUtcIso, orderType]);
 
-  const timeOptionsForDay = React.useCallback((dayKey) => {
+  const timeOptionsForDay = React.useCallback((dayKey, leadMins) => {
     if (!dayKey) return [];
     const [yy, mm, dd] = dayKey.split("-").map((x) => Number(x));
     if (![yy, mm, dd].every(Number.isFinite)) return [];
@@ -9676,20 +9699,25 @@ function OrderInfoPanel({
     const z = _zonedParts(dayUtc, ADEL_TZ);
     const win = OPEN_WINDOWS_ADEL[z.weekday];
     if (!win) return [];
-    const [openStartMins, openEndMins] = win;
 
-    // Pre-order window (still respects store open hours)
-    const startMins = Math.max(openStartMins, PREORDER_START_MINS);
-    const endMins = Math.min(openEndMins, PREORDER_END_MINS);
+    const [openStart, openEnd] = win;
+
+    // Pre-order window (5:15 to 8:30), still respecting store hours
+    const startMins = Math.max(openStart, PREORDER_START_MINS);
+    const endMins = Math.min(openEnd, PREORDER_END_MINS);
     if (startMins > endMins) return [];
 
     const now = new Date();
     const nowZ = _zonedParts(now, ADEL_TZ);
     const isToday = `${nowZ.year}-${pad2(nowZ.month)}-${pad2(nowZ.day)}` === dayKey;
 
-    const leadMins = 20;
     let minMins = startMins;
-    if (isToday) minMins = Math.max(minMins, (nowZ.hour * 60 + nowZ.minute) + leadMins);
+    if (isToday) {
+      minMins = Math.max(
+        minMins,
+        (nowZ.hour * 60 + nowZ.minute) + Math.max(0, leadMins || 0),
+      );
+    }
 
     // round up to 15-min
     minMins = Math.ceil(minMins / 15) * 15;
@@ -9698,7 +9726,6 @@ function OrderInfoPanel({
     for (let m = minMins; m <= endMins; m += 15) {
       const h = Math.floor(m / 60);
       const mi = m % 60;
-
       const utc = _zonedTimeToUtc(
         { year: yy, month: mm, day: dd, hour: h, minute: mi, second: 0 },
         ADEL_TZ,
@@ -9716,8 +9743,76 @@ function OrderInfoPanel({
     return opts;
   }, []);
 
+  const firstSchedOption = React.useCallback(
+    (leadMins) => {
+      for (const day of openDayOptions) {
+        const opts = timeOptionsForDay(day.key, leadMins);
+        if (opts.length) return { dayKey: day.key, iso: opts[0].iso };
+      }
+      return { dayKey: openDayOptions[0]?.key || "", iso: "" };
+    },
+    [openDayOptions, timeOptionsForDay],
+  );
+
   const isPreorder =
-    orderType === "Pickup" && (pickupWhen === "SCHEDULE" || !storeOpenNow);
+    (orderType === "Pickup" && (pickupWhen === "SCHEDULE" || !storeOpenNow)) ||
+    (orderType === "Delivery" && (deliveryWhen === "SCHEDULE" || !storeOpenNow));
+
+  React.useEffect(() => {
+    if (!storeOpenNow) setShowDeliverySchedule(true);
+  }, [storeOpenNow]);
+
+  React.useEffect(() => {
+    if (orderType !== "Pickup") return;
+    if (!(pickupWhen === "SCHEDULE" || !storeOpenNow)) return;
+
+    const opts = timeOptionsForDay(schedDayKey, pickupLeadMins);
+    if (!opts.length) {
+      const next = firstSchedOption(pickupLeadMins);
+      if (next.dayKey && next.dayKey !== schedDayKey) setSchedDayKey(next.dayKey);
+      if (next.iso) setPickupScheduledUtcIso(next.iso);
+      return;
+    }
+
+    if (!opts.some((o) => o.iso === pickupScheduledUtcIso)) {
+      setPickupScheduledUtcIso(opts[0].iso);
+    }
+  }, [
+    orderType,
+    pickupWhen,
+    storeOpenNow,
+    schedDayKey,
+    pickupScheduledUtcIso,
+    timeOptionsForDay,
+    firstSchedOption,
+    setPickupScheduledUtcIso,
+  ]);
+
+  React.useEffect(() => {
+    if (orderType !== "Delivery") return;
+    if (!(deliveryWhen === "SCHEDULE" || !storeOpenNow)) return;
+
+    const opts = timeOptionsForDay(schedDayKey, deliveryLeadMins);
+    if (!opts.length) {
+      const next = firstSchedOption(deliveryLeadMins);
+      if (next.dayKey && next.dayKey !== schedDayKey) setSchedDayKey(next.dayKey);
+      if (next.iso) setDeliveryScheduledUtcIso(next.iso);
+      return;
+    }
+
+    if (!opts.some((o) => o.iso === deliveryScheduledUtcIso)) {
+      setDeliveryScheduledUtcIso(opts[0].iso);
+    }
+  }, [
+    orderType,
+    deliveryWhen,
+    storeOpenNow,
+    schedDayKey,
+    deliveryScheduledUtcIso,
+    timeOptionsForDay,
+    firstSchedOption,
+    setDeliveryScheduledUtcIso,
+  ]);
 
   React.useEffect(() => {
     if (orderType !== "Delivery") return;
@@ -9991,49 +10086,37 @@ function OrderInfoPanel({
         </button>
       </div>
 
-      <div className="info-box">
+      <div className="info-box" style={{ marginTop: "0.85rem" }}>
         {orderType === "Pickup" ? (
           <>
-            <p>
-              Pickup from: <strong>Pizza Peppers Store</strong>
-            </p>
+            <p>Pickup from: <strong>Pizza Peppers Store</strong></p>
             <p>
               Pickup time:{" "}
               <strong>
-                {orderType !== "Pickup"
-                  ? "-"
-                  : (pickupWhen === "SCHEDULE" || !storeOpenNow)
-                    ? `Pre-order (Ready ${pickupScheduledUtcIso ? fmtAdelLabel(pickupScheduledUtcIso) : (preorderPickupLabel || "15 min after opening")})`
-                    : `ASAP (Approx. ${estimatedTime} mins)`}
+                {(pickupWhen === "SCHEDULE" || !storeOpenNow)
+                  ? `Pre-order (Ready ${pickupScheduledUtcIso ? fmtAdelLabel(pickupScheduledUtcIso) : (preorderPickupLabel || "15 min after opening")})`
+                  : `ASAP (Approx. ${estimatedTime} mins)`}
               </strong>
             </p>
+
             <div className="pp-pickupWhenSwitch">
               <button
                 type="button"
-                className={[
-                  "pp-pickupWhenBtn",
-                  pickupWhen === "ASAP" ? "is-active" : "",
-                ].join(" ")}
+                className={["pp-pickupWhenBtn", pickupWhen === "ASAP" ? "is-active" : ""].join(" ")}
                 disabled={!storeOpenNow}
                 onClick={() => setPickupWhen("ASAP")}
-                title={!storeOpenNow ? "Store is closed" : "Order ASAP"}
               >
                 ASAP
               </button>
-
               <button
                 type="button"
-                className={[
-                  "pp-pickupWhenBtn",
-                  pickupWhen === "SCHEDULE" ? "is-active" : "",
-                ].join(" ")}
+                className={["pp-pickupWhenBtn", pickupWhen === "SCHEDULE" ? "is-active" : ""].join(" ")}
                 onClick={() => {
                   setPickupWhen("SCHEDULE");
                   if (!pickupScheduledUtcIso) {
-                    // default = soon-ish, rounded, within open hours
-                    const firstDay = openDayOptions[0]?.key || ymdFromUtcIsoAdel("");
-                    const opts = timeOptionsForDay(firstDay);
-                    if (opts[0]?.iso) setPickupScheduledUtcIso(opts[0].iso);
+                    const next = firstSchedOption(pickupLeadMins);
+                    if (next.dayKey) setSchedDayKey(next.dayKey);
+                    if (next.iso) setPickupScheduledUtcIso(next.iso);
                   }
                 }}
               >
@@ -10041,7 +10124,7 @@ function OrderInfoPanel({
               </button>
             </div>
 
-            {(pickupWhen === "SCHEDULE" || !storeOpenNow) ? (
+            {(pickupWhen === "SCHEDULE" || !storeOpenNow) && (
               <div className="pp-pickupScheduleGrid">
                 <div className="pp-pickupScheduleRow">
                   <label>Day</label>
@@ -10051,7 +10134,7 @@ function OrderInfoPanel({
                     onChange={(e) => {
                       const nextDay = e.target.value;
                       setSchedDayKey(nextDay);
-                      const opts = timeOptionsForDay(nextDay);
+                      const opts = timeOptionsForDay(nextDay, pickupLeadMins);
                       if (opts[0]?.iso) setPickupScheduledUtcIso(opts[0].iso);
                     }}
                   >
@@ -10068,85 +10151,161 @@ function OrderInfoPanel({
                     value={pickupScheduledUtcIso || ""}
                     onChange={(e) => setPickupScheduledUtcIso(e.target.value)}
                   >
-                    {timeOptionsForDay(schedDayKey).map((t) => (
+                    {timeOptionsForDay(schedDayKey, pickupLeadMins).map((t) => (
                       <option key={t.iso} value={t.iso}>{t.label}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="pp-disclaimer">
-                  15-minute slots, between 5:15pm and 8:30pm. If the store is closed, ASAP is disabled.
+                  15-minute slots, between 5:15pm and 8:30pm.
                 </div>
               </div>
-            ) : null}
+            )}
           </>
         ) : (
           <>
-            <label
-              htmlFor="address"
-              style={{
-                fontWeight: 500,
-                marginBottom: "0.5rem",
-                display: "block",
-              }}
-            >
-              Delivery Address
-            </label>
+            <p>
+              Delivery address:{" "}
+              <strong>{orderAddressText || "-"}</strong>
+            </p>
 
-            {orderType === "Delivery" && canUsePlacesWidget && !addressAutoErr ? (
-              <div
-                id="address"
-                ref={addressInputRef}
-                className="pp-delivery-autocomplete"
-                style={{ width: "100%" }}
-              />
-            ) : (
-              <input
-                type="text"
-                id="address"
-                onChange={(e) => {
-                  setOrderAddress(normalizeAddressText(e.target.value));
-                  setOrderDeliveryFee(0);
-                  setOrderAddressError("");
-                }}
-                value={orderAddress}
-                placeholder="Start typing your address\u2026"
-              />
-            )}
+            <p className="pp-timeRow">
+              <span>
+                Delivery time:{" "}
+                <strong>
+                  {(deliveryWhen === "SCHEDULE" || !storeOpenNow)
+                    ? `Pre-order (Deliver ${deliveryScheduledUtcIso ? fmtAdelLabel(deliveryScheduledUtcIso) : "after opening"})`
+                    : `ASAP (Approx. ${estimatedTime} mins)`}
+                </strong>
+              </span>
 
-            {orderType === "Delivery" && profileAddress ? (
-              <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                Using profile address by default. You can edit it for this order.
-              </div>
-            ) : null}
+              <button
+                type="button"
+                className={["pp-changeBtn", showDeliverySchedule ? "is-open" : ""].join(" ")}
+                onClick={() => {
+                  const next = !showDeliverySchedule;
+                  setShowDeliverySchedule(next);
 
-            {orderType === "Delivery" && addressAutoErr ? (
-              <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#fca5a5" }}>
-                {addressAutoErr}
-              </div>
-            ) : null}
-
-            {orderAddressError && (
-              <p
-                style={{
-                  color: "#fca5a5",
-                  marginTop: "0.5rem",
-                  fontSize: "0.875rem",
+                  if (next) {
+                    // opening editor -> ensure schedule mode + seed first valid slot
+                    setDeliveryWhen("SCHEDULE");
+                    if (!deliveryScheduledUtcIso) {
+                      const firstDay = openDayOptions[0]?.key;
+                      const opts = timeOptionsForDay(firstDay, 45);
+                      if (opts[0]?.iso) setDeliveryScheduledUtcIso(opts[0].iso);
+                    }
+                  } else {
+                    // closing editor -> back to ASAP only if store is open
+                    if (storeOpenNow) setDeliveryWhen("ASAP");
+                  }
                 }}
               >
-                {orderAddressError}
-              </p>
-            )}
+                {showDeliverySchedule ? "Done" : "Change"}
+              </button>
+            </p>
 
-            {estimatedTime > 0 && orderDeliveryFee > 0 && (
-              <p style={{ marginTop: "1rem" }}>
-                Estimated delivery time:{" "}
-                <strong>ASAP (Approx. {estimatedTime} mins)</strong>
-              </p>
+            {(showDeliverySchedule || !storeOpenNow) && (
+              <div className="pp-pickupScheduleGrid">
+                <div className="pp-pickupScheduleRow">
+                  <label>Day</label>
+                  <select
+                    className="pp-pickupScheduleSelect"
+                    value={schedDayKey}
+                    onChange={(e) => {
+                      const nextDay = e.target.value;
+                      setSchedDayKey(nextDay);
+                      const opts = timeOptionsForDay(nextDay, deliveryLeadMins);
+                      if (opts[0]?.iso) setDeliveryScheduledUtcIso(opts[0].iso);
+                    }}
+                  >
+                    {openDayOptions.map((d) => (
+                      <option key={d.key} value={d.key}>{d.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pp-pickupScheduleRow">
+                  <label>Time</label>
+                  <select
+                    className="pp-pickupScheduleSelect"
+                    value={deliveryScheduledUtcIso || ""}
+                    onChange={(e) => setDeliveryScheduledUtcIso(e.target.value)}
+                  >
+                    {timeOptionsForDay(schedDayKey, deliveryLeadMins).map((t) => (
+                      <option key={t.iso} value={t.iso}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pp-disclaimer">
+                  15-minute slots, between 5:15pm and 8:30pm.
+                </div>
+              </div>
             )}
           </>
         )}
       </div>
+
+      {orderType === "Delivery" ? (
+        <div className="info-box" style={{ marginTop: "0.85rem" }}>
+          <label
+            htmlFor="address"
+            style={{
+              fontWeight: 500,
+              marginBottom: "0.5rem",
+              display: "block",
+            }}
+          >
+            Delivery Address
+          </label>
+
+          {orderType === "Delivery" && canUsePlacesWidget && !addressAutoErr ? (
+            <div
+              id="address"
+              ref={addressInputRef}
+              className="pp-delivery-autocomplete"
+              style={{ width: "100%" }}
+            />
+          ) : (
+            <input
+              type="text"
+              id="address"
+              onChange={(e) => {
+                setOrderAddress(normalizeAddressText(e.target.value));
+                setOrderDeliveryFee(0);
+                setOrderAddressError("");
+              }}
+              value={orderAddress}
+              placeholder="Start typing your address\u2026"
+            />
+          )}
+
+          {orderType === "Delivery" && profileAddress ? (
+            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+              Using profile address by default. You can edit it for this order.
+            </div>
+          ) : null}
+
+          {orderType === "Delivery" && addressAutoErr ? (
+            <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#fca5a5" }}>
+              {addressAutoErr}
+            </div>
+          ) : null}
+
+          {orderAddressError && (
+            <p
+              style={{
+                color: "#fca5a5",
+                marginTop: "0.5rem",
+                fontSize: "0.875rem",
+              }}
+            >
+              {orderAddressError}
+            </p>
+          )}
+        </div>
+      ) : null}
 
       <div className="cart-items-list">
         {cart.length > 0 ? (
@@ -12888,6 +13047,8 @@ function Navbar({
   onCartClick,
   onLoginClick,
   onProfileClick,
+  onLoyaltyClick,
+  loyaltyJoined = false,
   searchName,
   searchTopping,
   onSearchNameChange,
@@ -13213,6 +13374,15 @@ function Navbar({
 
                   <button
                     type="button"
+                    onClick={onLoyaltyClick}
+                    className="pp-topnav__linkBtn pp-topnav__linkBtn--loyalty"
+                    title={loyaltyJoined ? "Loyalty" : "Join loyalty program"}
+                  >
+                    {loyaltyJoined ? `${EM.CROWN} Loyalty` : `Join loyalty program ${EM.CROWN}`}
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={onCartClick}
                     className="pp-topnav__linkBtn"
                   >
@@ -13349,6 +13519,190 @@ function Navbar({
   );
 }
 
+function LoyaltyModal({ onClose }) {
+  const { currentUser } = useAuth();
+  const localProfile = useLocalProfile(currentUser);
+  const [saving, setSaving] = React.useState(false);
+  const [okMsg, setOkMsg] = React.useState("");
+  const [errMsg, setErrMsg] = React.useState("");
+
+  const joined = !!(localProfile?.loyalty?.joined || localProfile?.loyaltyJoined);
+  const pointsRaw =
+    localProfile?.loyalty?.points ?? localProfile?.loyaltyPoints ?? 0;
+  const points = Number(pointsRaw) || 0;
+  const joinedAt =
+    localProfile?.loyalty?.joinedAt || localProfile?.loyaltyJoinedAt || null;
+
+  const AUTH_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(
+    /\/+$/,
+    "",
+  );
+
+  const readSessionToken = React.useCallback(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("pp_session_v1") || "null");
+      return raw?.token || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const persistProfile = React.useCallback(
+    async (nextProfile, loyaltyPayload) => {
+      try {
+        writeLocalProfile(currentUser, nextProfile);
+      } catch {}
+
+      try {
+        const token = readSessionToken();
+        if (AUTH_BASE && token) {
+          await fetch(`${AUTH_BASE}/me`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ profile: nextProfile }),
+          });
+        }
+      } catch (e) {
+        console.warn("[PP][Loyalty] /me save failed:", e?.message || e);
+      }
+
+      try {
+        const sdk = await getFirebase();
+        if (sdk?.db && currentUser?.uid) {
+          const ref = sdk.doc(sdk.db, "users", currentUser.uid);
+          await sdk.setDoc(ref, loyaltyPayload, { merge: true });
+        }
+      } catch (e) {
+        console.warn("[PP][Loyalty] Firestore save failed:", e?.message || e);
+      }
+    },
+    [AUTH_BASE, currentUser, readSessionToken],
+  );
+
+  const handleJoin = React.useCallback(async () => {
+    if (saving || joined) return;
+    if (!currentUser) {
+      setErrMsg("Please login to join the loyalty program.");
+      return;
+    }
+
+    setSaving(true);
+    setErrMsg("");
+    setOkMsg("");
+
+    const nowIso = new Date().toISOString();
+    const nextLoyalty = {
+      joined: true,
+      joinedAt: joinedAt || nowIso,
+      points,
+    };
+    const baseProfile =
+      localProfile && typeof localProfile === "object" ? localProfile : {};
+    const nextProfile = {
+      ...baseProfile,
+      loyalty: nextLoyalty,
+      loyaltyJoined: true,
+      loyaltyJoinedAt: nextLoyalty.joinedAt,
+      loyaltyPoints: nextLoyalty.points || 0,
+    };
+    const loyaltyPayload = {
+      loyalty: nextLoyalty,
+      loyaltyJoined: true,
+      loyaltyPoints: nextLoyalty.points || 0,
+    };
+
+    await persistProfile(nextProfile, loyaltyPayload);
+    setOkMsg("You are now in the loyalty program.");
+    setSaving(false);
+  }, [saving, joined, currentUser, localProfile, joinedAt, points, persistProfile]);
+
+  return (
+    <div className="modal-overlay pp-loyaltyOverlay" onClick={() => onClose?.()}>
+      <div className="pp-modal pp-loyaltyModal" onClick={(e) => e.stopPropagation()}>
+        <div className="pp-modal-header">
+          <div className="pp-modal-title">Loyalty Program</div>
+          <button
+            className="pp-modal-close"
+            aria-label="Close loyalty"
+            title="Close"
+            onClick={() => onClose?.()}
+          >
+            {"\u00d7"}
+          </button>
+        </div>
+
+        <div className="pp-modal-body">
+          <div className="pp-loyaltyCard">
+            <div className="pp-loyaltyHero">
+              <div className="pp-loyaltyBadge" aria-hidden="true">
+                {EM.CROWN}
+              </div>
+              <div>
+                <div className="pp-loyaltyTitle">
+                  {joined ? "Loyalty active" : "Join Pizza Peppers loyalty"}
+                </div>
+                <div className="pp-loyaltySub">
+                  {joined
+                    ? "Points and rewards will appear here."
+                    : "Earn points and unlock rewards with every order."}
+                </div>
+              </div>
+            </div>
+
+            <div className="pp-loyaltyStats">
+              <div className="pp-loyaltyStat">
+                <div className="pp-loyaltyStatLabel">Points</div>
+                <div className="pp-loyaltyStatValue">{points}</div>
+              </div>
+              <div className="pp-loyaltyStat">
+                <div className="pp-loyaltyStatLabel">Status</div>
+                <div className="pp-loyaltyStatValue">
+                  {joined ? "Member" : "Guest"}
+                </div>
+              </div>
+              <div className="pp-loyaltyStat">
+                <div className="pp-loyaltyStatLabel">Joined</div>
+                <div className="pp-loyaltyStatValue">
+                  {joinedAt ? new Date(joinedAt).toLocaleDateString("en-AU") : "-"}
+                </div>
+              </div>
+            </div>
+
+            <div className="pp-loyaltyActions">
+              <button
+                type="button"
+                className="place-order-button"
+                onClick={handleJoin}
+                disabled={saving || joined}
+              >
+                {saving ? "Joining..." : joined ? "Loyalty active" : "Join loyalty program"}
+              </button>
+              <button type="button" className="pp-btn pp-btn-subtle" onClick={() => onClose?.()}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          {errMsg ? (
+            <div className="pp-loyaltyNote pp-loyaltyNote--error">{errMsg}</div>
+          ) : null}
+          {okMsg ? (
+            <div className="pp-loyaltyNote pp-loyaltyNote--ok">{okMsg}</div>
+          ) : null}
+          {!joined ? (
+            <div className="pp-loyaltyNote">
+              Loyalty rewards are a work in progress. We will add points and perks soon.
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Mobile bottom nav (Menu / About / Profile)
 function MobileBottomNav({
   activeKey = "menu",
@@ -13357,12 +13711,18 @@ function MobileBottomNav({
   onAbout,
   onProfile,
   onLogin,
+  loyaltyJoined = false,
+  onLoyalty,
   elevated = false,
 }) {
-  const item = (key, icon, label, onClick) => (
+  const item = (key, icon, label, onClick, extraClass) => (
     <button
       type="button"
-      className={["pp-bottomnav__item", activeKey === key ? "is-active" : ""].join(" ")}
+      className={[
+        "pp-bottomnav__item",
+        activeKey === key ? "is-active" : "",
+        extraClass || "",
+      ].join(" ")}
       aria-current={activeKey === key ? "page" : undefined}
       onClick={onClick}
     >
@@ -13378,6 +13738,13 @@ function MobileBottomNav({
     >
       {item("menu", "\uD83C\uDF55", "Menu", () => onMenu?.())}
       {item("about", "\uD83C\uDFEA", "About", () => onAbout?.())}
+      {item(
+        "loyalty",
+        EM.CROWN,
+        loyaltyJoined ? "Loyalty" : "Join loyalty program",
+        () => onLoyalty?.(),
+        "pp-bottomnav__item--loyalty",
+      )}
       {item("profile", "\uD83D\uDC64", "Profile", () => (authed ? onProfile?.() : onLogin?.()))}
     </nav>
   );
@@ -13663,6 +14030,8 @@ function AppLayout({ isMapsLoaded }) {
   const authCtx = useAuth();
   const authUser = authCtx.currentUser;
   const authLoadingFlag = authCtx.loading;
+  const localProfile = useLocalProfile(authUser);
+  const loyaltyJoined = !!(localProfile?.loyalty?.joined || localProfile?.loyaltyJoined);
 
   // Debug-only: quick sanity renderer to verify pipeline via ?menuDebug=1
   const menuDebug =
@@ -13723,6 +14092,7 @@ function AppLayout({ isMapsLoaded }) {
   const [customizingItem, setCustomizingItem] = useState(null);
   const [rightPanelView, setRightPanelView] = useState("order");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isLoyaltyOpen, setIsLoyaltyOpen] = useState(false);
   // Mobile detection (keeps it in sync when resizing devtools)
   const [isMobileScreen, setIsMobileScreen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -13823,13 +14193,14 @@ function AppLayout({ isMapsLoaded }) {
         body.classList.remove("pp-halfhalf-open");
       } catch {}
     }
-  }, [location.pathname, authCtx.showLogin, cartModalOpen, isProfileOpen, selectedItem]);
+  }, [location.pathname, authCtx.showLogin, cartModalOpen, isProfileOpen, isLoyaltyOpen, selectedItem]);
 
   const showViewOrderFab =
     isMobile &&
     !authCtx.showLogin &&
     !cartModalOpen &&
     !isProfileOpen &&
+    !isLoyaltyOpen &&
     !selectedItem; // hides during item detail + meal deal editor + half&half, etc.
 
   const prevIsHalfHalfOpenRef = React.useRef(false);
@@ -14004,9 +14375,11 @@ function AppLayout({ isMapsLoaded }) {
   const [orderAddressError, setOrderAddressError] = useState("");
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [storeOpenNow, setStoreOpenNow] = useState(() => isOpenNowAdelaide());
-  // Pickup scheduling (works even when store is open)
+  // Scheduling (works even when store is open)
   const [pickupWhen, setPickupWhen] = useState("ASAP"); // "ASAP" | "SCHEDULE"
   const [pickupScheduledUtcIso, setPickupScheduledUtcIso] = useState(""); // ISO UTC
+  const [deliveryWhen, setDeliveryWhen] = useState("ASAP"); // "ASAP" | "SCHEDULE"
+  const [deliveryScheduledUtcIso, setDeliveryScheduledUtcIso] = useState(""); // ISO UTC
 
   useEffect(() => {
     const base = 20;
@@ -14026,26 +14399,33 @@ function AppLayout({ isMapsLoaded }) {
   }, []);
 
   useEffect(() => {
-    if (orderType !== "Pickup") return;
+    if (storeOpenNow) return;
 
-    // If store closes, force scheduling and auto-pick next opening + 15 mins
-    if (!storeOpenNow) {
-      setPickupWhen("SCHEDULE");
-      if (!pickupScheduledUtcIso) {
-        const openUtc = getNextOpeningUtcAdelaide(new Date());
-        if (openUtc) {
-          const readyUtc = new Date(openUtc.getTime() + 15 * 60 * 1000);
-          setPickupScheduledUtcIso(readyUtc.toISOString());
-        }
+    // Store closed -> both fulfilments must be scheduled
+    setPickupWhen("SCHEDULE");
+    setDeliveryWhen("SCHEDULE");
+
+    if (!pickupScheduledUtcIso) {
+      const openUtc = getNextOpeningUtcAdelaide(new Date());
+      if (openUtc) {
+        const readyUtc = new Date(openUtc.getTime() + 15 * 60 * 1000);
+        setPickupScheduledUtcIso(readyUtc.toISOString());
       }
     }
-  }, [orderType, storeOpenNow, pickupScheduledUtcIso]);
+    if (!deliveryScheduledUtcIso) {
+      const openUtc = getNextOpeningUtcAdelaide(new Date());
+      if (openUtc) {
+        const readyUtc = new Date(openUtc.getTime() + 45 * 60 * 1000);
+        setDeliveryScheduledUtcIso(readyUtc.toISOString());
+      }
+    }
+  }, [storeOpenNow, pickupScheduledUtcIso, deliveryScheduledUtcIso]);
 
   useEffect(() => {
-    if (orderType === "Delivery") {
+    if (orderType === "Delivery" && storeOpenNow) {
       setPickupWhen("ASAP");
     }
-  }, [orderType]);
+  }, [orderType, storeOpenNow]);
 
   const preorderPickupLabel = useMemo(() => {
     if (orderType !== "Pickup") return null;
@@ -15029,6 +15409,8 @@ function AppLayout({ isMapsLoaded }) {
             preorderPickupLabel={preorderPickupLabel}
             pickupWhen={pickupWhen}
             pickupScheduledUtcIso={pickupScheduledUtcIso}
+            deliveryWhen={deliveryWhen}
+            deliveryScheduledUtcIso={deliveryScheduledUtcIso}
           />
         ) : (
           <OrderInfoPanel
@@ -15049,6 +15431,10 @@ function AppLayout({ isMapsLoaded }) {
             setPickupWhen={setPickupWhen}
             pickupScheduledUtcIso={pickupScheduledUtcIso}
             setPickupScheduledUtcIso={setPickupScheduledUtcIso}
+            deliveryWhen={deliveryWhen}
+            setDeliveryWhen={setDeliveryWhen}
+            deliveryScheduledUtcIso={deliveryScheduledUtcIso}
+            setDeliveryScheduledUtcIso={setDeliveryScheduledUtcIso}
             onProceed={() => {
               setRightPanelView("review");
               if (isMobile) setCartModalOpen(true);
@@ -15112,6 +15498,9 @@ function AppLayout({ isMapsLoaded }) {
           onClose={() => setIsProfileOpen(false)}
         />
       )}
+      {isLoyaltyOpen && (
+        <LoyaltyModal onClose={() => setIsLoyaltyOpen(false)} />
+      )}
 
       <div className="app-grid-layout">
         <div className="left-pane">
@@ -15123,6 +15512,8 @@ function AppLayout({ isMapsLoaded }) {
                 onCartClick={showCartPanel}
                 onLoginClick={(tab) => authCtx.openLogin(tab)}
                 onProfileClick={handleProfileOpen}
+                onLoyaltyClick={() => setIsLoyaltyOpen(true)}
+                loyaltyJoined={loyaltyJoined}
                 searchName={searchName}
                 searchTopping={searchTopping}
                 onSearchNameChange={setSearchName}
@@ -15216,9 +15607,11 @@ function AppLayout({ isMapsLoaded }) {
         )}
         {!isAdminRoute && isMobile && (
           <MobileBottomNav
-            elevated={!!cartModalOpen || !!isProfileOpen}
+            elevated={!!cartModalOpen || !!isProfileOpen || !!isLoyaltyOpen}
             activeKey={
-              isProfileOpen
+              isLoyaltyOpen
+                ? "loyalty"
+                : isProfileOpen
                 ? "profile"
                 : cartModalOpen && rightPanelView === "about"
                 ? "about"
@@ -15230,6 +15623,11 @@ function AppLayout({ isMapsLoaded }) {
             onProfile={() => {
               setCartModalOpen(false);
               handleProfileOpen();
+            }}
+            loyaltyJoined={loyaltyJoined}
+            onLoyalty={() => {
+              setCartModalOpen(false);
+              setIsLoyaltyOpen(true);
             }}
             onLogin={() => authCtx.openLogin?.("providers")}
           />
