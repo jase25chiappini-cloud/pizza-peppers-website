@@ -13622,111 +13622,80 @@ function LoyaltyModal({ isOpen, onClose }) {
   const points = Number(localProfile?.loyalty?.points ?? localProfile?.loyaltyPoints ?? 0) || 0;
   const tierLabel = joined ? "Member" : "Not joined";
   const primaryLabel = !user
-    ? `Join loyalty program ${EM.CROWN}`
+    ? `Login to join ${EM.CROWN}`
     : joined
       ? `${EM.CROWN} Loyalty`
-      : `Join loyalty program ${EM.CROWN}`;
+      : `Join loyalty ${EM.CROWN}`;
 
   const content = (
-    <div className="modal-overlay pp-loyaltyOverlay" onClick={handleClose}>
-      <div className="pp-modal pp-loyaltyModal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="pp-loyaltyTop">
-          <div className="pp-loyaltyBadge">
-            <span className="pp-loyaltyBadgeIcon" aria-hidden="true">{EM.CROWN}</span>
-            <span>Pizza Peppers Rewards</span>
+    <div className="pp-modal-backdrop" id="loyalty-modal" onClick={handleClose}>
+      <div className="pp-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="pp-modal-header">
+          <div className="pp-modal-title pp-loyaltyTitle">
+            <span className="pp-loyaltyTitleIcon" aria-hidden="true">{EM.CROWN}</span>
+            <span>Loyalty</span>
           </div>
 
           <button
             type="button"
-            className="pp-modal-close pp-loyaltyClose"
-            aria-label="Close loyalty"
+            className="pp-modal-close"
+            aria-label="Close"
             title="Close"
             onClick={handleClose}
-          >
-            {"\u00d7"}
-          </button>
+          />
         </div>
 
-        <div className="pp-loyaltyHero">
-          <div className="pp-loyaltyTitle">
-            {joined ? "You’re in 👑" : "Join the Loyalty Program"}
-          </div>
-          <div className="pp-loyaltySub">
-            Earn points, unlock perks, and get surprises. <span className="pp-loyaltySoon">(Content coming soon)</span>
-          </div>
-        </div>
-
-        <div className="pp-loyaltyBody">
-          {(err || ok) && (
-            <div className={["pp-loyaltyMsg", err ? "is-err" : "is-ok"].join(" ")}>
+        <div className="pp-modal-body">
+          {(err || ok) ? (
+            <div className="pp-warning" style={{ marginTop: 0 }}>
               {err || ok}
             </div>
-          )}
+          ) : null}
 
-          <div className="pp-loyaltyGrid">
-            <div className="pp-loyaltyCard">
-              <div className="pp-loyaltyCardLabel">Status</div>
-              <div className="pp-loyaltyStatRow">
-                <div className="pp-loyaltyStat">
-                  <div className="pp-loyaltyStatNum">{tierLabel}</div>
-                  <div className="pp-loyaltyStatSub">Tier</div>
-                </div>
-                <div className="pp-loyaltyStat">
-                  <div className="pp-loyaltyStatNum">{points}</div>
-                  <div className="pp-loyaltyStatSub">Points</div>
-                </div>
-              </div>
+          <div className="pp-section" style={{ marginTop: 0 }}>
+            <h4 style={{ marginTop: 0 }}>Status</h4>
 
-              <div className="pp-loyaltyProgress">
-                <div className="pp-loyaltyProgressTop">
-                  <span>Progress</span>
-                  <span className="pp-loyaltyProgressHint">placeholder</span>
-                </div>
-                <div className="pp-loyaltyBar" aria-hidden="true">
-                  <div className="pp-loyaltyBarFill" style={{ width: joined ? "22%" : "6%" }} />
-                </div>
+            <div className="pp-row">
+              <label>Membership</label>
+              <div style={{ fontWeight: 800 }}>
+                {joined ? "Joined" : "Not joined"}
               </div>
             </div>
 
-            <div className="pp-loyaltyCard">
-              <div className="pp-loyaltyCardLabel">Perks (preview)</div>
-              <div className="pp-loyaltyPills">
-                <span className="pp-loyaltyPill">Bonus points</span>
-                <span className="pp-loyaltyPill">Birthday treat</span>
-                <span className="pp-loyaltyPill">Member offers</span>
-                <span className="pp-loyaltyPill">Surprise drops</span>
-              </div>
-
-              <div className="pp-loyaltyHintText">
-                We’ll light this up once the loyalty rules + rewards are added.
+            <div className="pp-row">
+              <label>Points</label>
+              <div style={{ fontWeight: 800 }}>
+                {points}
               </div>
             </div>
           </div>
 
-          <div className="pp-loyaltyActions">
-            <button
-              type="button"
-              className="pp-loyaltyBtn pp-loyaltyBtn--primary"
-              onClick={handlePrimary}
-              disabled={saving}
-            >
-              {saving ? "Saving..." : primaryLabel}
-            </button>
-
-            <button
-              type="button"
-              className="pp-loyaltyBtn pp-loyaltyBtn--ghost"
-              onClick={handleClose}
-            >
-              Close
-            </button>
-          </div>
-
-          {!user && (
-            <div className="pp-loyaltyFootnote">
-              You need to sign in before you can join and save progress.
+          <div className="pp-section">
+            <h4 style={{ marginTop: 0 }}>Perks & rewards</h4>
+            <div style={{ color: "var(--text-medium)", fontWeight: 650, lineHeight: 1.35 }}>
+              Perks and rewards coming soon {EM.CROWN}
             </div>
-          )}
+          </div>
+        </div>
+
+        <div className="pp-modal-footer">
+          <button
+            type="button"
+            className="pp-btn pp-btn-primary"
+            onClick={handlePrimary}
+            disabled={saving || joined}
+            title={joined ? "Already joined" : undefined}
+          >
+            {saving ? "Saving..." : primaryLabel}
+          </button>
+
+          <button
+            type="button"
+            className="pp-btn pp-btn-secondary"
+            onClick={handleClose}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

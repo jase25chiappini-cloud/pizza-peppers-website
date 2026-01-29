@@ -460,23 +460,155 @@
   color: var(--pp-text-dim, var(--text-medium));
 }
 
+/* Prevent iOS Safari from zooming when focusing inputs */
+@media (max-width: 900px){
+  input, select, textarea, button{
+    font-size: 16px;
+  }
+}
+
+
+/* =========================================================
+   Loyalty modal (scoped) -- bigger desktop + cleaner alignment
+   ========================================================= */
+#loyalty-modal.pp-modal-backdrop{
+  padding: 1.35rem;
+}
+
+#loyalty-modal .pp-modal{
+  width: min(920px, calc(100vw - 2.2rem));
+  max-height: min(82vh, 860px);
+  border-radius: 22px;
+  overflow: hidden;
+  padding: 0;
+
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface, var(--panel)) 0%,
+    var(--pp-surface-2, var(--panel)) 140%
+  );
+
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-modal);
+}
+
+/* Make it feel fuller on PC */
+@media (min-width: 900px){
+  #loyalty-modal .pp-modal{
+    width: min(1040px, calc(100vw - 4rem));
+    max-height: min(86vh, 920px);
+  }
+}
+
+/* Header spacing + title */
+#loyalty-modal .pp-modal-header{
+  padding: 1.05rem 1.15rem;
+  border-bottom: 1px solid var(--line, var(--border-color));
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface, var(--panel)) 0%,
+    var(--pp-surface-2, var(--panel)) 160%
+  );
+}
+
+#loyalty-modal .pp-modal-title{
+  font-size: 1.05rem;
+  font-weight: 950;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+#loyalty-modal .pp-loyaltyTitleIcon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.04);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+/* Body padding */
+#loyalty-modal .pp-modal-body{
+  padding: 1.05rem 1.15rem 1.15rem;
+}
+
+/* Section cards: match your themed panel cards */
+#loyalty-modal .pp-section{
+  border-radius: 18px;
+  padding: 1rem 1.05rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(0,0,0,0.12));
+  border: 1px solid var(--border-color);
+}
+
+[data-theme='light'] #loyalty-modal .pp-section{
+  background: rgba(15,23,42,0.03);
+}
+
+/* Headings inside sections */
+#loyalty-modal .pp-section h4{
+  margin: 0 0 0.75rem 0;
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brand-neon-green);
+}
+
+/* Status rows: fix alignment */
+#loyalty-modal .pp-row{
+  grid-template-columns: 160px 1fr;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
+#loyalty-modal .pp-row label{
+  padding-top: 0;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: var(--text-medium);
+}
+
+/* Footer spacing */
+#loyalty-modal .pp-modal-footer{
+  padding: 0.95rem 1.15rem;
+  border-top: 1px solid var(--line, var(--border-color));
+  background: var(--pp-surface, var(--panel));
+}
+
+/* Buttons: consistent sizing */
+#loyalty-modal .pp-btn{
+  min-height: 44px;
+  border-radius: 16px;
+  font-weight: 900;
+}
+
 body[data-theme="dark"] {
   color-scheme: dark;
-  --background: #0b0f14;
-  --background-dark: #0b0f14;
-  --background-light: #0b0f14;
-  --pp-surface: #0f172a;
-  --pp-surface-2: #111c33;
-  --panel: #0f172a;
-  --surface: #0f172a;
+  --background: #05070b;
+  --background-dark: #05070b;
+  --background-light: #0f172a; /* used by many cards in dark mode */
+
+  --pp-surface: #0b1220;
+  --pp-surface-2: #0f172a;
+  --panel: #0b1220;
+  --surface: #0b1220;
 
   --text-primary: #eaf2ff;
   --text-medium: #9fb1c7;
   --pp-text-dim: #7e93aa;
   --text-light: #ffffff;
 
-  --border-color: rgba(255,255,255,0.10);
-  --line: rgba(255,255,255,0.08);
+  --border-color: rgba(255,255,255,0.12);
+  --line: rgba(255,255,255,0.09);
 
   --shadow-card: 0 12px 30px rgba(0,0,0,0.40);
   --shadow-float: 0 18px 52px rgba(0,0,0,0.55);
@@ -487,17 +619,18 @@ body[data-theme="dark"] {
 
 body[data-theme="light"] {
   color-scheme: light;
-  --background: #f6f8fc;
-  --background-light: #f6f8fc;
-  --background-dark: #f6f8fc;
+  --background: #ffffff;        /* true light */
+  --background-light: #ffffff;  /* card base */
+  --background-dark: #f1f5fb;   /* subtle alt surface */
+
   --pp-surface: #ffffff;
-  --pp-surface-2: #f1f5fb;
+  --pp-surface-2: #f6f8fc;
   --panel: #ffffff;
   --surface: #ffffff;
 
   --text-primary: #0b1220;
-  --text-medium: #3d4c5f;
-  --pp-text-dim: #637489;
+  --text-medium: #334155;
+  --pp-text-dim: #64748b;
   --text-light: #0b1220;
 
   --border-color: rgba(15,23,42,0.12);
@@ -9612,17 +9745,15 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
    ========================================================= */
 
 [data-theme="dark"] .main-content-area{
-  /* kill the fading spotlight background */
-  background: rgba(15,23,42,0.78) !important;
-
-  /* keep your slab look */
-  border-color: rgba(15,23,42,0.85) !important;
-  box-shadow: 0 22px 60px rgba(0,0,0,0.75) !important;
+  background: var(--background-light) !important; /* dark surface slab */
+  border-color: rgba(255,255,255,0.14) !important;
+  box-shadow: 0 22px 60px rgba(0,0,0,0.78) !important;
 }
 
-/* Optional: keep light mode consistent too (no visual jump) */
 [data-theme="light"] .main-content-area{
-  background: #f9fafb !important;
+  background: var(--background-dark) !important; /* soft tint, still “light” */
+  border-color: rgba(15,23,42,0.10) !important;
+  box-shadow: 0 18px 46px rgba(2,6,23,0.10) !important;
 }
 
 /* Ensure last categories can scroll under the sticky header+quicknav line */
@@ -11327,248 +11458,3 @@ body[data-theme="light"] .menu-content::after{
   }
 }
 
-/* =========================
-   Loyalty Modal (UI upgrade)
-   ========================= */
-.pp-loyaltyOverlay{
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-.pp-loyaltyModal{
-  width: min(760px, 94vw);
-  padding: 0;
-  overflow: hidden;
-  border-radius: 22px;
-  border: 1px solid rgba(148,163,184,0.22);
-  background: color-mix(in srgb, var(--panel) 88%, rgba(0,0,0,0.25));
-  box-shadow: 0 22px 80px rgba(0,0,0,0.55);
-}
-
-.pp-loyaltyTop{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(148,163,184,0.16);
-  background: rgba(255,255,255,0.02);
-}
-
-.pp-loyaltyBadge{
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 950;
-  letter-spacing: 0.01em;
-}
-
-.pp-loyaltyBadgeIcon{
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  border: 1px solid rgba(148,163,184,0.22);
-  background: rgba(255,255,255,0.04);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-  font-size: 18px;
-}
-
-.pp-loyaltyClose{
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
-}
-
-.pp-loyaltyHero{
-  padding: 18px 16px 14px;
-  background:
-    radial-gradient(900px 260px at 10% 0%, rgba(250,204,21,0.18), transparent 55%),
-    radial-gradient(800px 220px at 100% 0%, rgba(34,197,94,0.16), transparent 55%),
-    rgba(255,255,255,0.02);
-  border-bottom: 1px solid rgba(148,163,184,0.14);
-}
-
-.pp-loyaltyTitle{
-  font-size: 1.25rem;
-  font-weight: 1000;
-  letter-spacing: -0.01em;
-}
-
-.pp-loyaltySub{
-  margin-top: 6px;
-  color: var(--text-medium);
-  font-weight: 750;
-}
-
-.pp-loyaltySoon{
-  opacity: 0.85;
-  font-weight: 850;
-}
-
-.pp-loyaltyBody{
-  padding: 14px 16px 16px;
-}
-
-.pp-loyaltyMsg{
-  margin-bottom: 12px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  font-weight: 850;
-  border: 1px solid rgba(148,163,184,0.18);
-  background: rgba(255,255,255,0.03);
-}
-.pp-loyaltyMsg.is-err{
-  border-color: rgba(239,68,68,0.35);
-  background: rgba(239,68,68,0.08);
-}
-.pp-loyaltyMsg.is-ok{
-  border-color: rgba(34,197,94,0.32);
-  background: rgba(34,197,94,0.08);
-}
-
-.pp-loyaltyGrid{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-@media (max-width: 720px){
-  .pp-loyaltyGrid{ grid-template-columns: 1fr; }
-}
-
-.pp-loyaltyCard{
-  border-radius: 18px;
-  border: 1px solid rgba(148,163,184,0.18);
-  background: rgba(255,255,255,0.03);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-  padding: 12px;
-}
-
-.pp-loyaltyCardLabel{
-  font-weight: 950;
-  letter-spacing: 0.01em;
-  margin-bottom: 10px;
-}
-
-.pp-loyaltyStatRow{
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.pp-loyaltyStat{
-  border-radius: 14px;
-  border: 1px solid rgba(148,163,184,0.14);
-  background: rgba(0,0,0,0.10);
-  padding: 10px;
-}
-
-.pp-loyaltyStatNum{
-  font-weight: 1000;
-  font-size: 1.05rem;
-}
-
-.pp-loyaltyStatSub{
-  margin-top: 2px;
-  font-weight: 800;
-  color: var(--text-medium);
-  font-size: 0.85rem;
-}
-
-.pp-loyaltyProgress{
-  margin-top: 12px;
-}
-
-.pp-loyaltyProgressTop{
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--text-medium);
-  font-weight: 850;
-  margin-bottom: 8px;
-}
-
-.pp-loyaltyProgressHint{
-  opacity: 0.7;
-  font-weight: 900;
-}
-
-.pp-loyaltyBar{
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(148,163,184,0.18);
-  background: rgba(0,0,0,0.18);
-  overflow: hidden;
-}
-
-.pp-loyaltyBarFill{
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(250,204,21,0.85), rgba(34,197,94,0.75));
-}
-
-.pp-loyaltyPills{
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.pp-loyaltyPill{
-  padding: 8px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(148,163,184,0.18);
-  background: rgba(255,255,255,0.03);
-  font-weight: 900;
-  font-size: 0.88rem;
-}
-
-.pp-loyaltyHintText{
-  margin-top: 10px;
-  color: var(--text-medium);
-  font-weight: 750;
-}
-
-.pp-loyaltyActions{
-  margin-top: 14px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-}
-
-@media (max-width: 520px){
-  .pp-loyaltyActions{ grid-template-columns: 1fr; }
-}
-
-.pp-loyaltyBtn{
-  height: 46px;
-  border-radius: 16px;
-  border: 1px solid rgba(148,163,184,0.18);
-  font-weight: 950;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-}
-
-.pp-loyaltyBtn--primary{
-  background: rgba(255,255,255,0.04);
-}
-.pp-loyaltyBtn--primary:hover{
-  background: rgba(255,255,255,0.06);
-}
-
-.pp-loyaltyBtn--ghost{
-  background: transparent;
-  color: var(--text-medium);
-}
-.pp-loyaltyBtn--ghost:hover{
-  background: rgba(255,255,255,0.04);
-  color: var(--text-primary);
-}
-
-.pp-loyaltyFootnote{
-  margin-top: 10px;
-  color: var(--text-medium);
-  font-weight: 750;
-  font-size: 0.9rem;
-}
