@@ -2193,11 +2193,32 @@ footer,
   isolation: isolate;
 }
 
-/* Keep mobile fast */
+/* Keep mobile fast + make header true top + full-bleed without breaking QuickNav */
 @media (max-width: 900px){
+  :root{
+    /* Used elsewhere to offset sticky QuickNav, etc. Keep this in sync with the header height */
+    --pp-topnav-h: calc(env(safe-area-inset-top) + 94px);
+  }
+
   .pp-topnav{
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+
+    /* True top */
+    top: 0;
+
+    /* Full width across screen (even if inside centered wrapper) */
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+
+    /* Remove the desktop padding that creates the "gap" feeling */
+    padding: 0;
+
+    /* Put safe-area inside the header (not as a top offset) */
+    padding-top: env(safe-area-inset-top);
+
+    /* Keep it above everything */
+    z-index: 30;
   }
 }
 
@@ -2725,24 +2746,18 @@ footer,
   }
 }
 
-@media (max-width: 900px){
-  .pp-topnav__right{
-    display:flex;
-    align-items:center;
-    justify-content:flex-end;
-    gap: 0.55rem;
-    flex-wrap: wrap;
-    row-gap: 10px;
-    max-width: 100%;
-    overflow: visible;
-    align-content: center;
-  }
-}
-
 /* =========================================================
    MOBILE HEADER — minimal pill (<=900px)
    ========================================================= */
 @media (max-width: 900px){
+  .pp-topnav__row--mobileMinimal{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    min-height: 70px;
+    padding: 8px 12px !important;
+  }
 
   /* hide any desktop-only header pieces on mobile */
   .pp-topnav__right,
@@ -2753,18 +2768,9 @@ footer,
     display: none !important;
   }
 
-  /* one row only */
-  .pp-topnav__row--mobileMinimal{
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 12px !important;
-    padding: 12px 16px !important;
-  }
-
   /* the pill bar look (like your screenshot) */
   .pp-topnav__row--mobileMinimal{
-    border-radius: 999px;
+    border-radius: 18px;
     border: 1px solid rgba(148,163,184,0.18);
     background: rgba(255,255,255,0.04);
     box-shadow: 0 14px 38px rgba(0,0,0,0.18);
@@ -2772,11 +2778,23 @@ footer,
     -webkit-backdrop-filter: blur(10px) saturate(120%);
   }
 
+  /* Make the contents feel proportionally bigger without blowing layout */
+  .pp-topnav__row--mobileMinimal .pp-topnav__logo,
+  .pp-topnav__row--mobileMinimal img{
+    height: 42px;
+  }
+
+  .pp-topnav__row--mobileMinimal button,
+  .pp-topnav__row--mobileMinimal .pp-topnav__pill,
+  .pp-topnav__row--mobileMinimal .pp-topnav__linkBtn{
+    min-height: 42px;
+  }
+
   /* icon buttons (left + right) */
   .pp-topnav__mIconBtn{
-    width: 48px;
-    height: 48px;
-    border-radius: 999px;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
 
     display: inline-flex;
     align-items: center;
@@ -2795,7 +2813,7 @@ footer,
   }
 
   .pp-topnav__mIcon{
-    font-size: 18px;
+    font-size: 16px;
     line-height: 1;
     opacity: 0.95;
   }
@@ -2803,22 +2821,19 @@ footer,
   /* center logo container */
   .pp-topnav__mLogo{
     flex: 1 1 auto;
-    height: 56px;
-    max-width: clamp(240px, 60vw, 420px);
+    height: 60px;
+    max-width: clamp(360px, 92vw, 780px);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
   }
 
-  /* IMPORTANT: mobile must not use your desktop banner scaling */
-  .pp-topnav__logoImg--banner{
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-    object-position: center 54% !important;
-    transform: scale(2.69) !important;
-    transform-origin: center !important;
+  .pp-topnav__mLogo img{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
   }
 }
 
@@ -7711,7 +7726,8 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   /* outer gutters */
   .app-grid-layout {
     padding-inline: 0.35rem !important;
-    padding-block: 0.45rem !important;
+    padding-top: 0 !important;
+    padding-bottom: 0.45rem !important;
   }
 
   /* main slab: reduce side padding */
@@ -11332,14 +11348,6 @@ body[data-theme="light"] .menu-content::after{
 /* =========================================================
    SOLID HEADER (MOBILE ONLY) - keep scroll smooth on phones
    ========================================================= */
-
-/* keep mobile fast */
-@media (max-width: 900px){
-  .pp-topnav{
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-}
 
 /* Mobile header row */
 .pp-topnav__mobileRow{
