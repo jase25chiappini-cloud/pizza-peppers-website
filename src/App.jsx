@@ -109,6 +109,20 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half) => {
 // ----------------- PROFILE STORAGE (shared) -----------------
 const PROFILE_UPDATED_EVENT = "pp-profile-updated";
 
+// ----------------- FEATURE FLAGS (shared) -----------------
+const FEATURE_FLAGS_UPDATED_EVENT = "pp-featureflags-updated";
+const FEATURE_LOYALTY_ENABLED_KEY = "pp_feature_loyalty_enabled";
+
+function readLoyaltyFeatureEnabled() {
+  try {
+    const v = window.localStorage.getItem(FEATURE_LOYALTY_ENABLED_KEY);
+    if (v == null) return true; // default ON
+    return v === "1" || v === "true";
+  } catch {
+    return true;
+  }
+}
+
 function notifyProfileUpdated(user) {
   try {
     if (typeof window === "undefined") return;
@@ -13055,6 +13069,7 @@ function Navbar({
   onLoginClick,
   onProfileClick,
   onLoyaltyClick,
+  loyaltyEnabled = true,
   loyaltyJoined = false,
   searchName,
   searchTopping,
@@ -13370,15 +13385,21 @@ function Navbar({
                 />
               )}
               <div className="pp-topnav__rightStack">
-                <div className="pp-topnav__rightActions">
-                  <button
-                    type="button"
-                    onClick={onAboutClick}
-                    className="pp-topnav__linkBtn"
-                  >
-                    About
-                  </button>
+              <div
+                className={[
+                  "pp-topnav__rightActions",
+                  loyaltyEnabled ? "has-loyalty" : "no-loyalty",
+                ].join(" ")}
+              >
+                <button
+                  type="button"
+                  onClick={onAboutClick}
+                  className="pp-topnav__linkBtn"
+                >
+                  About
+                </button>
 
+                {loyaltyEnabled ? (
                   <button
                     type="button"
                     onClick={onLoyaltyClick}
@@ -13387,6 +13408,7 @@ function Navbar({
                   >
                     {`${EM.CROWN} Loyalty`}
                   </button>
+                ) : null}
 
                   <button
                     type="button"
@@ -13721,6 +13743,7 @@ function MobileBottomNav({
   onAbout,
   onProfile,
   onLogin,
+  loyaltyEnabled = true,
   loyaltyJoined = false,
   onLoyalty,
   elevated = false,
@@ -13743,18 +13766,24 @@ function MobileBottomNav({
 
   return (
     <nav
-      className={["pp-bottomnav", elevated ? "pp-bottomnav--elevated" : ""].join(" ")}
+      className={[
+        "pp-bottomnav",
+        !loyaltyEnabled ? "pp-bottomnav--3" : "",
+        elevated ? "pp-bottomnav--elevated" : "",
+      ].join(" ")}
       aria-label="Primary"
     >
       {item("menu", "\uD83C\uDF55", "Menu", () => onMenu?.())}
       {item("about", "\uD83C\uDFEA", "About", () => onAbout?.())}
-      {item(
-        "loyalty",
-        EM.CROWN,
-        "Loyalty",
-        () => onLoyalty?.(),
-        "pp-bottomnav__item--loyalty",
-      )}
+      {loyaltyEnabled
+        ? item(
+            "loyalty",
+            EM.CROWN,
+            "Loyalty",
+            () => onLoyalty?.(),
+            "pp-bottomnav__item--loyalty",
+          )
+        : null}
       {item("profile", "\uD83D\uDC64", "Profile", () => (authed ? onProfile?.() : onLogin?.()))}
     </nav>
   );
@@ -14103,6 +14132,32 @@ function AppLayout({ isMapsLoaded }) {
   const [rightPanelView, setRightPanelView] = useState("order");
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLoyaltyOpen, setIsLoyaltyOpen] = useState(false);
+  const [loyaltyEnabled, setLoyaltyEnabled] = React.useState(() => {
+    if (typeof window === "undefined") return true;
+    return readLoyaltyFeatureEnabled();
+  });
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const sync = () => setLoyaltyEnabled(readLoyaltyFeatureEnabled());
+
+    const onStorage = (e) => {
+      if (e?.key === FEATURE_LOYALTY_ENABLED_KEY) sync();
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(FEATURE_FLAGS_UPDATED_EVENT, sync);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(FEATURE_FLAGS_UPDATED_EVENT, sync);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!loyaltyEnabled && isLoyaltyOpen) setIsLoyaltyOpen(false);
+  }, [loyaltyEnabled, isLoyaltyOpen]);
   // Mobile detection (keeps it in sync when resizing devtools)
   const [isMobileScreen, setIsMobileScreen] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -14204,10 +14259,11 @@ function AppLayout({ isMapsLoaded }) {
     !selectedItem; // hides during item detail + meal deal editor + half&half, etc.
 
   const openLoyalty = React.useCallback(() => {
+    if (!loyaltyEnabled) return;
     setCartModalOpen(false);
     setIsProfileOpen(false);
     setIsLoyaltyOpen(true);
-  }, []);
+  }, [loyaltyEnabled]);
 
   const prevIsHalfHalfOpenRef = React.useRef(false);
 
@@ -15491,7 +15547,7 @@ function AppLayout({ isMapsLoaded }) {
         />
       )}
       <LoyaltyModal
-        isOpen={isLoyaltyOpen}
+        isOpen={!!isLoyaltyOpen && !!loyaltyEnabled}
         onClose={() => setIsLoyaltyOpen(false)}
       />
 
@@ -15506,6 +15562,7 @@ function AppLayout({ isMapsLoaded }) {
                 onLoginClick={(tab) => authCtx.openLogin(tab)}
                 onProfileClick={handleProfileOpen}
                 onLoyaltyClick={openLoyalty}
+                loyaltyEnabled={loyaltyEnabled}
                 loyaltyJoined={loyaltyJoined}
                 searchName={searchName}
                 searchTopping={searchTopping}
@@ -15602,7 +15659,7 @@ function AppLayout({ isMapsLoaded }) {
           <MobileBottomNav
             elevated={!!cartModalOpen || !!isProfileOpen || !!isLoyaltyOpen}
             activeKey={
-              isLoyaltyOpen
+              isLoyaltyOpen && loyaltyEnabled
                 ? "loyalty"
                 : isProfileOpen
                 ? "profile"
@@ -15611,6 +15668,7 @@ function AppLayout({ isMapsLoaded }) {
                 : "menu"
             }
             authed={!authLoadingFlag && !!authUser}
+            loyaltyEnabled={loyaltyEnabled}
             onMenu={() => goToMenu()}
             onAbout={() => showAboutPanel()}
             onProfile={() => {

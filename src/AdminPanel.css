@@ -716,6 +716,32 @@
   border-bottom: 1px solid var(--ap-border);
 }
 
+.admin-featureflags{
+  margin-top: 10px;
+}
+
+.admin-flag-row{
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148,163,184,0.16);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+}
+
+.admin-flag-name{
+  font-weight: 900;
+}
+
+.admin-flag-sub{
+  margin-top: 2px;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
 /* Responsive */
 @media (max-width: 1060px) {
   .admin-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }

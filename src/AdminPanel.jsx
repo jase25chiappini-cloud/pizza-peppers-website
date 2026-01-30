@@ -7,6 +7,28 @@ const PAGE_SIZES = [10, 25, 50, 100];
 const ROLE_FILTERS = ["all", "customer", "staff", "admin"];
 const STATUS_FILTERS = ["all", "active", "inactive"];
 
+const FEATURE_FLAGS_UPDATED_EVENT = "pp-featureflags-updated";
+const FEATURE_LOYALTY_ENABLED_KEY = "pp_feature_loyalty_enabled";
+
+function readLoyaltyFlag() {
+  try {
+    const v = localStorage.getItem(FEATURE_LOYALTY_ENABLED_KEY);
+    if (v == null) return true;
+    return v === "1" || v === "true";
+  } catch {
+    return true;
+  }
+}
+
+function writeLoyaltyFlag(next) {
+  try {
+    localStorage.setItem(FEATURE_LOYALTY_ENABLED_KEY, next ? "1" : "0");
+  } catch {}
+  try {
+    window.dispatchEvent(new Event(FEATURE_FLAGS_UPDATED_EVENT));
+  } catch {}
+}
+
 export default function AdminPanelPage() {
   const MENU_BASE = (import.meta.env.VITE_PP_MENU_BASE_URL || "").replace(/\/+$/, "");
   const RAW_API_BASE = (import.meta.env.VITE_PP_AUTH_BASE_URL || MENU_BASE || "").replace(
@@ -38,6 +60,7 @@ export default function AdminPanelPage() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkAction, setBulkAction] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(() => readLoyaltyFlag());
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -398,6 +421,38 @@ export default function AdminPanelPage() {
                 <StatCard label="Admins" value={stats.admin} accent="accent" />
                 <StatCard label="Staff" value={stats.staff} accent="accent" />
                 <StatCard label="Customers" value={stats.customer} />
+              </div>
+
+              <div className="admin-featureflags">
+                <div className="admin-side-title" style={{ marginTop: 14 }}>
+                  Feature flags
+                </div>
+
+                <div className="admin-flag-row">
+                  <div>
+                    <div className="admin-flag-name">Loyalty program</div>
+                    <div className="admin-flag-sub">
+                      Show/hide Loyalty in header + mobile footer
+                    </div>
+                  </div>
+
+                  <button
+                    className={[
+                      "admin-btn",
+                      loyaltyEnabled ? "admin-btn-primary" : "admin-btn-ghost",
+                    ].join(" ")}
+                    onClick={() => {
+                      const next = !loyaltyEnabled;
+                      setLoyaltyEnabled(next);
+                      writeLoyaltyFlag(next);
+                    }}
+                    type="button"
+                    disabled={!canManageUsers}
+                    title={!canManageUsers ? "Staff/Admin only" : "Toggle loyalty feature"}
+                  >
+                    {loyaltyEnabled ? "ON" : "OFF"}
+                  </button>
+                </div>
               </div>
 
               {selectedCount > 0 ? (

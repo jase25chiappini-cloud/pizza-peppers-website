@@ -2373,6 +2373,14 @@ footer,
     align-items: center;
   }
 
+  .pp-topnav__rightActions.has-loyalty{
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .pp-topnav__rightActions.no-loyalty{
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   /* Make the two buttons fill their cells cleanly */
   .pp-topnav__rightActions .pp-topnav__linkBtn{
     width: 100%;
@@ -7790,6 +7798,10 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     background: color-mix(in srgb, var(--pp-surface, var(--panel)) 86%, transparent);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
+  }
+
+  .pp-bottomnav.pp-bottomnav--3{
+    grid-template-columns: repeat(3, 1fr);
   }
 
   /* When an overlay (About/Profile) is open, keep bottom nav clickable */
