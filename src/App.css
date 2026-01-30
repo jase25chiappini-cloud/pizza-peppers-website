@@ -460,10 +460,20 @@
   color: var(--pp-text-dim, var(--text-medium));
 }
 
-/* Prevent iOS Safari from zooming when focusing inputs */
+/* iOS Safari: prevent zoom on input focus (typing) */
 @media (max-width: 900px){
-  input, select, textarea, button{
-    font-size: 16px;
+  input,
+  select,
+  textarea{
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 900px){
+  .pp-searchInput,
+  .toppingsSearchInput{
+    padding: 8px 10px;
+    height: 40px;
   }
 }
 
@@ -981,6 +991,22 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 180ms ease, color 180ms ease;
+}
+
+/* Body scroll lock for fullscreen overlays (safe on iOS) */
+.pp-scroll-locked{
+  overflow: hidden !important;
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+
+/* Ensure the actual menu scroll area stays scrollable */
+.menu-content,
+.main-content-area,
+.pp-menu-scroll{
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 /* Main content column */

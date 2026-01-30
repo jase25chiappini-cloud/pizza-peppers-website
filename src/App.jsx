@@ -179,6 +179,35 @@ function useLocalProfile(user) {
   );
 }
 
+// --- PP Scroll Lock (prevents random stuck scrolling on mobile) ---
+function ppLockBodyScroll() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const body = document.body;
+
+  const key = "__ppScrollLockCount";
+  const count = (window[key] || 0) + 1;
+  window[key] = count;
+
+  // only apply on first lock
+  if (count === 1) {
+    body.classList.add("pp-scroll-locked");
+  }
+}
+
+function ppUnlockBodyScroll() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  const body = document.body;
+
+  const key = "__ppScrollLockCount";
+  const next = Math.max(0, (window[key] || 0) - 1);
+  window[key] = next;
+
+  // only remove when fully unlocked
+  if (next === 0) {
+    body.classList.remove("pp-scroll-locked");
+  }
+}
+
 function pickProfileName(profile, user) {
   return (
     String(profile?.displayName || "").trim() ||
@@ -368,16 +397,8 @@ const HalfAndHalfSelector = ({
   React.useEffect(() => {
     // Only lock page scroll when the half/half UI is truly in an overlay (meal deal compact)
     if (!compactUiMode) return;
-    const html = document.documentElement;
-    const body = document.body;
-
-    html.classList.add("pp-halfhalf-open");
-    body.classList.add("pp-halfhalf-open");
-
-    return () => {
-      html.classList.remove("pp-halfhalf-open");
-      body.classList.remove("pp-halfhalf-open");
-    };
+    ppLockBodyScroll();
+    return () => ppUnlockBodyScroll();
   }, [compactUiMode]);
 
   React.useEffect(() => {
@@ -3244,22 +3265,8 @@ const MealDealBuilderPanel = ({
     if (!isMobile) return;
     const open = !!pickerOpen || !!editorItem || !!halfHalfOpenMobile;
     if (!open) return;
-
-    const body = document.body;
-    const html = document.documentElement;
-    const prevBodyOverflow = body.style.overflow;
-    const prevBodyTouch = body.style.touchAction;
-    const prevHtmlOverscroll = html.style.overscrollBehavior;
-
-    body.style.overflow = "hidden";
-    body.style.touchAction = "none";
-    html.style.overscrollBehavior = "none";
-
-    return () => {
-      body.style.overflow = prevBodyOverflow;
-      body.style.touchAction = prevBodyTouch;
-      html.style.overscrollBehavior = prevHtmlOverscroll;
-    };
+    ppLockBodyScroll();
+    return () => ppUnlockBodyScroll();
   }, [isMobile, pickerOpen, editorItem, halfHalfOpenMobile]);
 
   const isComplete = steps.length > 0 && bundleItems.every(Boolean);
@@ -14153,50 +14160,40 @@ function AppLayout({ isMapsLoaded }) {
 
   const [cartModalOpen, setCartModalOpen] = React.useState(false);
 
-  // --- SAFETY: prevent stale scroll locks on mobile (Render issue) ---
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!authCtx.showLogin) return;
+    ppLockBodyScroll();
+    return () => ppUnlockBodyScroll();
+  }, [authCtx.showLogin]);
 
-    const html = document.documentElement;
-    const body = document.body;
+  React.useEffect(() => {
+    if (!isProfileOpen) return;
+    ppLockBodyScroll();
+    return () => ppUnlockBodyScroll();
+  }, [isProfileOpen]);
 
-    const hasVisibleOverlay = () => {
-      const selectors = [
-        ".modal-overlay",
-        ".pp-topnav__searchBackdrop",
-        ".pp-topnav__acctScrim",
-        ".pp-mealpick",
-        ".pp-md-editorOverlay",
-        ".pp-hh-editorModal",
-        ".pp-mealdeal-halfhalf--full",
-      ].join(",");
+  React.useEffect(() => {
+    if (!isLoyaltyOpen) return;
+    ppLockBodyScroll();
+    return () => ppUnlockBodyScroll();
+  }, [isLoyaltyOpen]);
 
-      const nodes = Array.from(document.querySelectorAll(selectors));
-      for (const n of nodes) {
-        if (!(n instanceof HTMLElement)) continue;
-        const cs = window.getComputedStyle(n);
-        if (cs.display === "none" || cs.visibility === "hidden") continue;
-        const op = Number(cs.opacity || "1");
-        if (op <= 0.01 && cs.pointerEvents === "none") continue;
-        return true;
-      }
-      return false;
-    };
+  const anyOverlayOpen =
+    authCtx.showLogin ||
+    cartModalOpen ||
+    isProfileOpen ||
+    isLoyaltyOpen ||
+    (isMobile && !!selectedItem);
 
-    // If nothing overlay-ish is actually visible, nuke any leftover locks.
-    if (!hasVisibleOverlay()) {
-      try {
-        body.style.overflow = "";
-        body.style.touchAction = "";
-        html.style.overscrollBehavior = "";
-      } catch {}
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    if (anyOverlayOpen) return;
 
-      try {
-        html.classList.remove("pp-halfhalf-open");
-        body.classList.remove("pp-halfhalf-open");
-      } catch {}
-    }
-  }, [location.pathname, authCtx.showLogin, cartModalOpen, isProfileOpen, isLoyaltyOpen, selectedItem]);
+    try {
+      window.__ppScrollLockCount = 0;
+      document.body.classList.remove("pp-scroll-locked");
+    } catch {}
+  }, [anyOverlayOpen]);
 
   const showViewOrderFab =
     isMobile &&
@@ -14345,22 +14342,8 @@ function AppLayout({ isMapsLoaded }) {
   React.useEffect(() => {
     if (!isMobile) return;
     if (!cartModalOpen) return;
-
-    const body = document.body;
-    const html = document.documentElement;
-    const prevBodyOverflow = body.style.overflow;
-    const prevBodyTouch = body.style.touchAction;
-    const prevHtmlOverscroll = html.style.overscrollBehavior;
-
-    body.style.overflow = "hidden";
-    body.style.touchAction = "none";
-    html.style.overscrollBehavior = "none";
-
-    return () => {
-      body.style.overflow = prevBodyOverflow;
-      body.style.touchAction = prevBodyTouch;
-      html.style.overscrollBehavior = prevHtmlOverscroll;
-    };
+    ppLockBodyScroll();
+    return () => ppUnlockBodyScroll();
   }, [isMobile, cartModalOpen]);
 
   // Mobile Half & Half flow draft: pick pizzas in menu first, then open editor modal
