@@ -477,6 +477,211 @@
   }
 }
 
+/* =========================================================
+   Schedule modal (scoped) — enterprise + readable + bigger on PC
+   ========================================================= */
+#schedule-modal.pp-modal-backdrop{
+  padding: 1.35rem;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+#schedule-modal .pp-modal{
+  width: min(936px, calc(100vw - 2.6rem));
+  max-height: min(82vh, 860px);
+  border-radius: 22px;
+  overflow: hidden;
+
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-modal);
+
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface, var(--panel)) 0%,
+    var(--pp-surface-2, var(--panel)) 140%
+  );
+}
+
+@media (min-width: 900px){
+  #schedule-modal.pp-modal-backdrop{
+    padding: 2.2rem;
+  }
+
+  #schedule-modal .pp-modal{
+    width: min(1170px, calc(100vw - 6rem));
+    max-height: min(86vh, 980px);
+  }
+}
+
+/* Header */
+#schedule-modal .pp-modal-header{
+  padding: 1.1rem 1.25rem;
+  border-bottom: 1px solid var(--line, var(--border-color));
+  background: linear-gradient(
+    180deg,
+    var(--pp-surface, var(--panel)) 0%,
+    var(--pp-surface-2, var(--panel)) 160%
+  );
+}
+
+#schedule-modal .pp-modal-title{
+  font-size: 1.02rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+#schedule-modal .pp-modal-body{
+  padding: 1.15rem 1.25rem 1.25rem;
+}
+
+/* ASAP / Schedule switch (same vibe as order panel) */
+#schedule-modal .pp-pickupWhenSwitch{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  padding: 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.20);
+  background: rgba(0,0,0,0.12);
+  box-shadow: var(--shadow-card);
+}
+
+[data-theme="light"] #schedule-modal .pp-pickupWhenSwitch{
+  background: rgba(15,23,42,0.03);
+}
+
+#schedule-modal .pp-pickupWhenBtn{
+  min-height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+#schedule-modal .pp-pickupWhenBtn.is-active{
+  border-color: rgba(190,242,100,0.55);
+  background: linear-gradient(180deg, rgba(190,242,100,0.95), rgba(190,242,100,0.70));
+  color: #0b1220;
+  box-shadow: 0 18px 46px rgba(190,242,100,0.18);
+}
+
+[data-theme="light"] #schedule-modal .pp-pickupWhenBtn.is-active{
+  border-color: rgba(22,163,74,0.28);
+  background: linear-gradient(180deg, #bbf7d0, #86efac);
+  color: #0b1220;
+}
+
+/* Day/Time grid */
+#schedule-modal .pp-pickupScheduleGrid{
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+#schedule-modal .pp-pickupScheduleRow{
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 0.8rem;
+  align-items: center;
+  position: relative;
+}
+
+@media (min-width: 900px){
+  #schedule-modal .pp-pickupScheduleRow{
+    grid-template-columns: 96px 1fr;
+  }
+}
+
+#schedule-modal .pp-pickupScheduleRow label{
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-medium);
+}
+
+/* Enterprise dropdowns inside modal */
+#schedule-modal .pp-pickupScheduleSelect{
+  width: 100%;
+  min-height: 56px;
+  font-size: 1.05rem;
+
+  border-radius: 16px;
+  border: 1px solid rgba(148,163,184,0.20);
+
+  background:
+    radial-gradient(520px 180px at 30% 0%, rgba(190,242,100,0.10), transparent 58%),
+    linear-gradient(180deg, rgba(15,23,42,0.88), rgba(2,6,23,0.48));
+
+  padding: 0 2.6rem 0 0.95rem;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  box-shadow:
+    0 14px 34px rgba(0,0,0,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+[data-theme="dark"] #schedule-modal .pp-pickupScheduleSelect{
+  color-scheme: dark;
+  color: #eaf2ff;
+  border-color: rgba(148,163,184,0.22);
+}
+
+[data-theme="dark"] #schedule-modal .pp-pickupScheduleSelect option{
+  background-color: #0f172a;
+  color: #eaf2ff;
+}
+
+[data-theme="light"] #schedule-modal .pp-pickupScheduleSelect{
+  color-scheme: light;
+  background:
+    radial-gradient(520px 180px at 30% 0%, rgba(34,197,94,0.10), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,251,0.90));
+  border-color: rgba(15,23,42,0.14);
+  color: #0b1220;
+}
+
+[data-theme="light"] #schedule-modal .pp-pickupScheduleSelect option{
+  background-color: #ffffff;
+  color: #0b1220;
+}
+
+
+#schedule-modal .pp-pickupScheduleSelect:focus{
+  outline: none;
+  border-color: rgba(190,242,100,0.55);
+  box-shadow:
+    0 16px 44px rgba(190,242,100,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+  transform: translateY(-1px);
+}
+
+/* Footer */
+#schedule-modal .pp-modal-footer{
+  padding: 1.05rem 1.25rem;
+  border-top: 1px solid var(--line, var(--border-color));
+  background: var(--pp-surface, var(--panel));
+}
+
+#schedule-modal .pp-btn{
+  min-height: 46px;
+  border-radius: 16px;
+  font-weight: 900;
+}
+
 
 /* =========================================================
    Loyalty modal (scoped) -- bigger desktop + cleaner alignment
@@ -500,6 +705,18 @@
 
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-modal);
+}
+
+#schedule-modal .pp-modal{
+  width: min(560px, calc(100vw - 2.2rem));
+}
+
+/* Ensure dropdowns are always tappable inside the schedule modal */
+#schedule-modal select,
+#schedule-modal .pp-pickupScheduleSelect{
+  pointer-events: auto !important;
+  -webkit-appearance: menulist;
+  appearance: auto;
 }
 
 /* Make it feel fuller on PC */
@@ -8354,37 +8571,12 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   color: var(--text-medium);
 }
 
-/* Enterprise dropdowns (Day / Time) */
-.order-panel-container .pp-pickupScheduleSelect{
-  width: 100%;
-  min-height: 46px;
-
-  border-radius: 16px;
-  border: 1px solid rgba(148,163,184,0.20);
-
-  background:
-    radial-gradient(520px 180px at 30% 0%, rgba(190,242,100,0.10), transparent 58%),
-    linear-gradient(180deg, rgba(17,28,51,0.62), rgba(2,6,23,0.34));
-
-  color: rgba(234,242,255,0.92);
-  padding: 0 2.6rem 0 0.9rem; /* room for the caret */
-  font-weight: 800;
-  letter-spacing: 0.02em;
-
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-
-  box-shadow:
-    0 14px 34px rgba(0,0,0,0.22),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
 /* --- Scheduler selects: FIX native dropdown visibility (dark/light) --- */
 .order-panel-container .pp-pickupScheduleSelect{
   color: var(--text-primary);
+  appearance: menulist;
+  -webkit-appearance: menulist;
+  -moz-appearance: menulist;
 }
 
 /* Dark mode: force native dropdown to dark + readable options */
@@ -8416,23 +8608,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   color: #0b1220;
 }
 
-.order-panel-container .pp-pickupScheduleRow{
-  position: relative;
-}
-.order-panel-container .pp-pickupScheduleRow::after{
-  content: "▾";
-  position: absolute;
-  right: 0.95rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: rgba(234,242,255,0.72);
-  pointer-events: none;
-  font-size: 0.95rem;
-}
-[data-theme="light"] .order-panel-container .pp-pickupScheduleRow::after{
-  color: rgba(15,23,42,0.60);
-}
-
 .order-panel-container .pp-pickupScheduleSelect:focus{
   outline: none;
   border-color: rgba(190,242,100,0.55);
@@ -8440,36 +8615,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     0 16px 44px rgba(190,242,100,0.14),
     inset 0 1px 0 rgba(255,255,255,0.10);
   transform: translateY(-1px);
-}
-
-/* Custom caret (keeps it consistent across browsers) */
-.order-panel-container .pp-pickupScheduleRow{
-  position: relative;
-}
-.order-panel-container .pp-pickupScheduleRow::after{
-  content: "▾";
-  position: absolute;
-  right: 0.95rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: rgba(234,242,255,0.72);
-  pointer-events: none;
-  font-size: 0.95rem;
-}
-
-/* Light mode variant */
-[data-theme="light"] .order-panel-container .pp-pickupScheduleSelect{
-  border-color: rgba(15,23,42,0.14);
-  background:
-    radial-gradient(520px 180px at 30% 0%, rgba(34,197,94,0.10), transparent 58%),
-    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(241,245,251,0.90));
-  color: #0b1220;
-  box-shadow:
-    0 12px 26px rgba(15,23,42,0.10),
-    inset 0 1px 0 rgba(255,255,255,0.75);
-}
-[data-theme="light"] .order-panel-container .pp-pickupScheduleRow::after{
-  color: rgba(15,23,42,0.60);
 }
 
 .order-panel-container .pp-orderTypeBtn{

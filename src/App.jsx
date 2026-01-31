@@ -4324,8 +4324,11 @@ const OPEN_WINDOWS_ADEL = {
   5: [17 * 60, 20 * 60 + 45], // Fri
   6: [17 * 60, 20 * 60 + 45], // Sat
 };
-const PREORDER_START_MINS = 17 * 60 + 15; // 5:15pm
-const PREORDER_END_MINS = 20 * 60 + 30; // 8:30pm
+// Scheduling slot windows (local Adelaide time, mins since midnight)
+const PICKUP_SLOT_START_MINS = 17 * 60 + 15; // 5:15pm  (pickup only)
+const PICKUP_SLOT_END_MINS = 20 * 60 + 45; // 8:45pm  (pickup only)
+const DELIVERY_SLOT_START_MINS = 17 * 60 + 45; // 5:45pm (delivery unchanged)
+const DELIVERY_SLOT_END_MINS = 20 * 60 + 30; // 8:30pm (delivery unchanged)
 
 function _zonedParts(date, timeZone) {
   const dtf = new Intl.DateTimeFormat("en-AU", {
@@ -9629,6 +9632,10 @@ function OrderInfoPanel({
   setDeliveryWhen,
   deliveryScheduledUtcIso,
   setDeliveryScheduledUtcIso,
+  pickupTimeLocked,
+  setPickupTimeLocked,
+  deliveryTimeLocked,
+  setDeliveryTimeLocked,
   onProceed,
 }) {
   const { cart, totalPrice } = useCart();
@@ -9640,13 +9647,14 @@ function OrderInfoPanel({
   const addressInputRef = useRef(null);
   const deliveryPlacesElRef = React.useRef(null);
   const [addressAutoErr, setAddressAutoErr] = React.useState("");
-  const [showDeliverySchedule, setShowDeliverySchedule] = React.useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = React.useState(false);
+  const [scheduleModalFor, setScheduleModalFor] = React.useState("Delivery"); // "Pickup" | "Delivery"
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
   const canUsePlacesWidget =
     isMapsLoaded &&
     typeof window !== "undefined" &&
     typeof window.google?.maps?.importLibrary === "function";
-  const pickupLeadMins = 20;
+  const pickupLeadMins = 15;
   const deliveryLeadMins = 45;
 
   const fmtAdelLabel = (utcIso) => {
@@ -9689,11 +9697,19 @@ function OrderInfoPanel({
       if (!win) continue;
 
       const key = `${z.year}-${pad2(z.month)}-${pad2(z.day)}`;
-      const label =
-        i === 0 ? "Today" : i === 1 ? "Tomorrow" : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][z.weekday];
+      const WEEKDAYS_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+      const slotIndex = out.length; // 0..6
+
+      let label = "";
+      if (slotIndex === 0) label = "Today";
+      else if (slotIndex === 1) label = "Tomorrow";
+      else if (slotIndex === 6) label = `${MONTHS_SHORT[z.month - 1]} ${pad2(z.day)}`; // ✅ last item is date
+      else label = WEEKDAYS_LONG[z.weekday]; // indices 2..5 are weekday names
 
       out.push({ key, label });
-      if (out.length >= 6) break;
+      if (out.length >= 7) break;
     }
     return out;
   }, []);
@@ -9708,7 +9724,7 @@ function OrderInfoPanel({
     setSchedDayKey(ymdFromUtcIsoAdel(activeScheduledUtcIso));
   }, [activeScheduledUtcIso, orderType]);
 
-  const timeOptionsForDay = React.useCallback((dayKey, leadMins) => {
+  const timeOptionsForDay = React.useCallback((dayKey, leadMins, kind) => {
     if (!dayKey) return [];
     const [yy, mm, dd] = dayKey.split("-").map((x) => Number(x));
     if (![yy, mm, dd].every(Number.isFinite)) return [];
@@ -9723,28 +9739,46 @@ function OrderInfoPanel({
 
     const [openStart, openEnd] = win;
 
-    // Pre-order window (5:15 to 8:30), still respecting store hours
-    const startMins = Math.max(openStart, PREORDER_START_MINS);
-    const endMins = Math.min(openEnd, PREORDER_END_MINS);
-    if (startMins > endMins) return [];
+    const isPickup = kind === "Pickup";
 
-    const now = new Date();
-    const nowZ = _zonedParts(now, ADEL_TZ);
-    const isToday = `${nowZ.year}-${pad2(nowZ.month)}-${pad2(nowZ.day)}` === dayKey;
+    // Pickup: 5:15 → 8:45
+    // Delivery: 5:45 → 8:30
+    const windowStart = isPickup ? PICKUP_SLOT_START_MINS : DELIVERY_SLOT_START_MINS;
+    const windowEnd = isPickup ? PICKUP_SLOT_END_MINS : DELIVERY_SLOT_END_MINS;
 
-    let minMins = startMins;
-    if (isToday) {
-      minMins = Math.max(
-        minMins,
-        (nowZ.hour * 60 + nowZ.minute) + Math.max(0, leadMins || 0),
-      );
+    // Scheduling window, still respecting store hours
+    let startMin = Math.max(openStart, windowStart);
+    const endMins = Math.min(openEnd, windowEnd);
+    if (startMin > endMins) return [];
+
+    // If scheduling for "today", prevent choosing past slots:
+    const todayKey = ymdFromUtcIsoAdel(""); // uses "now" by default
+    if (dayKey === todayKey) {
+      const now = new Date();
+      const nowZ = _zonedParts(now, ADEL_TZ);
+      const nowMin = nowZ.hour * 60 + nowZ.minute;
+      const earliest = nowMin + (Number.isFinite(leadMins) ? leadMins : 0);
+
+      // round up to next 15-min boundary
+      const rounded = Math.ceil(earliest / 15) * 15;
+
+      startMin = Math.max(startMin, rounded);
     }
 
     // round up to 15-min
-    minMins = Math.ceil(minMins / 15) * 15;
+    startMin = Math.ceil(startMin / 15) * 15;
 
     const opts = [];
-    for (let m = minMins; m <= endMins; m += 15) {
+    const minsToLabel = (mins) => {
+      let h24 = Math.floor(mins / 60);
+      const m = mins % 60;
+      const ampm = h24 < 12 ? "AM" : "PM";
+      let h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      return `${h12}:${pad2(m)} ${ampm}`;
+    };
+
+    for (let m = startMin; m <= endMins; m += 15) {
       const h = Math.floor(m / 60);
       const mi = m % 60;
       const utc = _zonedTimeToUtc(
@@ -9752,12 +9786,7 @@ function OrderInfoPanel({
         ADEL_TZ,
       );
       const iso = utc.toISOString();
-
-      const label = new Intl.DateTimeFormat("en-AU", {
-        timeZone: ADEL_TZ,
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(new Date(iso));
+      const label = minsToLabel(m);
 
       opts.push({ iso, label });
     }
@@ -9765,9 +9794,9 @@ function OrderInfoPanel({
   }, []);
 
   const firstSchedOption = React.useCallback(
-    (leadMins) => {
+    (leadMins, kind) => {
       for (const day of openDayOptions) {
-        const opts = timeOptionsForDay(day.key, leadMins);
+        const opts = timeOptionsForDay(day.key, leadMins, kind);
         if (opts.length) return { dayKey: day.key, iso: opts[0].iso };
       }
       return { dayKey: openDayOptions[0]?.key || "", iso: "" };
@@ -9775,21 +9804,271 @@ function OrderInfoPanel({
     [openDayOptions, timeOptionsForDay],
   );
 
+  const openScheduleModal = (mode) => {
+    setScheduleModalFor(mode);
+    setScheduleModalOpen(true);
+  };
+
+  function ScheduleModal({ open, mode, onClose }) {
+    if (!open) return null;
+
+    const isDelivery = mode === "Delivery";
+    const leadMins = isDelivery ? 45 : 15;
+
+    const forcedSchedule = !storeOpenNow; // closed => schedule required
+    const currentWhen = isDelivery ? deliveryWhen : pickupWhen;
+    const currentIso = isDelivery ? deliveryScheduledUtcIso : pickupScheduledUtcIso;
+
+    const effectiveWhen = forcedSchedule ? "SCHEDULE" : (currentWhen || "ASAP");
+
+    const [draftWhen, setDraftWhen] = React.useState(effectiveWhen);
+    const [draftDayKey, setDraftDayKey] = React.useState(() => ymdFromUtcIsoAdel(currentIso || ""));
+    const [draftIso, setDraftIso] = React.useState(currentIso || "");
+
+    const dayOptions = React.useMemo(() => {
+      return (openDayOptions || []).filter(
+        (d) => timeOptionsForDay(d.key, leadMins, mode).length > 0,
+      );
+    }, [openDayOptions, timeOptionsForDay, leadMins, mode]);
+
+    // When opened / mode changes: seed day + iso if scheduling is active or required
+    React.useEffect(() => {
+      if (!open) return;
+
+      const nextWhen = forcedSchedule ? "SCHEDULE" : (currentWhen || "ASAP");
+      setDraftWhen(nextWhen);
+
+      // pick day
+      let nextDay = ymdFromUtcIsoAdel(currentIso || "");
+      if (!dayOptions.some((d) => d.key === nextDay)) {
+        const first = firstSchedOption(leadMins, mode);
+        nextDay = first.dayKey || dayOptions[0]?.key || "";
+      }
+      if (!nextDay) nextDay = dayOptions[0]?.key || "";
+
+      // seed iso (only when scheduling)
+      let nextIso = currentIso || "";
+      if (nextWhen === "SCHEDULE") {
+        const opts = timeOptionsForDay(nextDay, leadMins, mode);
+        if (!opts.some((o) => o.iso === nextIso)) nextIso = opts[0]?.iso || "";
+      }
+
+      setDraftDayKey(nextDay);
+      setDraftIso(nextIso);
+    }, [open, mode]); // keep minimal to avoid loops
+
+    const scheduleVisible = forcedSchedule || draftWhen === "SCHEDULE";
+    const timeOptions = draftDayKey ? timeOptionsForDay(draftDayKey, leadMins, mode) : [];
+
+    const ensureScheduleMode = React.useCallback(() => {
+      if (forcedSchedule) return;
+
+      if (draftWhen !== "SCHEDULE") {
+        setDraftWhen("SCHEDULE");
+      }
+
+      // Ensure we have a valid day/time in the filtered list
+      const first = firstSchedOption(leadMins, mode);
+      const safeDay = dayOptions.some((d) => d.key === draftDayKey) ? draftDayKey : (first.dayKey || dayOptions[0]?.key || "");
+      const opts = safeDay ? timeOptionsForDay(safeDay, leadMins, mode) : [];
+      const safeIso = opts.some((o) => o.iso === draftIso) ? draftIso : (first.iso || opts[0]?.iso || "");
+
+      if (safeDay && safeDay !== draftDayKey) setDraftDayKey(safeDay);
+      if (safeIso && safeIso !== draftIso) setDraftIso(safeIso);
+    }, [forcedSchedule, draftWhen, draftDayKey, draftIso, dayOptions, leadMins, mode, firstSchedOption, timeOptionsForDay]);
+
+    const onPickSchedule = () => {
+      ensureScheduleMode();
+    };
+
+    const onDayChange = (nextDay) => {
+      setDraftDayKey(nextDay);
+
+      const opts = timeOptionsForDay(nextDay, leadMins, mode);
+      setDraftIso(opts[0]?.iso || "");
+    };
+
+    const save = () => {
+      const finalWhen = forcedSchedule ? "SCHEDULE" : draftWhen;
+
+      if (finalWhen === "ASAP") {
+        if (isDelivery) {
+          setDeliveryWhen("ASAP");
+          setDeliveryTimeLocked(true);
+        } else {
+          setPickupWhen("ASAP");
+          setPickupTimeLocked(true);
+        }
+        onClose?.();
+        return;
+      }
+
+      // Schedule must have a valid slot
+      let day = draftDayKey;
+      if (!day || !dayOptions.some((d) => d.key === day)) day = dayOptions[0]?.key || "";
+
+      const opts = timeOptionsForDay(day, leadMins, mode);
+      let iso = draftIso;
+      if (!iso || !opts.some((o) => o.iso === iso)) iso = opts[0]?.iso || "";
+
+      // If still nothing, don?t save
+      if (!day || !iso) return;
+
+      setSchedDayKey(day);
+
+      if (isDelivery) {
+        setDeliveryWhen("SCHEDULE");
+        setDeliveryScheduledUtcIso(iso);
+        setDeliveryTimeLocked(true);
+      } else {
+        setPickupWhen("SCHEDULE");
+        setPickupScheduledUtcIso(iso);
+        setPickupTimeLocked(true);
+      }
+
+      onClose?.();
+    };
+
+    return createPortal(
+      <div className="pp-modal-backdrop" id="schedule-modal" onClick={onClose}>
+        <div className="pp-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <div className="pp-modal-header">
+            <div className="pp-modal-title">{mode} time</div>
+            <button type="button" className="pp-modal-close" aria-label="Close" title="Close" onClick={onClose} />
+          </div>
+
+          <div className="pp-modal-body">
+            {forcedSchedule ? (
+              <div className="pp-disclaimer" style={{ marginTop: 0 }}>
+                Store is closed ? scheduling is required.
+              </div>
+            ) : (
+              <div className="pp-pickupWhenSwitch" style={{ marginTop: 0 }}>
+                <button
+                  type="button"
+                  className={["pp-pickupWhenBtn", draftWhen === "ASAP" ? "is-active" : ""].join(" ")}
+                  onClick={() => setDraftWhen("ASAP")}
+                >
+                  ASAP
+                </button>
+                <button
+                  type="button"
+                  className={["pp-pickupWhenBtn", draftWhen === "SCHEDULE" ? "is-active" : ""].join(" ")}
+                  onClick={onPickSchedule}
+                >
+                  Schedule
+                </button>
+              </div>
+            )}
+
+            <div
+              className="pp-pickupScheduleGrid"
+              style={{
+                marginTop: 12,
+                opacity: scheduleVisible ? 1 : 0.75,
+              }}
+            >
+              {!scheduleVisible ? (
+                <div className="pp-disclaimer" style={{ marginTop: 0, marginBottom: 10 }}>
+                  Select <strong>Schedule</strong> to choose a day and time.
+                </div>
+              ) : null}
+
+              {dayOptions.length === 0 ? (
+                <div className="pp-disclaimer" style={{ marginTop: 0 }}>
+                  No available days found.
+                </div>
+              ) : (
+                <>
+                  <div className="pp-pickupScheduleRow">
+                    <label>Day</label>
+                    <select
+                      className="pp-pickupScheduleSelect"
+                      value={draftDayKey || ""}
+                      onMouseDown={ensureScheduleMode}
+                      onFocus={() => { if (!forcedSchedule) setDraftWhen("SCHEDULE"); }}
+                      onChange={(e) => {
+                        if (!forcedSchedule) setDraftWhen("SCHEDULE");
+                        const nextDay = e.target.value;
+                        setDraftDayKey(nextDay);
+                        const opts = timeOptionsForDay(nextDay, leadMins, mode);
+                        setDraftIso(opts[0]?.iso || "");
+                      }}
+                    >
+                      {dayOptions.map((d) => (
+                        <option key={d.key} value={d.key}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="pp-pickupScheduleRow">
+                    <label>Time</label>
+                    {timeOptions.length === 0 ? (
+                      <div className="pp-disclaimer" style={{ marginTop: 0 }}>
+                        No time slots available for this day.
+                      </div>
+                    ) : (
+                      <select
+                        className="pp-pickupScheduleSelect"
+                        value={draftIso || ""}
+                        onMouseDown={ensureScheduleMode}
+                        onFocus={() => { if (!forcedSchedule) setDraftWhen("SCHEDULE"); }}
+                        onChange={(e) => {
+                          if (!forcedSchedule) setDraftWhen("SCHEDULE");
+                          setDraftIso(e.target.value);
+                        }}
+                      >
+                        {timeOptions.map((t) => (
+                          <option key={t.iso} value={t.iso}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  <div className="pp-disclaimer">
+                    {mode === "Pickup"
+                      ? "15-minute slots, between 5:15pm and 8:45pm."
+                      : "15-minute slots, between 5:45pm and 8:30pm."}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="pp-modal-footer">
+            <button type="button" className="pp-btn pp-btn-secondary" onClick={onClose}>Cancel</button>
+            <button
+              type="button"
+              className="pp-btn pp-btn-primary"
+              onClick={save}
+              disabled={scheduleVisible && (!draftDayKey || !draftIso)}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
+
+
   const isPreorder =
     (orderType === "Pickup" && (pickupWhen === "SCHEDULE" || !storeOpenNow)) ||
     (orderType === "Delivery" && (deliveryWhen === "SCHEDULE" || !storeOpenNow));
 
   React.useEffect(() => {
-    if (!storeOpenNow) setShowDeliverySchedule(true);
-  }, [storeOpenNow]);
-
-  React.useEffect(() => {
     if (orderType !== "Pickup") return;
     if (!(pickupWhen === "SCHEDULE" || !storeOpenNow)) return;
 
-    const opts = timeOptionsForDay(schedDayKey, pickupLeadMins);
+    const opts = timeOptionsForDay(schedDayKey, pickupLeadMins, "Pickup");
     if (!opts.length) {
-      const next = firstSchedOption(pickupLeadMins);
+      const next = firstSchedOption(pickupLeadMins, "Pickup");
       if (next.dayKey && next.dayKey !== schedDayKey) setSchedDayKey(next.dayKey);
       if (next.iso) setPickupScheduledUtcIso(next.iso);
       return;
@@ -9813,9 +10092,9 @@ function OrderInfoPanel({
     if (orderType !== "Delivery") return;
     if (!(deliveryWhen === "SCHEDULE" || !storeOpenNow)) return;
 
-    const opts = timeOptionsForDay(schedDayKey, deliveryLeadMins);
+    const opts = timeOptionsForDay(schedDayKey, deliveryLeadMins, "Delivery");
     if (!opts.length) {
-      const next = firstSchedOption(deliveryLeadMins);
+      const next = firstSchedOption(deliveryLeadMins, "Delivery");
       if (next.dayKey && next.dayKey !== schedDayKey) setSchedDayKey(next.dayKey);
       if (next.iso) setDeliveryScheduledUtcIso(next.iso);
       return;
@@ -10111,78 +10390,24 @@ function OrderInfoPanel({
         {orderType === "Pickup" ? (
           <>
             <p>Pickup from: <strong>Pizza Peppers Store</strong></p>
-            <p>
-              Pickup time:{" "}
-              <strong>
-                {(pickupWhen === "SCHEDULE" || !storeOpenNow)
-                  ? `Pre-order (Ready ${pickupScheduledUtcIso ? fmtAdelLabel(pickupScheduledUtcIso) : (preorderPickupLabel || "15 min after opening")})`
-                  : `ASAP (Approx. ${estimatedTime} mins)`}
-              </strong>
+            <p className="pp-timeRow">
+              <span>
+                Pickup time:{" "}
+                <strong>
+                  {(pickupWhen === "SCHEDULE" || !storeOpenNow)
+                    ? `Pre-order (Ready ${pickupScheduledUtcIso ? fmtAdelLabel(pickupScheduledUtcIso) : (preorderPickupLabel || "15 min after opening")})`
+                    : `ASAP (Approx. ${estimatedTime} mins)`}
+                </strong>
+              </span>
+
+              <button
+                type="button"
+                className="pp-changeBtn"
+                onClick={() => openScheduleModal("Pickup")}
+              >
+                Change
+              </button>
             </p>
-
-            <div className="pp-pickupWhenSwitch">
-              <button
-                type="button"
-                className={["pp-pickupWhenBtn", pickupWhen === "ASAP" ? "is-active" : ""].join(" ")}
-                disabled={!storeOpenNow}
-                onClick={() => setPickupWhen("ASAP")}
-              >
-                ASAP
-              </button>
-              <button
-                type="button"
-                className={["pp-pickupWhenBtn", pickupWhen === "SCHEDULE" ? "is-active" : ""].join(" ")}
-                onClick={() => {
-                  setPickupWhen("SCHEDULE");
-                  if (!pickupScheduledUtcIso) {
-                    const next = firstSchedOption(pickupLeadMins);
-                    if (next.dayKey) setSchedDayKey(next.dayKey);
-                    if (next.iso) setPickupScheduledUtcIso(next.iso);
-                  }
-                }}
-              >
-                Schedule
-              </button>
-            </div>
-
-            {(pickupWhen === "SCHEDULE" || !storeOpenNow) && (
-              <div className="pp-pickupScheduleGrid">
-                <div className="pp-pickupScheduleRow">
-                  <label>Day</label>
-                  <select
-                    className="pp-pickupScheduleSelect"
-                    value={schedDayKey}
-                    onChange={(e) => {
-                      const nextDay = e.target.value;
-                      setSchedDayKey(nextDay);
-                      const opts = timeOptionsForDay(nextDay, pickupLeadMins);
-                      if (opts[0]?.iso) setPickupScheduledUtcIso(opts[0].iso);
-                    }}
-                  >
-                    {openDayOptions.map((d) => (
-                      <option key={d.key} value={d.key}>{d.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="pp-pickupScheduleRow">
-                  <label>Time</label>
-                  <select
-                    className="pp-pickupScheduleSelect"
-                    value={pickupScheduledUtcIso || ""}
-                    onChange={(e) => setPickupScheduledUtcIso(e.target.value)}
-                  >
-                    {timeOptionsForDay(schedDayKey, pickupLeadMins).map((t) => (
-                      <option key={t.iso} value={t.iso}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="pp-disclaimer">
-                  15-minute slots, between 5:15pm and 8:30pm.
-                </div>
-              </div>
-            )}
           </>
         ) : (
           <>
@@ -10203,70 +10428,21 @@ function OrderInfoPanel({
 
               <button
                 type="button"
-                className={["pp-changeBtn", showDeliverySchedule ? "is-open" : ""].join(" ")}
-                onClick={() => {
-                  const next = !showDeliverySchedule;
-                  setShowDeliverySchedule(next);
-
-                  if (next) {
-                    // opening editor -> ensure schedule mode + seed first valid slot
-                    setDeliveryWhen("SCHEDULE");
-                    if (!deliveryScheduledUtcIso) {
-                      const firstDay = openDayOptions[0]?.key;
-                      const opts = timeOptionsForDay(firstDay, 45);
-                      if (opts[0]?.iso) setDeliveryScheduledUtcIso(opts[0].iso);
-                    }
-                  } else {
-                    // closing editor -> back to ASAP only if store is open
-                    if (storeOpenNow) setDeliveryWhen("ASAP");
-                  }
-                }}
+                className="pp-changeBtn"
+                onClick={() => openScheduleModal("Delivery")}
               >
-                {showDeliverySchedule ? "Done" : "Change"}
+                Change
               </button>
             </p>
-
-            {(showDeliverySchedule || !storeOpenNow) && (
-              <div className="pp-pickupScheduleGrid">
-                <div className="pp-pickupScheduleRow">
-                  <label>Day</label>
-                  <select
-                    className="pp-pickupScheduleSelect"
-                    value={schedDayKey}
-                    onChange={(e) => {
-                      const nextDay = e.target.value;
-                      setSchedDayKey(nextDay);
-                      const opts = timeOptionsForDay(nextDay, deliveryLeadMins);
-                      if (opts[0]?.iso) setDeliveryScheduledUtcIso(opts[0].iso);
-                    }}
-                  >
-                    {openDayOptions.map((d) => (
-                      <option key={d.key} value={d.key}>{d.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="pp-pickupScheduleRow">
-                  <label>Time</label>
-                  <select
-                    className="pp-pickupScheduleSelect"
-                    value={deliveryScheduledUtcIso || ""}
-                    onChange={(e) => setDeliveryScheduledUtcIso(e.target.value)}
-                  >
-                    {timeOptionsForDay(schedDayKey, deliveryLeadMins).map((t) => (
-                      <option key={t.iso} value={t.iso}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="pp-disclaimer">
-                  15-minute slots, between 5:15pm and 8:30pm.
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
+
+      <ScheduleModal
+        open={scheduleModalOpen}
+        mode={scheduleModalFor}
+        onClose={() => setScheduleModalOpen(false)}
+      />
 
       {orderType === "Delivery" ? (
         <div className="info-box" style={{ marginTop: "0.85rem" }}>
@@ -14155,6 +14331,7 @@ function AppLayout({ isMapsLoaded }) {
     };
   }, []);
 
+    
   React.useEffect(() => {
     if (!loyaltyEnabled && isLoyaltyOpen) setIsLoyaltyOpen(false);
   }, [loyaltyEnabled, isLoyaltyOpen]);
@@ -14428,6 +14605,8 @@ function AppLayout({ isMapsLoaded }) {
   const [pickupScheduledUtcIso, setPickupScheduledUtcIso] = useState(""); // ISO UTC
   const [deliveryWhen, setDeliveryWhen] = useState("ASAP"); // "ASAP" | "SCHEDULE"
   const [deliveryScheduledUtcIso, setDeliveryScheduledUtcIso] = useState(""); // ISO UTC
+  const [pickupTimeLocked, setPickupTimeLocked] = useState(false);
+  const [deliveryTimeLocked, setDeliveryTimeLocked] = useState(false);
 
   useEffect(() => {
     const base = 20;
@@ -14447,27 +14626,60 @@ function AppLayout({ isMapsLoaded }) {
   }, []);
 
   useEffect(() => {
+    if (!storeOpenNow) return;
+
+    const computeNext = (leadMins) => {
+      const now = new Date();
+      const earliestUtc = now.getTime() + leadMins * 60 * 1000;
+      const rounded =
+        Math.ceil(earliestUtc / (15 * 60 * 1000)) * (15 * 60 * 1000);
+      return new Date(rounded).toISOString();
+    };
+
+    const tick = () => {
+      if (!pickupTimeLocked) {
+        setPickupScheduledUtcIso(computeNext(15));
+        setPickupWhen("ASAP");
+      }
+      if (!deliveryTimeLocked) {
+        setDeliveryScheduledUtcIso(computeNext(45));
+        setDeliveryWhen("ASAP");
+      }
+    };
+
+    tick();
+    const t = setInterval(tick, 60 * 1000);
+    return () => clearInterval(t);
+  }, [storeOpenNow, pickupTimeLocked, deliveryTimeLocked]);
+
+  useEffect(() => {
     if (storeOpenNow) return;
 
     // Store closed -> both fulfilments must be scheduled
     setPickupWhen("SCHEDULE");
     setDeliveryWhen("SCHEDULE");
 
-    if (!pickupScheduledUtcIso) {
+    if (!pickupTimeLocked || !pickupScheduledUtcIso) {
       const openUtc = getNextOpeningUtcAdelaide(new Date());
       if (openUtc) {
         const readyUtc = new Date(openUtc.getTime() + 15 * 60 * 1000);
         setPickupScheduledUtcIso(readyUtc.toISOString());
       }
     }
-    if (!deliveryScheduledUtcIso) {
+    if (!deliveryTimeLocked || !deliveryScheduledUtcIso) {
       const openUtc = getNextOpeningUtcAdelaide(new Date());
       if (openUtc) {
         const readyUtc = new Date(openUtc.getTime() + 45 * 60 * 1000);
         setDeliveryScheduledUtcIso(readyUtc.toISOString());
       }
     }
-  }, [storeOpenNow, pickupScheduledUtcIso, deliveryScheduledUtcIso]);
+  }, [
+    storeOpenNow,
+    pickupScheduledUtcIso,
+    deliveryScheduledUtcIso,
+    pickupTimeLocked,
+    deliveryTimeLocked,
+  ]);
 
   useEffect(() => {
     if (orderType === "Delivery" && storeOpenNow) {
@@ -15229,65 +15441,6 @@ function AppLayout({ isMapsLoaded }) {
     );
   } catch {}
 
-  // URL-guarded debug renderer to verify menu pipeline fast
-  if (menuDebug) {
-    return (
-      <div style={{ padding: 16 }}>
-        <h1 style={{ marginBottom: 8 }}>Menu Debug</h1>
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16 }}>
-          loading={String(isLoading)} | ready={String(menuReady)} | hasMenu=
-          {String(hasMenu)} | categories={cats.length}
-        </div>
-        {menuError ? (
-          <div style={{ color: "crimson", marginBottom: 12 }}>
-            Menu error: {String(menuError?.message || menuError)}
-          </div>
-        ) : null}
-        {cats.map((cat) => (
-          <section key={cat.ref || cat.name} style={{ margin: "20px 0" }}>
-            <h2 style={{ margin: "6px 0" }}>{cat.name}</h2>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
-                gap: 12,
-              }}
-            >
-              {(cat.items || []).map((it) => (
-                <div
-                  key={it.id}
-                  style={{
-                    border: "1px solid #333",
-                    borderRadius: 8,
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>{it.name}</div>
-                  <div
-                    style={{ fontSize: 12, opacity: 0.7, margin: "6px 0 10px" }}
-                  >
-                    {it.description}
-                  </div>
-                  {Array.isArray(it.sizes) && it.sizes.length ? (
-                    <ul style={{ margin: 0, paddingLeft: 18 }}>
-                      {it.sizes.map((sz) => (
-                        <li key={sz.id || sz.name}>
-                          {sz.name}: {currency(sz.price_cents)}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>No sizes</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <LoadingScreen
@@ -15483,6 +15636,10 @@ function AppLayout({ isMapsLoaded }) {
             setDeliveryWhen={setDeliveryWhen}
             deliveryScheduledUtcIso={deliveryScheduledUtcIso}
             setDeliveryScheduledUtcIso={setDeliveryScheduledUtcIso}
+            pickupTimeLocked={pickupTimeLocked}
+            setPickupTimeLocked={setPickupTimeLocked}
+            deliveryTimeLocked={deliveryTimeLocked}
+            setDeliveryTimeLocked={setDeliveryTimeLocked}
             onProceed={() => {
               setRightPanelView("review");
               if (isMobile) setCartModalOpen(true);
