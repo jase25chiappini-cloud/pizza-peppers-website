@@ -2061,6 +2061,218 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   }
 }
 
+/* ---------- Mobile compact: order panel info-box rows ---------- */
+@media (max-width: 520px){
+
+  /* tighten the card */
+  .info-box{
+    padding: 12px 12px 10px;
+    border-radius: 16px;
+  }
+
+  /* top row (Pickup from / Delivery to) */
+  .info-box .pp-infoTop{
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 6px;
+    padding-bottom: 8px;
+  }
+
+  .info-box .pp-infoTopLabel{
+    font-size: 12px;
+  }
+
+  .info-box .pp-infoTopValue{
+    font-size: 13px;
+  }
+
+  /* bottom row (time row) */
+  .info-box .pp-infoBottom{
+    grid-template-columns: 92px minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .info-box .pp-infoBottomLabel{
+    font-size: 12px;
+  }
+
+  .info-box .pp-infoBottomValue{
+    font-size: 12.5px;
+    line-height: 1.1;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  /* smaller CHANGE pill */
+  .info-box .pp-changeBtn{
+    height: 28px;
+    padding: 0 10px;
+    font-size: 11.5px;
+    letter-spacing: 0.25px;
+  }
+
+  /* Give the address input more horizontal room on mobile */
+  .order-panel-container--mobileCart .pp-defRow{
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .order-panel-container--mobileCart .pp-defLabel{
+    font-size: 12px;
+  }
+
+  /* specifically for the embedded delivery row layout */
+  .order-panel-container--mobileCart .pp-deliveryAddressRow--inline{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .order-panel-container--mobileCart .pp-defRow--address{
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .order-panel-container--mobileCart .pp-defRow--address .pp-defLabel{
+    margin-bottom: 2px;
+  }
+
+  .order-panel-container--mobileCart .pp-defRow--address .pp-defRight{
+    width: 100%;
+  }
+
+  .order-panel-container--mobileCart .pp-autocomplete-mount{
+    min-height: 32px;
+  }
+
+  .order-panel-container--mobileCart .pp-delivery-autocomplete gmp-place-autocomplete::part(input),
+  .order-panel-container--mobileCart .pp-delivery-autocomplete gmp-place-autocomplete::part(text-field),
+  .order-panel-container--mobileCart .pp-delivery-autocomplete gmp-place-autocomplete::part(container){
+    min-height: 32px;
+    height: 32px;
+  }
+
+  /* ---- Mobile: Delivery address field (shorter + cleaner) ---- */
+  .order-panel-container--mobileCart .pp-deliveryAddressInput{
+    height: 28px;
+    min-height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    line-height: 28px;
+    font-weight: 800;
+    border-radius: 12px;
+  }
+
+  /* fee pill smaller so it doesn’t crowd */
+  .order-panel-container--mobileCart .pp-deliveryFeePill{
+    height: 24px;
+    padding: 0 9px;
+    font-size: 11.5px;
+    border-radius: 999px;
+  }
+
+  /* ===== Mobile Cart Sheet: fix overall proportions ===== */
+
+  /* Reduce outer modal padding so content fits */
+  .pp-cart-modal__panel{
+    padding: 0.5rem;
+  }
+
+  /* Reduce inner panel padding (this is a big offender) */
+  .pp-cart-modal__panel .order-panel-container--mobileCart{
+    padding-top: 0.55rem;
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+    padding-bottom: calc(var(--pp-bottomnav-h) + env(safe-area-inset-bottom) + 0.55rem);
+    scroll-padding-bottom: calc(var(--pp-bottomnav-h) + env(safe-area-inset-bottom) + 0.55rem);
+  }
+
+  /* Title smaller */
+  .order-panel-container--mobileCart .panel-title{
+    font-size: 1.0rem;
+    margin-bottom: 0.55rem;
+    letter-spacing: 0.09em;
+  }
+
+  /* Pickup/Delivery switch smaller */
+  .order-panel-container--mobileCart .pp-orderTypeSwitch{
+    padding: 0.28rem;
+    gap: 0.35rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .order-panel-container--mobileCart .pp-orderTypeBtn{
+    min-height: 34px;
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+  }
+
+  /* The main info-box tighter */
+  .order-panel-container--mobileCart .info-box{
+    padding: 10px 10px 9px;
+    border-radius: 14px;
+  }
+
+  /* Empty cart block is way too tall on mobile */
+  .order-panel-container--mobileCart .pp-emptyCart{
+    padding: 0.85rem 0.75rem;
+    border-radius: 16px;
+  }
+
+  .order-panel-container--mobileCart .pp-emptyCartTitle{
+    font-size: 0.95rem;
+    letter-spacing: 0.06em;
+  }
+
+  .order-panel-container--mobileCart .pp-emptyCartSub{
+    font-size: 0.9rem;
+  }
+
+  /* Voucher header tighter */
+  .order-panel-container--mobileCart .pp-voucherBtn{
+    padding: 8px 10px;
+    border-radius: 13px;
+  }
+
+  .order-panel-container--mobileCart .pp-voucherTitle{
+    font-size: 12.5px;
+  }
+
+  .order-panel-container--mobileCart .pp-voucherSub{
+    font-size: 12px;
+  }
+
+  /* Totals block smaller */
+  .order-panel-container--mobileCart .total-price-display{
+    margin: 0.6rem 0 0.65rem !important;
+    padding: 0.7rem 0.75rem !important;
+    border-radius: 14px !important;
+  }
+
+  .order-panel-container--mobileCart .total-price-display span:first-child{
+    font-size: 0.68rem !important;
+    letter-spacing: 0.16em !important;
+  }
+
+  .order-panel-container--mobileCart .total-price-display span:last-child{
+    font-size: 1.35rem !important;
+    text-shadow: 0 0 14px rgba(190,242,100,0.18) !important;
+  }
+
+  /* Main CTA button thinner */
+  .order-panel-container--mobileCart .cart-total-section .place-order-button{
+    min-height: 44px !important;
+    padding: 0.65rem 0.9rem !important;
+    border-radius: 14px !important;
+    font-size: 0.85rem !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .pp-addrPredItem{ padding: 9px 10px; }
+  .pp-addrPredMain{ font-size: 12px; }
+  .pp-addrPredSub{ font-size: 11px; }
+}
+
 .info-box::before,
 .info-box::after{
   content: none !important;
@@ -2075,6 +2287,56 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   border-radius: 14px;
   padding: 12px 14px;
   margin: 12px 0;
+}
+
+/* Order panel light mode: make cards and helper controls readable */
+[data-theme='light'] .order-panel-container .info-box{
+  background: rgba(255,255,255,0.78);
+  border-color: rgba(15,23,42,0.14);
+  box-shadow: 0 14px 34px rgba(2,6,23,0.10);
+}
+
+[data-theme='light'] .order-panel-container .pp-defLabel,
+[data-theme='light'] .order-panel-container .pp-infoTopLabel,
+[data-theme='light'] .order-panel-container .pp-infoBottomLabel{
+  color: rgba(15,23,42,0.72);
+}
+
+[data-theme='light'] .order-panel-container .pp-defValue,
+[data-theme='light'] .order-panel-container .pp-infoTopValue,
+[data-theme='light'] .order-panel-container .pp-infoBottomValue,
+[data-theme='light'] .order-panel-container .pp-stack2Title{
+  color: rgba(15,23,42,0.92);
+}
+
+[data-theme='light'] .order-panel-container .pp-stack2Sub{
+  color: rgba(15,23,42,0.72);
+}
+
+[data-theme='light'] .order-panel-container .pp-autocomplete-mount gmp-place-autocomplete{
+  --gmp-place-autocomplete-input-border-color: rgba(15,23,42,0.14);
+  --gmp-place-autocomplete-input-background-color: rgba(255,255,255,0.92);
+  --gmp-place-autocomplete-input-text-color: rgba(15,23,42,0.92);
+  --gmp-place-autocomplete-input-placeholder-color: rgba(15,23,42,0.50);
+}
+
+/* Light mode: CHANGE button must not be white-on-white */
+[data-theme='light'] .order-panel-container .pp-changeBtn{
+  background: rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  color: rgba(15, 23, 42, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+}
+
+[data-theme='light'] .order-panel-container .pp-changeBtn:active{
+  transform: translateY(1px);
+}
+
+[data-theme='light'] .order-panel-container .pp-changeBtn:disabled{
+  opacity: 0.55;
+  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.55);
 }
 
 .cart-total-section {
@@ -8215,7 +8477,7 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
    Mobile bottom nav: ALWAYS visible above overlays/modals
    ========================================================= */
 @media (max-width: 1023.98px){
-  .pp-bottomnav.pp-bottomnav--elevated{
+.pp-bottomnav.pp-bottomnav--elevated{
     z-index: 2005 !important;       /* above .pp-cart-modal & .modal-overlay */
     pointer-events: auto !important;
   }
@@ -8228,6 +8490,36 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   .pp-cart-fab{
     z-index: 20010 !important;       /* above nav if needed */
   }
+}
+
+/* When mobile cart is open, hide the bottom nav */
+.pp-mobileCartOpen .pp-bottomnav{
+  display: none !important;
+}
+
+/* Sticky CTA replaces the footer area on mobile cart */
+.pp-mobileCartStickyCta{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  padding: 10px 12px calc(env(safe-area-inset-bottom) + 10px);
+  background: rgba(2, 6, 23, 0.92);
+  border-top: 1px solid rgba(148,163,184,0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.pp-mobileCartStickyCta .place-order-button{
+  width: 100%;
+  min-height: 46px;
+  border-radius: 14px;
+}
+
+.pp-mobileCartOpen .order-panel-container--mobileCart{
+  padding-bottom: calc(env(safe-area-inset-bottom) + 70px) !important;
+  scroll-padding-bottom: calc(env(safe-area-inset-bottom) + 70px) !important;
 }
 
 /* Mobile "View order" bottom bar — full width */
@@ -8699,6 +8991,22 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     letter-spacing: 0.10em;
   }
 
+  /* Mobile cart: delivery address input (shorter + smaller placeholder) */
+  .order-panel-container--mobileCart .pp-deliveryAddressInput{
+    height: 28px;
+    min-height: 28px;
+    padding: 0 10px;
+    line-height: 28px;
+    font-size: 12.5px;
+    font-weight: 800;
+    border-radius: 12px;
+  }
+
+  .order-panel-container--mobileCart .pp-deliveryAddressInput::placeholder{
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(226,232,240,0.45);
+  }
 
 }
 
@@ -9115,6 +9423,20 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   font-weight: 950 !important;
   letter-spacing: 0.14em !important;
   text-transform: uppercase !important;
+}
+
+.place-order-button .pp-ctaText{
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.place-order-button .pp-ctaPrice{
+  font-weight: 900;
+}
+
+.place-order-button .pp-ctaSep{
+  opacity: 0.6;
 }
 
 .order-panel-container:not(.order-panel-container--detail):not(.order-panel-container--mealdeal):not(.order-panel-container--halfhalf)
@@ -10582,11 +10904,57 @@ body{
 .pp-deliveryAddressField{
   flex: 1 1 auto;
   min-width: 0;
+  position: relative;
 }
 
 /* keep places widget full height/width inside the field */
 .pp-deliveryAddressField .pp-delivery-autocomplete{
   width: 100%;
+}
+
+.pp-addrPredList{
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.16);
+  background: rgba(2, 6, 23, 0.92);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+
+.pp-addrPredItem{
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  color: rgba(241,245,249,0.92);
+  cursor: pointer;
+}
+
+.pp-addrPredItem + .pp-addrPredItem{
+  border-top: 1px solid rgba(148,163,184,0.10);
+}
+
+.pp-addrPredMain{
+  font-weight: 900;
+  font-size: 12.5px;
+  line-height: 1.15;
+}
+
+.pp-addrPredSub{
+  margin-top: 2px;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: rgba(226,232,240,0.60);
+  line-height: 1.15;
+}
+
+.pp-addrPredItem:active{
+  transform: translateY(1px);
 }
 
 /* Green fee box on the right (15–20% max) */
@@ -11917,3 +12285,140 @@ body[data-theme="light"] .menu-content::after{
   }
 }
 
+
+
+/* =========================================
+   Light Mode ? Order Panel / Mobile Cart
+   ========================================= */
+
+[data-theme="light"] .order-panel-container,
+[data-theme="light"] .order-panel-container--mobileCart{
+  color: rgba(15,23,42,0.92);
+}
+
+/* Panel background (modal sheet area) */
+[data-theme="light"] .pp-cart-modal__panel{
+  background: rgba(255,255,255,0.94);
+}
+
+/* The main cards */
+[data-theme="light"] .order-panel-container .info-box,
+[data-theme="light"] .order-panel-container--mobileCart .info-box{
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(15,23,42,0.10);
+  box-shadow: 0 14px 34px rgba(2,6,23,0.10);
+}
+
+/* Remove dark texture overlays if they exist */
+[data-theme="light"] .order-panel-container .info-box::before,
+[data-theme="light"] .order-panel-container .info-box::after,
+[data-theme="light"] .order-panel-container--mobileCart .info-box::before,
+[data-theme="light"] .order-panel-container--mobileCart .info-box::after{
+  opacity: 0.08 !important;
+  filter: saturate(0.5);
+}
+
+/* Labels vs values */
+[data-theme="light"] .order-panel-container .pp-defLabel,
+[data-theme="light"] .order-panel-container--mobileCart .pp-defLabel,
+[data-theme="light"] .order-panel-container .pp-infoTopLabel,
+[data-theme="light"] .order-panel-container .pp-infoBottomLabel,
+[data-theme="light"] .order-panel-container--mobileCart .pp-infoTopLabel,
+[data-theme="light"] .order-panel-container--mobileCart .pp-infoBottomLabel{
+  color: rgba(15,23,42,0.62);
+}
+
+[data-theme="light"] .order-panel-container .pp-defValue,
+[data-theme="light"] .order-panel-container--mobileCart .pp-defValue,
+[data-theme="light"] .order-panel-container .pp-infoTopValue,
+[data-theme="light"] .order-panel-container .pp-infoBottomValue,
+[data-theme="light"] .order-panel-container--mobileCart .pp-infoTopValue,
+[data-theme="light"] .order-panel-container--mobileCart .pp-infoBottomValue,
+[data-theme="light"] .order-panel-container .pp-stack2Title,
+[data-theme="light"] .order-panel-container--mobileCart .pp-stack2Title{
+  color: rgba(15,23,42,0.92);
+}
+
+[data-theme="light"] .order-panel-container .pp-stack2Sub,
+[data-theme="light"] .order-panel-container--mobileCart .pp-stack2Sub{
+  color: rgba(15,23,42,0.70);
+}
+
+/* Pickup/Delivery switch */
+[data-theme="light"] .order-panel-container .pp-orderTypeSwitch,
+[data-theme="light"] .order-panel-container--mobileCart .pp-orderTypeSwitch{
+  background: rgba(15,23,42,0.05);
+  border: 1px solid rgba(15,23,42,0.08);
+}
+
+[data-theme="light"] .order-panel-container .pp-orderTypeBtn,
+[data-theme="light"] .order-panel-container--mobileCart .pp-orderTypeBtn{
+  color: rgba(15,23,42,0.85);
+}
+
+[data-theme="light"] .order-panel-container .pp-orderTypeBtn.is-active,
+[data-theme="light"] .order-panel-container--mobileCart .pp-orderTypeBtn.is-active{
+  background: rgba(190,242,100,0.55);
+  border: 1px solid rgba(132,204,22,0.35);
+  color: rgba(15,23,42,0.92);
+}
+
+/* Voucher dropdown header */
+[data-theme="light"] .order-panel-container .pp-voucherBtn,
+[data-theme="light"] .order-panel-container--mobileCart .pp-voucherBtn{
+  background: rgba(255,255,255,0.90);
+  border: 1px solid rgba(15,23,42,0.10);
+  box-shadow: 0 10px 22px rgba(2,6,23,0.08);
+  color: rgba(15,23,42,0.92);
+}
+
+[data-theme="light"] .order-panel-container .pp-voucherSub,
+[data-theme="light"] .order-panel-container--mobileCart .pp-voucherSub{
+  color: rgba(15,23,42,0.62);
+}
+
+[data-theme="light"] .order-panel-container .pp-voucherCaret,
+[data-theme="light"] .order-panel-container--mobileCart .pp-voucherCaret{
+  background: rgba(15,23,42,0.06);
+  border-color: rgba(15,23,42,0.10);
+  color: rgba(15,23,42,0.75);
+}
+
+/* Change button (fix white-on-white) */
+[data-theme="light"] .order-panel-container .pp-changeBtn,
+[data-theme="light"] .order-panel-container--mobileCart .pp-changeBtn{
+  background: rgba(15,23,42,0.07);
+  border: 1px solid rgba(15,23,42,0.18);
+  color: rgba(15,23,42,0.88);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+}
+
+/* Empty cart block */
+[data-theme="light"] .order-panel-container--mobileCart .pp-emptyCart,
+[data-theme="light"] .order-panel-container .pp-emptyCart{
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(15,23,42,0.08);
+}
+
+[data-theme="light"] .order-panel-container--mobileCart .pp-emptyCartTitle,
+[data-theme="light"] .order-panel-container .pp-emptyCartTitle{
+  color: rgba(15,23,42,0.88);
+}
+
+[data-theme="light"] .order-panel-container--mobileCart .pp-emptyCartSub,
+[data-theme="light"] .order-panel-container .pp-emptyCartSub{
+  color: rgba(15,23,42,0.65);
+}
+
+/* Sticky CTA bar on mobile cart */
+[data-theme="light"] .pp-mobileCartStickyCta{
+  background: rgba(255,255,255,0.92);
+  border-top: 1px solid rgba(15,23,42,0.10);
+}
+
+[data-theme="light"] .pp-mobileCartStickyCta .place-order-button{
+  background: rgba(15,23,42,0.08);
+  border: 1px solid rgba(15,23,42,0.14);
+  color: rgba(15,23,42,0.88);
+  box-shadow: 0 10px 24px rgba(2,6,23,0.10);
+}

@@ -4329,6 +4329,25 @@ const PICKUP_SLOT_START_MINS = 17 * 60 + 15; // 5:15pm  (pickup only)
 const PICKUP_SLOT_END_MINS = 20 * 60 + 45; // 8:45pm  (pickup only)
 const DELIVERY_SLOT_START_MINS = 17 * 60 + 45; // 5:45pm (delivery unchanged)
 const DELIVERY_SLOT_END_MINS = 20 * 60 + 30; // 8:30pm (delivery unchanged)
+const DELIVERY_ZONES = {
+  "sheidow park": 8.4,
+  woodcroft: 8.4,
+  "christie downs": 12.6,
+  "trott park": 8.4,
+  "happy valley": 8.4,
+  "o'halloran hill": 8.4,
+  "hallett cove": 12.6,
+  "hackham west": 12.6,
+  "huntfield heights": 12.6,
+  "morphett vale": 8.4,
+  lonsdale: 12.6,
+  "old reynella": 8.4,
+  hackham: 12.6,
+  reynella: 8.4,
+  "onkaparinga hills": 12.6,
+  "reynella east": 8.4,
+  "aberfoyle park": 12.6,
+};
 
 function _zonedParts(date, timeZone) {
   const dtf = new Intl.DateTimeFormat("en-AU", {
@@ -9116,6 +9135,7 @@ function ReviewOrderPanel({
   onBack,
   onEditItem,
   onOpenProfile,
+  isMobileCartOpen = false,
   orderType,
   orderAddress,
   orderDeliveryFee,
@@ -9537,25 +9557,40 @@ function ReviewOrderPanel({
           </div>
         )}
 
-        <div className="total-price-display">
-          <span>Total:</span>
-          <span>${finalTotal.toFixed(2)}</span>
-        </div>
+        {isMobileCartOpen ? (
+          <>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+              <button type="button" className="simple-button" onClick={onBack}>
+                Back
+              </button>
+            </div>
+            <div className="pp-mobileCartStickyCta">
+              <button
+                type="button"
+                className="place-order-button"
+                disabled={!canPlaceStrict || placing}
+                onClick={handlePlaceOrder}
+              >
+                {placing ? "Sending..." : isPreorder ? "Place pre-order" : "Place order"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+            <button type="button" className="simple-button" onClick={onBack}>
+              Back
+            </button>
 
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-          <button type="button" className="simple-button" onClick={onBack}>
-            Back
-          </button>
-
-          <button
-            type="button"
-            className="place-order-button"
-            disabled={!canPlaceStrict || placing}
-            onClick={handlePlaceOrder}
-          >
-            {placing ? "Sending..." : isPreorder ? "Place pre-order" : "Place order"}
-          </button>
-        </div>
+            <button
+              type="button"
+              className="place-order-button"
+              disabled={!canPlaceStrict || placing}
+              onClick={handlePlaceOrder}
+            >
+              {placing ? "Sending..." : isPreorder ? "Place pre-order" : "Place order"}
+            </button>
+          </div>
+        )}
 
         {import.meta.env.DEV ? (
           <div style={{ marginTop: 8, fontSize: 12, opacity: 0.65 }}>
@@ -9581,6 +9616,8 @@ function ReviewOrderPanel({
 function OrderInfoPanel({
   onEditItem,
   isMapsLoaded,
+  isMobile = false,
+  isMobileCartOpen = false,
   orderType,
   setOrderType,
   orderAddress,
@@ -9611,6 +9648,44 @@ function OrderInfoPanel({
   const localProfile = useLocalProfile(currentUser);
   const profileAddress = pickProfileAddress(localProfile);
   const orderAddressText = normalizeAddressText(orderAddress);
+  const profileAddressText = normalizeAddressText(profileAddress);
+  const [addrPredictions, setAddrPredictions] = React.useState([]);
+  const [addrPredOpen, setAddrPredOpen] = React.useState(false);
+  const [addrPredLoading, setAddrPredLoading] = React.useState(false);
+  const placesAutoSvcRef = React.useRef(null);
+  const placesDetailsSvcRef = React.useRef(null);
+  const zoneKeysBySpecificity = React.useMemo(() => {
+    // longest first (so "reynella east" wins over "reynella")
+    return Object.keys(DELIVERY_ZONES).sort((a, b) => b.length - a.length);
+  }, []);
+  const applyDeliveryAddressFromText = React.useCallback(
+    (raw) => {
+      const cleaned = normalizeAddressText(raw);
+      if (!cleaned) {
+        setOrderDeliveryFee(0);
+        setOrderAddressError("");
+        return;
+      }
+
+      const lower = cleaned.toLowerCase();
+      const matchedKey = zoneKeysBySpecificity.find((k) => lower.includes(k));
+      if (matchedKey) {
+        setOrderAddress(cleaned);
+        setOrderDeliveryFee(DELIVERY_ZONES[matchedKey]);
+        setOrderAddressError("");
+      } else {
+        setOrderAddress(cleaned);
+        setOrderDeliveryFee(0);
+        setOrderAddressError("Sorry, we do not deliver to this suburb.");
+      }
+    },
+    [
+      zoneKeysBySpecificity,
+      setOrderAddress,
+      setOrderDeliveryFee,
+      setOrderAddressError,
+    ],
+  );
   const [voucherCode, setVoucherCode] = React.useState("");
   const addressInputRef = useRef(null);
   const deliveryPlacesElRef = React.useRef(null);
@@ -9618,12 +9693,95 @@ function OrderInfoPanel({
   const [scheduleModalOpen, setScheduleModalOpen] = React.useState(false);
   const [scheduleModalFor, setScheduleModalFor] = React.useState("Delivery"); // "Pickup" | "Delivery"
   const finalTotal = totalPrice + (orderDeliveryFee || 0);
+  const totalMoneyLabel = `$${Number(finalTotal || 0).toFixed(2)}`;
   const canUsePlacesWidget =
     isMapsLoaded &&
     typeof window !== "undefined" &&
     typeof window.google?.maps?.importLibrary === "function";
+  const usePlacesHere = canUsePlacesWidget && !addressAutoErr;
   const pickupLeadMins = 15;
   const deliveryLeadMins = 45;
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const g = window.google;
+    if (!g?.maps?.places) return;
+
+    if (!placesAutoSvcRef.current) {
+      placesAutoSvcRef.current = new g.maps.places.AutocompleteService();
+    }
+    if (!placesDetailsSvcRef.current) {
+      const el = document.createElement("div");
+      placesDetailsSvcRef.current = new g.maps.places.PlacesService(el);
+    }
+  }, []);
+
+  const fetchAddrPredictions = React.useCallback((text) => {
+    const svc = placesAutoSvcRef.current;
+    const g = typeof window !== "undefined" ? window.google : null;
+    if (!svc || !g?.maps?.places) return;
+
+    const q = (text || "").trim();
+    if (q.length < 4) {
+      setAddrPredictions([]);
+      setAddrPredOpen(false);
+      setAddrPredLoading(false);
+      return;
+    }
+
+    setAddrPredLoading(true);
+
+    svc.getPlacePredictions(
+      {
+        input: q,
+        componentRestrictions: { country: "au" },
+        types: ["address"],
+      },
+      (preds, status) => {
+        setAddrPredLoading(false);
+        if (
+          status !== g.maps.places.PlacesServiceStatus.OK ||
+          !preds?.length
+        ) {
+          setAddrPredictions([]);
+          setAddrPredOpen(false);
+          return;
+        }
+        setAddrPredictions(preds.slice(0, 6));
+        setAddrPredOpen(true);
+      },
+    );
+  }, []);
+
+  const selectAddrPrediction = React.useCallback(
+    (placeId) => {
+      const svc = placesDetailsSvcRef.current;
+      const g = typeof window !== "undefined" ? window.google : null;
+      if (!svc || !g?.maps?.places) return;
+
+      svc.getDetails(
+        {
+          placeId,
+          fields: ["formatted_address", "address_components"],
+        },
+        (place, status) => {
+          if (
+            status !== g.maps.places.PlacesServiceStatus.OK ||
+            !place
+          ) {
+            return;
+          }
+
+          const formatted = place.formatted_address || "";
+          setOrderAddress(normalizeAddressText(formatted));
+          setAddrPredOpen(false);
+          setAddrPredictions([]);
+          applyDeliveryAddressFromText(formatted);
+        },
+      );
+    },
+    [setOrderAddress, applyDeliveryAddressFromText],
+  );
 
   const fmtAdelLabel = (utcIso) => {
     if (!utcIso) return "";
@@ -10064,6 +10222,10 @@ function OrderInfoPanel({
   const isPreorder =
     (orderType === "Pickup" && (pickupWhen === "SCHEDULE" || !storeOpenNow)) ||
     (orderType === "Delivery" && (deliveryWhen === "SCHEDULE" || !storeOpenNow));
+  const actionLabel =
+    orderType === "Delivery"
+      ? (isPreorder ? "PRE-ORDER (DELIVERY)" : "CONTINUE (DELIVERY)")
+      : (isPreorder ? "PRE-ORDER (PICK-UP)" : "CONTINUE (PICK-UP)");
 
   React.useEffect(() => {
     if (orderType !== "Pickup") return;
@@ -10119,12 +10281,22 @@ function OrderInfoPanel({
 
   React.useEffect(() => {
     if (orderType !== "Delivery") return;
-    if (normalizeAddressText(orderAddress)) return;
-    if (!profileAddress) return;
+    if (orderAddressText) return;
+    if (!profileAddressText) return;
 
-    setOrderAddress(normalizeAddressText(profileAddress));
-    setOrderAddressError?.("");
-  }, [orderType, orderAddress, profileAddress, setOrderAddress, setOrderAddressError]);
+    setOrderAddress(profileAddressText);
+    setOrderAddressError("");
+    setAddressAutoErr("");
+    applyDeliveryAddressFromText(profileAddressText);
+  }, [
+    orderType,
+    orderAddressText,
+    profileAddressText,
+    setOrderAddress,
+    setOrderAddressError,
+    setAddressAutoErr,
+    applyDeliveryAddressFromText,
+  ]);
 
   React.useEffect(() => {
     const cleaned = normalizeAddressText(orderAddress);
@@ -10261,33 +10433,13 @@ function OrderInfoPanel({
           );
 
           if (suburbComponent) {
-            const zones = {
-              "sheidow park": 8.4,
-              woodcroft: 8.4,
-              "christie downs": 12.6,
-              "trott park": 8.4,
-              "happy valley": 8.4,
-              "o'halloran hill": 8.4,
-              "hallett cove": 12.6,
-              "hackham west": 12.6,
-              "huntfield heights": 12.6,
-              "morphett vale": 8.4,
-              lonsdale: 12.6,
-              "old reynella": 8.4,
-              hackham: 12.6,
-              reynella: 8.4,
-              "onkaparinga hills": 12.6,
-              "reynella east": 8.4,
-              "aberfoyle park": 12.6,
-            };
-
             const suburbName =
               getLongNameFromComponent(suburbComponent).toLowerCase();
 
             setOrderAddress(formatted);
 
-            if (zones[suburbName]) {
-              setOrderDeliveryFee(zones[suburbName]);
+            if (DELIVERY_ZONES[suburbName]) {
+              setOrderDeliveryFee(DELIVERY_ZONES[suburbName]);
               setOrderAddressError("");
             } else {
               setOrderDeliveryFee(0);
@@ -10428,24 +10580,60 @@ function OrderInfoPanel({
                 <div className="pp-defRight pp-defRight--address">
                   <div className="pp-deliveryAddressRow pp-deliveryAddressRow--inline">
                     <div className="pp-deliveryAddressField">
-                      {canUsePlacesWidget && !addressAutoErr ? (
+                      {usePlacesHere ? (
                         <div
                           id="address"
                           ref={addressInputRef}
-                          className="pp-delivery-autocomplete"
+                          className="pp-delivery-autocomplete pp-autocomplete-mount"
                         />
                       ) : (
-                        <input
-                          type="text"
-                          id="address"
-                          onChange={(e) => {
-                            setOrderAddress(normalizeAddressText(e.target.value));
-                            setOrderDeliveryFee(0);
-                            setOrderAddressError("");
-                          }}
-                          value={orderAddress}
-                          placeholder="Start typing your address…"
-                        />
+                        <>
+                          <input
+                            type="text"
+                            id="address"
+                            className="pp-deliveryAddressInput"
+                            value={orderAddress}
+                            placeholder="Start typing your address…"
+                            onChange={(e) => {
+                              const v = normalizeAddressText(e.target.value);
+                              setOrderAddress(v);
+                              setOrderAddressError("");
+                              setOrderDeliveryFee(0);
+                              fetchAddrPredictions(v);
+                            }}
+                            onFocus={() => {
+                              if (addrPredictions.length) setAddrPredOpen(true);
+                            }}
+                            onBlur={() => {
+                              setTimeout(() => setAddrPredOpen(false), 120);
+                              applyDeliveryAddressFromText(orderAddress);
+                            }}
+                          />
+
+                          {addrPredOpen && addrPredictions.length > 0 ? (
+                            <div className="pp-addrPredList" role="listbox">
+                              {addrPredictions.map((p) => (
+                                <button
+                                  key={p.place_id}
+                                  type="button"
+                                  className="pp-addrPredItem"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => selectAddrPrediction(p.place_id)}
+                                  role="option"
+                                >
+                                  <div className="pp-addrPredMain">
+                                    {p.structured_formatting?.main_text ||
+                                      p.description}
+                                  </div>
+                                  <div className="pp-addrPredSub">
+                                    {p.structured_formatting?.secondary_text ||
+                                      ""}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </>
                       )}
                     </div>
 
@@ -10508,6 +10696,8 @@ function OrderInfoPanel({
         mode={scheduleModalFor}
         onClose={() => setScheduleModalOpen(false)}
       />
+
+      <VoucherDropdown value={voucherCode} onChange={setVoucherCode} compact />
 
       <div className="cart-items-list">
         {cart.length > 0 ? (
@@ -10601,8 +10791,6 @@ function OrderInfoPanel({
       </div>
 
       <div className="cart-total-section">
-        <VoucherDropdown value={voucherCode} onChange={setVoucherCode} compact />
-
         {orderDeliveryFee > 0 && (
           <div
             style={{
@@ -10617,22 +10805,39 @@ function OrderInfoPanel({
           </div>
         )}
 
-        <div className="total-price-display">
-          <span>Total:</span>
-          <span>${finalTotal.toFixed(2)}</span>
-        </div>
-
-        <button
-          type="button"
-          className="place-order-button"
-          disabled={
-            cart.length === 0 ||
-            (orderType === "Delivery" && (!orderAddressText || !!orderAddressError))
-          }
-          onClick={() => onProceed?.()}
-        >
-          {isPreorder ? "Place pre-order" : "Continue"}
-        </button>
+        {isMobileCartOpen ? (
+          <div className="pp-mobileCartStickyCta">
+            <button
+              type="button"
+              className="place-order-button"
+              disabled={
+                cart.length === 0 ||
+                (orderType === "Delivery" && (!orderAddressText || !!orderAddressError))
+              }
+              onClick={() => onProceed?.()}
+            >
+              <span className="pp-ctaText">
+                {actionLabel} <span className="pp-ctaSep">•</span>{" "}
+                <span className="pp-ctaPrice">{totalMoneyLabel}</span>
+              </span>
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="place-order-button"
+            disabled={
+              cart.length === 0 ||
+              (orderType === "Delivery" && (!orderAddressText || !!orderAddressError))
+            }
+            onClick={() => onProceed?.()}
+          >
+            <span className="pp-ctaText">
+              {actionLabel} <span className="pp-ctaSep">•</span>{" "}
+              <span className="pp-ctaPrice">{totalMoneyLabel}</span>
+            </span>
+          </button>
+        )}
       </div>
     </>
   );
@@ -14396,12 +14601,19 @@ function AppLayout({ isMapsLoaded }) {
   }, []);
 
   const [cartModalOpen, setCartModalOpen] = React.useState(false);
+  const isMobileCartOpen = isMobile && cartModalOpen;
 
   React.useEffect(() => {
     if (!authCtx.showLogin) return;
     ppLockBodyScroll();
     return () => ppUnlockBodyScroll();
   }, [authCtx.showLogin]);
+
+  React.useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("pp-mobileCartOpen", !!isMobileCartOpen);
+    return () => document.body.classList.remove("pp-mobileCartOpen");
+  }, [isMobileCartOpen]);
 
   React.useEffect(() => {
     if (!isProfileOpen) return;
@@ -15606,6 +15818,7 @@ function AppLayout({ isMapsLoaded }) {
             onBack={() => setRightPanelView("order")}
             onEditItem={handleEditItem}
             onOpenProfile={handleProfileOpen}
+            isMobileCartOpen={isMobileCartOpen}
             orderType={orderType}
             orderAddress={orderAddress}
             orderDeliveryFee={orderDeliveryFee}
@@ -15622,6 +15835,8 @@ function AppLayout({ isMapsLoaded }) {
           <OrderInfoPanel
             onEditItem={handleEditItem}
             isMapsLoaded={isMapsLoaded}
+            isMobile={isMobile}
+            isMobileCartOpen={isMobileCartOpen}
             orderType={orderType}
             setOrderType={setOrderType}
             orderAddress={orderAddress}
