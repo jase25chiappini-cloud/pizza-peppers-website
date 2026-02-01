@@ -8986,65 +8986,26 @@ function VoucherDropdown({ value, onChange, title = "Voucher", compact = false }
     setMsg(`Voucher saved (stub): ${code}`);
   };
 
-  const headerSub = applied ? `Applied: ${applied}` : "Enter a code";
-  const pad = compact ? "0.75rem 0.85rem" : "0.85rem 0.9rem";
-
   return (
     <div ref={wrapRef} style={{ marginBottom: "0.75rem" }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "0.75rem",
-          padding: pad,
-          borderRadius: "0.85rem",
-          border: "1px solid var(--border-color)",
-          background: open ? "rgba(190,242,100,0.10)" : "var(--panel)",
-          color: "var(--text-light)",
-          cursor: "pointer",
-          fontWeight: 800,
-          transition:
-            "background 180ms ease, border-color 180ms ease, transform 180ms ease",
-        }}
+        className={[
+          "pp-voucherBtn",
+          open ? "is-open" : "",
+          compact ? "is-compact" : "",
+        ].filter(Boolean).join(" ")}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
-          }}
-        >
-          <span>{title}</span>
-          <span
-            style={{
-              fontSize: "0.85rem",
-              fontWeight: 600,
-              color: "var(--text-medium)",
-            }}
-          >
+        <div className="pp-voucherText">
+          <div className="pp-voucherTitle">{title}</div>
+          <div className="pp-voucherSub">
             {applied ? `Applied: ${applied}` : "Enter a voucher code"}
-          </span>
+          </div>
         </div>
-        <span
-          aria-hidden="true"
-          style={{
-            display: "inline-flex",
-            width: 28,
-            height: 28,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 999,
-            border: "1px solid var(--border-color)",
-            background: "rgba(0,0,0,0.18)",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
-          }}
-        >
+
+        <span aria-hidden="true" className="pp-voucherCaret">
           v
         </span>
       </button>
@@ -9082,11 +9043,17 @@ function VoucherDropdown({ value, onChange, title = "Voucher", compact = false }
               style={{
                 flex: "1 1 auto",
                 minWidth: 0,
-                padding: "0.65rem 0.8rem",
+                height: 34,
+                minHeight: 34,
+                padding: "0 12px",
+                lineHeight: "34px",
                 borderRadius: "0.65rem",
                 border: "1px solid rgba(255,255,255,0.26)",
                 background: "var(--surface)",
                 color: "var(--text-light)",
+                fontSize: "13px",
+                fontWeight: 800,
+                letterSpacing: "0.2px",
                 boxSizing: "border-box",
               }}
             />
@@ -9182,6 +9149,7 @@ function ReviewOrderPanel({
       minute: "2-digit",
     }).format(d);
   };
+
   const pickupIsPreorder = pickupWhen === "SCHEDULE" || !storeOpenNow;
   const deliveryIsPreorder = deliveryWhen === "SCHEDULE" || !storeOpenNow;
   const isPreorder =
@@ -9671,6 +9639,15 @@ function OrderInfoPanel({
     }).format(d);
   };
 
+  const pickupTimeLabel =
+    pickupWhen === "SCHEDULE" || !storeOpenNow
+      ? `Pre-order (Ready ${pickupScheduledUtcIso ? fmtAdelLabel(pickupScheduledUtcIso) : (preorderPickupLabel || "15 min after opening")})`
+      : `ASAP (Approx. ${estimatedTime} mins)`;
+  const deliveryTimeLabel =
+    deliveryWhen === "SCHEDULE" || !storeOpenNow
+      ? `Pre-order (Deliver ${deliveryScheduledUtcIso ? fmtAdelLabel(deliveryScheduledUtcIso) : "after opening"})`
+      : `ASAP (Approx. ${estimatedTime} mins)`;
+
   const pad2 = (n) => String(n).padStart(2, "0");
 
   const ymdFromUtcIsoAdel = (utcIso) => {
@@ -9802,6 +9779,27 @@ function OrderInfoPanel({
       return { dayKey: openDayOptions[0]?.key || "", iso: "" };
     },
     [openDayOptions, timeOptionsForDay],
+  );
+
+  const getSoonestSlotLabel = React.useCallback(
+    (leadMins, kind) => {
+      for (const day of openDayOptions) {
+        const opts = timeOptionsForDay(day.key, leadMins, kind);
+        if (opts.length) return opts[0].label || "";
+      }
+      return "";
+    },
+    [openDayOptions, timeOptionsForDay],
+  );
+
+  const soonestPickupSlotLabel = React.useMemo(
+    () => getSoonestSlotLabel(pickupLeadMins, "Pickup"),
+    [getSoonestSlotLabel, pickupLeadMins],
+  );
+
+  const soonestDeliverySlotLabel = React.useMemo(
+    () => getSoonestSlotLabel(deliveryLeadMins, "Delivery"),
+    [getSoonestSlotLabel, deliveryLeadMins],
   );
 
   const openScheduleModal = (mode) => {
@@ -9938,9 +9936,17 @@ function OrderInfoPanel({
           </div>
 
           <div className="pp-modal-body">
+            <div className="pp-scheduleSummary">
+              <div className="pp-scheduleSummaryLabel">Selected</div>
+              <div className="pp-scheduleSummaryValue">
+                {mode}: {draftDayKey ? (dayOptions.find((d) => d.key === draftDayKey)?.label || draftDayKey) : "—"}{" "}
+                {draftIso ? `@ ${fmtAdelLabel(draftIso)}` : ""}
+              </div>
+            </div>
+
             {forcedSchedule ? (
               <div className="pp-disclaimer" style={{ marginTop: 0 }}>
-                Store is closed ? scheduling is required.
+                We’re closed right now — pick a time for when we’re back open 🙂
               </div>
             ) : (
               <div className="pp-pickupWhenSwitch" style={{ marginTop: 0 }}>
@@ -10029,14 +10035,11 @@ function OrderInfoPanel({
                     )}
                   </div>
 
-                  <div className="pp-disclaimer">
-                    {mode === "Pickup"
-                      ? "15-minute slots, between 5:15pm and 8:45pm."
-                      : "15-minute slots, between 5:45pm and 8:30pm."}
-                  </div>
                 </>
               )}
             </div>
+
+            <div className="pp-scheduleSpacer" />
           </div>
 
           <div className="pp-modal-footer">
@@ -10387,102 +10390,118 @@ function OrderInfoPanel({
       </div>
 
       <div className="info-box" style={{ marginTop: "0.85rem" }}>
-        {orderType === "Pickup" ? (
-          <>
-            <p>Pickup from: <strong>Pizza Peppers Store</strong></p>
-            <p className="pp-timeRow">
-              <span>
-                Pickup time:{" "}
-                <strong>
-                  {(pickupWhen === "SCHEDULE" || !storeOpenNow)
-                    ? `Pre-order (Ready ${pickupScheduledUtcIso ? fmtAdelLabel(pickupScheduledUtcIso) : (preorderPickupLabel || "15 min after opening")})`
-                    : `ASAP (Approx. ${estimatedTime} mins)`}
-                </strong>
-              </span>
+        <div className="pp-infoRow">
+          {orderType === "Pickup" ? (
+            <>
+              <div className="pp-infoTop">
+                <div className="pp-infoTopLabel">Pickup from:</div>
+                <div className="pp-infoTopValue">Pizza Peppers Store</div>
+              </div>
 
-              <button
-                type="button"
-                className="pp-changeBtn"
-                onClick={() => openScheduleModal("Pickup")}
-              >
-                Change
-              </button>
-            </p>
-          </>
-        ) : (
-          <>
-            <p>
-              Delivery address:{" "}
-              <strong>{orderAddressText || "-"}</strong>
-            </p>
+              <div className="pp-infoBottom">
+                <div className="pp-infoBottomLabel">Pickup time</div>
 
-            <p className="pp-timeRow">
-              <span>
-                Delivery time:{" "}
-                <strong>
-                  {(deliveryWhen === "SCHEDULE" || !storeOpenNow)
-                    ? `Pre-order (Deliver ${deliveryScheduledUtcIso ? fmtAdelLabel(deliveryScheduledUtcIso) : "after opening"})`
-                    : `ASAP (Approx. ${estimatedTime} mins)`}
-                </strong>
-              </span>
+                <div
+                  className="pp-infoBottomValue pp-stack2"
+                  title={`Today ${soonestPickupSlotLabel}`}
+                >
+                  <div className="pp-stack2Title">Pick-up time</div>
+                  <div className="pp-stack2Sub">
+                    Today {soonestPickupSlotLabel}
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                className="pp-changeBtn"
-                onClick={() => openScheduleModal("Delivery")}
-              >
-                Change
-              </button>
-            </p>
-          </>
-        )}
-      </div>
-
-      <ScheduleModal
-        open={scheduleModalOpen}
-        mode={scheduleModalFor}
-        onClose={() => setScheduleModalOpen(false)}
-      />
-
-      {orderType === "Delivery" ? (
-        <div className="info-box" style={{ marginTop: "0.85rem" }}>
-          <label
-            htmlFor="address"
-            style={{
-              fontWeight: 500,
-              marginBottom: "0.5rem",
-              display: "block",
-            }}
-          >
-            Delivery Address
-          </label>
-
-          {orderType === "Delivery" && canUsePlacesWidget && !addressAutoErr ? (
-            <div
-              id="address"
-              ref={addressInputRef}
-              className="pp-delivery-autocomplete"
-              style={{ width: "100%" }}
-            />
+                <button
+                  type="button"
+                  className="pp-changeBtn"
+                  onClick={() => openScheduleModal("Pickup")}
+                >
+                  Change
+                </button>
+              </div>
+            </>
           ) : (
-            <input
-              type="text"
-              id="address"
-              onChange={(e) => {
-                setOrderAddress(normalizeAddressText(e.target.value));
-                setOrderDeliveryFee(0);
-                setOrderAddressError("");
-              }}
-              value={orderAddress}
-              placeholder="Start typing your address\u2026"
-            />
-          )}
+            <>
+              <div className="pp-defRow pp-defRow--address">
+                <div className="pp-defLabel">Delivery to</div>
 
-          {orderType === "Delivery" && profileAddress ? (
-            <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-              Using profile address by default. You can edit it for this order.
-            </div>
-          ) : null}
+                <div className="pp-defRight pp-defRight--address">
+                  <div className="pp-deliveryAddressRow pp-deliveryAddressRow--inline">
+                    <div className="pp-deliveryAddressField">
+                      {canUsePlacesWidget && !addressAutoErr ? (
+                        <div
+                          id="address"
+                          ref={addressInputRef}
+                          className="pp-delivery-autocomplete"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          id="address"
+                          onChange={(e) => {
+                            setOrderAddress(normalizeAddressText(e.target.value));
+                            setOrderDeliveryFee(0);
+                            setOrderAddressError("");
+                          }}
+                          value={orderAddress}
+                          placeholder="Start typing your address…"
+                        />
+                      )}
+                    </div>
+
+                    <div
+                      className={[
+                        "pp-deliveryFeePill",
+                        (orderAddress || "").trim().length > 0 ? "is-visible" : "is-hidden",
+                      ].join(" ")}
+                      title="Delivery fee"
+                      aria-hidden={(orderAddress || "").trim().length === 0}
+                    >
+                      {orderDeliveryFee > 0 ? `$${orderDeliveryFee.toFixed(2)}` : "—"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pp-infoBottom">
+                <div className="pp-infoBottomLabel">Delivery time</div>
+
+                <div
+                  className="pp-infoBottomValue pp-stack2"
+                  title={`Today ${soonestDeliverySlotLabel}`}
+                >
+                  <div className="pp-stack2Title">Delivery time</div>
+                  <div className="pp-stack2Sub">
+                    Today {soonestDeliverySlotLabel}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="pp-changeBtn"
+                  onClick={() => openScheduleModal("Delivery")}
+                >
+                  Change
+                </button>
+              </div>
+
+              {profileAddress ? (
+                <div className="pp-orderNote">
+                  Using profile address by default. You can edit it for this order.
+                </div>
+              ) : null}
+
+              {addressAutoErr ? (
+                <div className="pp-orderError">{addressAutoErr}</div>
+              ) : null}
+
+              {orderAddressError ? (
+                <div className="pp-orderError">{orderAddressError}</div>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>\1
 
           {orderType === "Delivery" && addressAutoErr ? (
             <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#fca5a5" }}>
@@ -15769,27 +15788,29 @@ function AppLayout({ isMapsLoaded }) {
           </div>
         )}
         {!isAdminRoute && showViewOrderFab && (
-          <button
-            type="button"
-            className={["pp-cart-fab", cartFabBump ? "is-bump" : ""].join(" ")}
-            onClick={() => setCartModalOpen(true)}
-            aria-label={
-              cartItemCount > 0
-                ? `View order (${cartItemCount} item${cartItemCount === 1 ? "" : "s"})`
-                : "View order"
-            }
-          >
-            <span className="pp-cart-fab__icon" aria-hidden="true">
-              {EM.CART}
-            </span>
-            <span className="pp-cart-fab__label">View order</span>
-
-            {cartItemCount > 0 && (
-              <span className="pp-cart-fab__count" aria-hidden="true">
-                {cartItemCount}
+          <div className="pp-mobileViewOrderBar">
+            <button
+              type="button"
+              className={["pp-cart-fab", cartFabBump ? "is-bump" : ""].join(" ")}
+              onClick={() => setCartModalOpen(true)}
+              aria-label={
+                cartItemCount > 0
+                  ? `View order (${cartItemCount} item${cartItemCount === 1 ? "" : "s"})`
+                  : "View order"
+              }
+            >
+              <span className="pp-cart-fab__icon" aria-hidden="true">
+                {EM.CART}
               </span>
-            )}
-          </button>
+              <span className="pp-cart-fab__label">View order</span>
+
+              {cartItemCount > 0 && (
+                <span className="pp-cart-fab__count" aria-hidden="true">
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
+          </div>
         )}
         {!isAdminRoute && isMobile && cartModalOpen && (
           <div className="pp-cart-modal" role="dialog" aria-modal="true">
