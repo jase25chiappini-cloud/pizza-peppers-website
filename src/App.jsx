@@ -10501,27 +10501,13 @@ function OrderInfoPanel({
             </>
           )}
         </div>
-      </div>\1
+      </div>
 
-          {orderType === "Delivery" && addressAutoErr ? (
-            <div style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#fca5a5" }}>
-              {addressAutoErr}
-            </div>
-          ) : null}
-
-          {orderAddressError && (
-            <p
-              style={{
-                color: "#fca5a5",
-                marginTop: "0.5rem",
-                fontSize: "0.875rem",
-              }}
-            >
-              {orderAddressError}
-            </p>
-          )}
-        </div>
-      ) : null}
+      <ScheduleModal
+        open={scheduleModalOpen}
+        mode={scheduleModalFor}
+        onClose={() => setScheduleModalOpen(false)}
+      />
 
       <div className="cart-items-list">
         {cart.length > 0 ? (
