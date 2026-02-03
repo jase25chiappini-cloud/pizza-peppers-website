@@ -2394,6 +2394,44 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
 .cart-items-list { flex-grow: 1; overflow-y: auto; padding-right: 0.5rem; }
 .detail-panel-body { flex-grow: 1; padding-right: 0.5rem; }
 .cart-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; border-bottom: 1px solid var(--border-color); padding: 0.75rem 0.25rem; cursor: pointer; }
+.pp-cartItemPrice{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Cart item remove: clean red X (no bubble) */
+.pp-removeItemBtn{
+  width: 28px;
+  height: 28px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  background: transparent;
+  border: none;
+  padding: 0;
+
+  color: rgb(220, 38, 38);
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+/* Subtle feedback only */
+.pp-removeItemBtn:hover{
+  color: rgb(185, 28, 28);
+}
+
+.pp-removeItemBtn:active{
+  transform: translateY(1px);
+}
+
+[data-theme="light"] .pp-removeItemBtn{
+  color: rgb(185, 28, 28);
+}
 .detail-image { width: 100%; height: 12rem; object-fit: cover; border-radius: 0.5rem; background-color: var(--border-color); }
 .size-quantity-row { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; margin-bottom: 0.5rem; transition: all 0.3s ease-in-out; }
 .size-quantity-row.glowing-border { border-color: var(--brand-neon-green); box-shadow: 0 0 10px 2px var(--brand-neon-green); }
@@ -9377,6 +9415,23 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   transform: rotate(180deg);
 }
 
+/* Voucher entry row: 50/50 split */
+.pp-voucherRow{
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.pp-voucherRow input,
+.pp-voucherRow button{
+  width: 100%;
+}
+
+.pp-voucherRow button{
+  min-width: 0;
+}
+
 /* Voucher input placeholder tone */
 .order-panel-container:not(.order-panel-container--detail):not(.order-panel-container--mealdeal):not(.order-panel-container--halfhalf)
 .cart-total-section input[placeholder="Enter voucher code"]::placeholder{
@@ -12421,4 +12476,130 @@ body[data-theme="light"] .menu-content::after{
   border: 1px solid rgba(15,23,42,0.14);
   color: rgba(15,23,42,0.88);
   box-shadow: 0 10px 24px rgba(2,6,23,0.10);
+}
+
+/* Spacing between order info card and voucher dropdown */
+.order-panel-container .info-box + .pp-voucherBtn{
+  margin-top: 10px;
+}
+
+@media (max-width: 520px){
+  .order-panel-container--mobileCart .info-box + .pp-voucherBtn{
+    margin-top: 8px;
+  }
+}
+
+/* Gap between the order info card and the voucher block */
+.order-panel-container .pp-voucherSlot,
+.order-panel-container--mobileCart .pp-voucherSlot{
+  margin-top: 10px;
+}
+
+@media (max-width: 520px){
+  .order-panel-container--mobileCart .pp-voucherSlot{
+    margin-top: 8px;
+  }
+}
+
+
+/* =========================================
+   Light mode cart: replace lime with brand green
+   ========================================= */
+
+:root{
+  /* Brand green  adjust if you already have a canonical token */
+  --pp-brand-green: #2fb44a;
+  --pp-brand-green-soft: rgba(47,180,74,0.18);
+  --pp-brand-green-border: rgba(47,180,74,0.30);
+}
+
+/* Cart title + headings that were lime */
+[data-theme="light"] .order-panel-container--mobileCart .panel-title,
+[data-theme="light"] .order-panel-container .panel-title,
+[data-theme="light"] .order-panel-container--mobileCart h1,
+[data-theme="light"] .order-panel-container h1{
+  color: var(--pp-brand-green) !important;
+  text-shadow: none !important;
+}
+
+/* Active pickup/delivery button */
+[data-theme="light"] .order-panel-container--mobileCart .pp-orderTypeBtn.is-active,
+[data-theme="light"] .order-panel-container .pp-orderTypeBtn.is-active{
+  background: var(--pp-brand-green-soft) !important;
+  border-color: var(--pp-brand-green-border) !important;
+  color: rgba(15,23,42,0.92) !important;
+}
+
+/* Any remaining lime accents inside the order panel */
+[data-theme="light"] .order-panel-container--mobileCart .accent-green,
+[data-theme="light"] .order-panel-container .accent-green{
+  color: var(--pp-brand-green) !important;
+}
+
+/* If TOTAL label/price uses the lime */
+[data-theme="light"] .order-panel-container--mobileCart .total-price-display,
+[data-theme="light"] .order-panel-container .total-price-display{
+  --pp-accent: var(--pp-brand-green);
+}
+
+/* If you have CSS variables for accent in light mode, force them here */
+[data-theme="light"] .order-panel-container--mobileCart,
+[data-theme="light"] .order-panel-container{
+  --accent: var(--pp-brand-green);
+  --pp-accent: var(--pp-brand-green);
+}
+
+/* Remove button: no bubble, just a bigger red X (conflict-proof) */
+.order-panel-container .pp-removeItemBtn,
+.order-panel-container--mobileCart .pp-removeItemBtn{
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: rgb(220, 38, 38) !important;
+}
+
+/* Size the X itself (this is what actually changes visually) */
+.order-panel-container .pp-removeItemX,
+.order-panel-container--mobileCart .pp-removeItemX{
+  font-size: 24px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+}
+
+/* Smooth remove hover (no jitter) */
+.order-panel-container .pp-removeItemBtn,
+.order-panel-container--mobileCart .pp-removeItemBtn{
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+.order-panel-container .pp-removeItemX,
+.order-panel-container--mobileCart .pp-removeItemX{
+  transition: color 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              text-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Desktop hover only */
+@media (hover: hover) and (pointer: fine){
+  .order-panel-container .pp-removeItemBtn:hover,
+  .order-panel-container--mobileCart .pp-removeItemBtn:hover{
+    transform: scale(1.08);
+  }
+
+  .order-panel-container .pp-removeItemBtn:hover .pp-removeItemX,
+  .order-panel-container--mobileCart .pp-removeItemBtn:hover .pp-removeItemX{
+    color: rgb(185, 28, 28);
+    text-shadow: 0 0 14px rgba(220,38,38,0.35);
+  }
+}
+
+/* Click feedback */
+.order-panel-container .pp-removeItemBtn:active,
+.order-panel-container--mobileCart .pp-removeItemBtn:active{
+  transform: scale(0.96);
 }

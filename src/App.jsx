@@ -65,7 +65,10 @@ import {
 } from "./utils/size";
 import AdminPanelPage from "./AdminPanel";
 import ppBanner from "./assets/pizza-peppers-banner.png";
-const HALF_HALF_FORCED_ITEM = {
+// Template used to inject a Half & Half entry into EACH pizza category.
+// Keep the id prefix "half_half" so existing routing continues to work,
+// but suffix it with the category ref so each category gets its own entry.
+const HALF_HALF_TEMPLATE_ITEM = {
   id: "half_half",
   name: "The Half & Half Pizza",
   description: "Can't decide? Pick two favorites! (Custom Builder)",
@@ -75,6 +78,33 @@ const HALF_HALF_FORCED_ITEM = {
   image: "half-half.jpg",
   available: true,
 };
+
+const makeHalfHalfItemForCategory = (cat) => {
+  const ref = String(cat?.ref || cat?.id || "").toUpperCase();
+  const prettyName = String(cat?.name || "Pizza").trim();
+  return {
+    ...HALF_HALF_TEMPLATE_ITEM,
+    id: `half_half__${ref || "PIZZAS"}`,
+    name: "Half & Half",
+    description: `Pick two halves from ${prettyName}.`,
+    category_ref: cat?.ref || cat?.id || ref || "CUSTOM_HALF_HALF",
+    halfHalfCategoryRef: cat?.ref || cat?.id || ref || "",
+    halfHalfCategoryName: prettyName,
+  };
+};
+
+const isHalfHalfId = (id) => String(id || "").includes("half_half");
+const isHalfHalfItem = (item) =>
+  !!item && (item.isHalfHalf === true || isHalfHalfId(item.id));
+const HALF_HALF_ALLOWED_CATEGORY_REFS = new Set([
+  "TRADITIONAL_PIZZAS",
+  "CLASSIC_PIZZAS",
+  "GOURMET_PIZZAS",
+]);
+
+function isHalfHalfAllowedCategoryRef(ref) {
+  return HALF_HALF_ALLOWED_CATEGORY_REFS.has(String(ref || "").toUpperCase());
+}
 
 const _toCentsFromMenuSurcharge = (v) => {
   const n = Number(v);
@@ -846,7 +876,7 @@ const HalfAndHalfSelector = ({
 
     return menuItems.filter((p) => {
       if (!p) return false;
-      if (p.id === "half_half") return false;
+      if (isHalfHalfItem(p)) return false;
 
       const isPizzaType =
         p.__categoryType === "pizza" ||
@@ -2527,9 +2557,7 @@ function _filterMenuDataForMealStep(menuData, step, opts = {}) {
         (p) => !(p?.bundle && Array.isArray(p.bundle.slots) && p.bundle.slots.length),
       );
       if (hideHalfHalf) {
-        items = items.filter(
-          (p) => !(p?.id === "half_half" || p?.isHalfHalf === true),
-        );
+        items = items.filter((p) => !isHalfHalfItem(p));
       }
       if (prodSet.size) items = items.filter((p) => prodSet.has(String(p?.id)));
       if (needle) items = items.filter((p) => String(p?.name || "").toLowerCase().includes(needle));
@@ -2593,15 +2621,21 @@ function _productHasAnyAllowedHalfHalfSize(product, allowedSizeSet) {
     .some((token) => allowedSizeSet.has(normalizeAddonSizeRef(token)));
 }
 
-function _filterMenuDataForHalfHalf(menuData) {
+function _filterMenuDataForHalfHalf(menuData, opts = {}) {
   if (!menuData || !Array.isArray(menuData.categories)) return menuData;
 
   const allowedSizeSet = _halfHalfAllowedSizeSet(menuData);
+  const onlyCategoryRef = String(opts.onlyCategoryRef || "").toUpperCase();
 
   const categories = (menuData.categories || [])
+    .filter((cat) => {
+      const ref = String(cat?.ref || cat?.id || "").toUpperCase();
+      if (!ref) return false;
+      if (!onlyCategoryRef) return true;
+      return ref === onlyCategoryRef;
+    })
     .map((cat) => {
       const ref = String(cat?.ref || cat?.id || "").toUpperCase();
-      if (!ref) return null;
 
       // Match the same rule you already use for click-routing: must be a real pizza category (not mini).
       if (!ref.endsWith("_PIZZAS")) return null;
@@ -2612,6 +2646,8 @@ function _filterMenuDataForHalfHalf(menuData) {
       const items = (cat.items || [])
         .filter(Boolean)
         .filter((p) => p?.enabled !== false)
+        .filter((p) => !isHalfHalfItem(p))
+        .filter((p) => !String(p?.id || "").startsWith("half_half__"))
         .filter((p) => {
           const allowHalf = p?.allowHalf ?? p?.allow_half ?? catAllowHalf;
           if (allowHalf === false) return false; // explicit "no"
@@ -2722,7 +2758,7 @@ const MealDealBuilderPanel = ({
       if (!chosen) return "";
 
       // Half & Half: use one of the halves if present, otherwise the Half & Half image
-      if (chosen.isHalfHalf || String(chosen.id || "").includes("half_half")) {
+      if (isHalfHalfItem(chosen)) {
         const h = chosen.halfA || chosen.halfB || "Half & Half";
         return getProductImageUrl(typeof h === "string" ? { name: h } : h);
       }
@@ -2911,7 +2947,7 @@ const MealDealBuilderPanel = ({
       if (!product || !step) return;
 
       if (
-        (product.id === "half_half" || product.isHalfHalf) &&
+        isHalfHalfItem(product) &&
         String(step.slotKey || "").toLowerCase() === "pizza"
       ) {
         if (!hhAllowedForThisStep) {
@@ -2965,7 +3001,7 @@ const MealDealBuilderPanel = ({
       if (!s || !chosen) return;
 
       // Half & Half special case
-      if (chosen.isHalfHalf || String(chosen.id || "").includes("half_half")) {
+      if (isHalfHalfItem(chosen)) {
         setActiveStep(idx);
         setPickerOpen(false);
         setEditorItem(null);
@@ -3197,7 +3233,7 @@ const MealDealBuilderPanel = ({
       if (!product || !step) return;
       if (product?.enabled === false) return;
       // Prevent opening Half & Half in meal deals that are Regular-only
-      if ((product?.id === "half_half" || product?.isHalfHalf) && !hhAllowedForThisStep) {
+      if (isHalfHalfItem(product) && !hhAllowedForThisStep) {
         warnHHNotAllowed();
         return;
       }
@@ -3218,7 +3254,7 @@ const MealDealBuilderPanel = ({
         }
         return; // don't let the meal-deal step handler consume the click
       }
-      if (product?.id === "half_half" || product?.isHalfHalf) {
+      if (isHalfHalfItem(product)) {
         // Only valid when the current slot is a pizza slot
         if (String(step.slotKey || "").toLowerCase() !== "pizza") return;
         setEditorItem(null);
@@ -3453,7 +3489,7 @@ const MealDealBuilderPanel = ({
                   {(stepMenuData?.categories || []).flatMap((cat) =>
                     (cat.items || []).map((p) => {
                       if (!p) return null;
-                      if (!hhAllowedForThisStep && (p.id === "half_half" || p.isHalfHalf))
+                      if (!hhAllowedForThisStep && isHalfHalfItem(p))
                         return null;
                       const img = getProductImageUrl(p);
                       return (
@@ -3636,7 +3672,7 @@ const MealDealBuilderPanel = ({
             <HalfAndHalfSelector
               menuItems={halfHalfMenuRows}
               menuData={menuData}
-              selectedItem={HALF_HALF_FORCED_ITEM}
+              selectedItem={HALF_HALF_TEMPLATE_ITEM}
               setSelectedItem={(v) => {
                 if (v == null) closeHalfHalf();
               }}
@@ -3805,7 +3841,7 @@ const MealDealBuilderPanel = ({
               <HalfAndHalfSelector
                 menuItems={halfHalfMenuRows}
                 menuData={menuData}
-                selectedItem={HALF_HALF_FORCED_ITEM}
+                selectedItem={HALF_HALF_TEMPLATE_ITEM}
                 setSelectedItem={(v) => {
                   if (v == null) {
                     closeHalfHalf();
@@ -7541,8 +7577,7 @@ function Menu({ menuData, onItemClick }) {
           <h2 className="category-title">{category.name}</h2>
           <div className="menu-grid">
             {(category.items || []).map((item) => {
-              const isHalfHalf =
-                item.isHalfHalf === true || item.id === "half_half";
+              const isHalfHalf = isHalfHalfItem(item);
               const displayImage = !isHalfHalf
                 ? getProductImageUrl(item)
                 : getProductImageUrl({ name: "Half & Half" });
@@ -7619,9 +7654,11 @@ function Menu({ menuData, onItemClick }) {
                               {item.name}
                             </div>
                           )}
-                          <div className="pp-cardOverlay__price">
-                            {currency(minPriceCents(item))}
-                          </div>
+                          {!isHalfHalf ? (
+                            <div className="pp-cardOverlay__price">
+                              {currency(minPriceCents(item))}
+                            </div>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -9042,6 +9079,7 @@ function VoucherDropdown({ value, onChange, title = "Voucher", compact = false }
       >
         <div ref={innerRef} style={{ paddingTop: "0.65rem", paddingBottom: "0.15rem" }}>
           <div
+            className="pp-voucherRow"
             style={{
               display: "flex",
               gap: "0.45rem",
@@ -9148,7 +9186,7 @@ function ReviewOrderPanel({
   deliveryWhen,
   deliveryScheduledUtcIso,
 }) {
-  const { cart, totalPrice, clearCart } = useCart();
+  const { cart, totalPrice, clearCart, removeFromCart } = useCart();
   const { currentUser } = useAuth();
   const localProfile = useLocalProfile(currentUser);
   const profileName = pickProfileName(localProfile, currentUser);
@@ -9529,7 +9567,23 @@ function ReviewOrderPanel({
                   </div>
                 ) : null}
               </div>
-              <span>${(it.price * it.qty).toFixed(2)}</span>
+              <div className="pp-cartItemPrice">
+                <span>${(it.price * it.qty).toFixed(2)}</span>
+                <button
+                  type="button"
+                  className="pp-removeItemBtn"
+                  aria-label={`Remove ${it.name || "item"}`}
+                  title="Remove item"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFromCart(idx);
+                  }}
+                >
+                  <span className="pp-removeItemX" aria-hidden="true">
+                    &times;
+                  </span>
+                </button>
+              </div>
             </div>
           ))
         ) : (
@@ -9541,7 +9595,9 @@ function ReviewOrderPanel({
       </div>
 
       <div className="cart-total-section">
-        <VoucherDropdown value={voucherCode} onChange={setVoucherCode} />
+        <div className="pp-voucherSlot">
+          <VoucherDropdown value={voucherCode} onChange={setVoucherCode} />
+        </div>
 
         {orderType === "Delivery" && orderDeliveryFee > 0 && (
           <div
@@ -9643,7 +9699,7 @@ function OrderInfoPanel({
   setDeliveryTimeLocked,
   onProceed,
 }) {
-  const { cart, totalPrice } = useCart();
+  const { cart, totalPrice, removeFromCart } = useCart();
   const { currentUser } = useAuth();
   const localProfile = useLocalProfile(currentUser);
   const profileAddress = pickProfileAddress(localProfile);
@@ -10697,7 +10753,9 @@ function OrderInfoPanel({
         onClose={() => setScheduleModalOpen(false)}
       />
 
-      <VoucherDropdown value={voucherCode} onChange={setVoucherCode} compact />
+      <div className="pp-voucherSlot">
+        <VoucherDropdown value={voucherCode} onChange={setVoucherCode} compact />
+      </div>
 
       <div className="cart-items-list">
         {cart.length > 0 ? (
@@ -10779,7 +10837,23 @@ function OrderInfoPanel({
                   </div>
                 ) : null}
               </div>
-              <span>${(it.price * it.qty).toFixed(2)}</span>
+              <div className="pp-cartItemPrice">
+                <span>${(it.price * it.qty).toFixed(2)}</span>
+                <button
+                  type="button"
+                  className="pp-removeItemBtn"
+                  aria-label={`Remove ${it.name || "item"}`}
+                  title="Remove item"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFromCart(idx);
+                  }}
+                >
+                  <span className="pp-removeItemX" aria-hidden="true">
+                    &times;
+                  </span>
+                </button>
+              </div>
             </div>
           ))
         ) : (
@@ -14754,7 +14828,7 @@ function AppLayout({ isMapsLoaded }) {
 
   React.useEffect(() => {
     const isHH =
-      !!selectedItem && (selectedItem.isHalfHalf === true || String(selectedItem.id) === "half_half");
+      !!selectedItem && isHalfHalfItem(selectedItem);
 
     if (isMobileScreen && isHH && !prevIsHalfHalfOpenRef.current) {
       hardScrollToTopAndClearHash();
@@ -14764,7 +14838,7 @@ function AppLayout({ isMapsLoaded }) {
   }, [isMobileScreen, selectedItem, hardScrollToTopAndClearHash]);
 
   React.useEffect(() => {
-    const isHH = !!selectedItem?.isHalfHalf;
+    const isHH = isHalfHalfItem(selectedItem);
     if (!isMobileScreen) {
       prevHalfHalfOpenRef.current = isHH;
       return;
@@ -14805,7 +14879,9 @@ function AppLayout({ isMapsLoaded }) {
    *   side: "A" | "B",
    *   halfA: object|null,
    *   halfB: object|null,
-   *   sizeRef: "LARGE"|"FAMILY"|"PARTY"|"REGULAR" // optional
+   *   sizeRef: "LARGE"|"FAMILY"|"PARTY"|"REGULAR", // optional
+   *   halfHalfCategoryRef: string,
+   *   halfHalfCategoryName: string,
    * }
    */
   const hhMobilePicking = isMobileScreen && hhMobileDraft?.step === "pick";
@@ -15015,12 +15091,24 @@ function AppLayout({ isMapsLoaded }) {
     }
 
     // Half & Half builder: ONLY show eligible pizzas in the left menu
-    if (selectedItem?.isHalfHalf || hhMobilePicking) {
-      out = _filterMenuDataForHalfHalf(out);
+    if (isHalfHalfItem(selectedItem) || hhMobilePicking) {
+      const onlyCategoryRef = String(
+        selectedItem?.halfHalfCategoryRef ||
+          hhMobileDraft?.halfHalfCategoryRef ||
+          "",
+      ).toUpperCase();
+      out = _filterMenuDataForHalfHalf(out, { onlyCategoryRef });
     }
 
     return out;
-  }, [filteredMenuData, menuData, selectedItem, mealDealMenuFilter, hhMobilePicking]);
+  }, [
+    filteredMenuData,
+    menuData,
+    selectedItem,
+    mealDealMenuFilter,
+    hhMobilePicking,
+    hhMobileDraft,
+  ]);
 
   const menuItems = React.useMemo(() => {
     const sourceMenu = menuDataForHome || menuData;
@@ -15202,7 +15290,7 @@ function AppLayout({ isMapsLoaded }) {
       );
 
       // MOBILE Half & Half picking: menu click selects Pizza 1 then Pizza 2
-      if (hhMobilePicking && prepared.id !== "half_half") {
+      if (hhMobilePicking && !isHalfHalfItem(prepared)) {
         // Only accept eligible pizzas
         if (!isPizzaForHalfHalf) return;
 
@@ -15237,7 +15325,13 @@ function AppLayout({ isMapsLoaded }) {
 
         // If the other half already exists, open the modal editor.
         if (otherPicked) {
-          setSelectedItem(HALF_HALF_FORCED_ITEM);
+          const catRef = hhMobileDraft?.halfHalfCategoryRef || "";
+          const catName = hhMobileDraft?.halfHalfCategoryName || "";
+          const hhItem =
+            catRef || catName
+              ? makeHalfHalfItemForCategory({ ref: catRef, name: catName })
+              : HALF_HALF_TEMPLATE_ITEM;
+          setSelectedItem(hhItem);
         }
 
         return;
@@ -15246,9 +15340,9 @@ function AppLayout({ isMapsLoaded }) {
       // If the Half & Half editor is open and this item is eligible,
       // route the click into the selector instead of opening the panel
       if (
-        selectedItem?.isHalfHalf &&
+        isHalfHalfItem(selectedItem) &&
         halfAndHalfApplyPizzaRef?.current &&
-        prepared.id !== "half_half" &&
+        !isHalfHalfItem(prepared) &&
         isPizzaForHalfHalf
       ) {
         halfAndHalfApplyPizzaRef.current(prepared);
@@ -15275,11 +15369,7 @@ function AppLayout({ isMapsLoaded }) {
       }
 
       // Half & Half entry (mobile flow = go to pick mode)
-      if (
-        prepared?.id === "half_half" ||
-        menuItem?.id === "half_half" ||
-        menuItem?.isHalfHalf
-      ) {
+      if (isHalfHalfItem(prepared) || isHalfHalfItem(menuItem)) {
         hardScrollToTopAndClearHash();
         setSelectedItem(null);
         setCustomizingItem(null);
@@ -15291,6 +15381,15 @@ function AppLayout({ isMapsLoaded }) {
           halfA: null,
           halfB: null,
           sizeRef: "LARGE",
+          halfHalfCategoryRef: String(
+            menuItem?.halfHalfCategoryRef ||
+              prepared?.halfHalfCategoryRef ||
+              prepared?.__categoryRef ||
+              menuItem?.category_ref ||
+              "",
+          ),
+          halfHalfCategoryName:
+            menuItem?.halfHalfCategoryName || prepared?.halfHalfCategoryName || "",
         });
         return;
       }
@@ -15335,9 +15434,9 @@ function AppLayout({ isMapsLoaded }) {
       // If the Half & Half editor is open and this item is eligible,
       // route the click into the selector instead of opening the panel
       if (
-        selectedItem?.isHalfHalf &&
+        isHalfHalfItem(selectedItem) &&
         halfAndHalfApplyPizzaRef?.current &&
-        prepared.id !== "half_half" &&
+        !isHalfHalfItem(prepared) &&
         isPizzaForHalfHalf
       ) {
         halfAndHalfApplyPizzaRef.current(prepared);
@@ -15388,13 +15487,25 @@ function AppLayout({ isMapsLoaded }) {
       }
 
       // Half & Half entry (desktop = open editor)
-      if (
-        prepared?.id === "half_half" ||
-        menuItem?.id === "half_half" ||
-        menuItem?.isHalfHalf
-      ) {
+      if (isHalfHalfItem(prepared) || isHalfHalfItem(menuItem)) {
         hardScrollToTopAndClearHash();
-        setSelectedItem(HALF_HALF_FORCED_ITEM);
+        const catRef =
+          menuItem?.halfHalfCategoryRef ||
+          menuItem?.category_ref ||
+          prepared?.halfHalfCategoryRef ||
+          prepared?.category_ref ||
+          prepared?.__categoryRef ||
+          "";
+        const catName =
+          menuItem?.halfHalfCategoryName || prepared?.halfHalfCategoryName || "";
+        setSelectedItem({
+          ...HALF_HALF_TEMPLATE_ITEM,
+          ...(menuItem || {}),
+          ...(prepared || {}),
+          isHalfHalf: true,
+          halfHalfCategoryRef: String(catRef || ""),
+          halfHalfCategoryName: String(catName || ""),
+        });
         setCustomizingItem(null);
         setEditingIndex(null);
         setRightPanelView("order");
@@ -15575,41 +15686,30 @@ function AppLayout({ isMapsLoaded }) {
           ]),
         );
         if (!alive) return;
-        const categories = Array.isArray(normalized?.categories)
+        let categories = Array.isArray(normalized?.categories)
           ? normalized.categories.map((cat) => ({
               ...cat,
               items: Array.isArray(cat?.items) ? [...cat.items] : [],
             }))
           : [];
-        const hasHalfHalfAlready = categories.some((cat) =>
-          (cat?.items || []).some((item) => item?.id === HALF_HALF_FORCED_ITEM.id),
-        );
-        if (!hasHalfHalfAlready) {
-          const targetIndex = categories.findIndex((cat) => {
-            if (!cat) return false;
-            if (typeof cat.type === "string" && cat.type.toLowerCase().includes("pizza"))
-              return true;
-            return /pizza/i.test(cat?.name || "");
-          });
-          const injectedItem = {
-            ...HALF_HALF_FORCED_ITEM,
-            category_ref: targetIndex >= 0 ? categories[targetIndex]?.ref : "CUSTOM_HALF_HALF",
+        categories = categories.map((cat) => {
+          const ref = String(cat?.ref || cat?.id || "").toUpperCase();
+          if (!isHalfHalfAllowedCategoryRef(ref)) return cat;
+
+          const items = Array.isArray(cat?.items) ? cat.items : [];
+          const hhId = `half_half__${ref}`;
+
+          const already = items.some((it) => String(it?.id || "") === hhId);
+          if (already) return cat;
+
+          const hh = {
+            ...makeHalfHalfItemForCategory(cat),
+            id: hhId,
+            halfHalfCategoryRef: ref,
           };
-          if (targetIndex >= 0) {
-            const targetCat = categories[targetIndex] || {};
-            categories[targetIndex] = {
-              ...targetCat,
-              items: [injectedItem, ...(targetCat.items || [])],
-            };
-          } else {
-            categories.unshift({
-              name: "Custom Creations",
-              ref: "CUSTOM_HALF_HALF",
-              type: "pizza",
-              items: [injectedItem],
-            });
-          }
-        }
+
+          return { ...cat, items: [hh, ...items] };
+        });
         setMenuData({ ...normalized, categories, optionListsMap });
         setMenuError(null);
       } catch (err) {
@@ -15675,7 +15775,7 @@ function AppLayout({ isMapsLoaded }) {
     );
   }
 
-  const isHalfHalfPanel = Boolean(selectedItem?.isHalfHalf);
+  const isHalfHalfPanel = isHalfHalfItem(selectedItem);
   const isMealDealSelected = Boolean(
     selectedItem?.bundle &&
       Array.isArray(selectedItem.bundle.slots) &&
@@ -15920,12 +16020,18 @@ function AppLayout({ isMapsLoaded }) {
       {isProfileOpen && (
         <ProfileModal
           isMapsLoaded={isMapsLoaded}
-          onClose={() => setIsProfileOpen(false)}
+          onClose={() => {
+            setIsProfileOpen(false);
+            goToMenu();
+          }}
         />
       )}
       <LoyaltyModal
         isOpen={!!isLoyaltyOpen && !!loyaltyEnabled}
-        onClose={() => setIsLoyaltyOpen(false)}
+        onClose={() => {
+          setIsLoyaltyOpen(false);
+          goToMenu();
+        }}
       />
 
       <div className="app-grid-layout">
@@ -16017,14 +16123,14 @@ function AppLayout({ isMapsLoaded }) {
           <div className="pp-cart-modal" role="dialog" aria-modal="true">
             <div
               className="pp-cart-modal__backdrop"
-              onClick={() => setCartModalOpen(false)}
+              onClick={() => goToMenu()}
             />
             <div className="pp-cart-modal__panel">
               <button
                 type="button"
                 className="quantity-btn"
                 title="Close"
-                onClick={() => setCartModalOpen(false)}
+                onClick={() => goToMenu()}
                 style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 5 }}
               >
                 &times;
