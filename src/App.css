@@ -11,6 +11,8 @@
   --font-heading: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Arial, sans-serif;
   --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, Arial, sans-serif;
 
+  --pp-quicknav-h: 60px;
+
   --brand-neon-green: #bef264;
   --brand-green: var(--brand-neon-green);
   --brand-pink: var(--brand-neon-green);
@@ -2897,12 +2899,14 @@ footer,
 
 @media (min-width: 901px){
   :root{
-    --pp-hdr-h: clamp(99px, 4.5vw, 117px);
+    --pp-hdr-h: 88px;
     --pp-right-h: clamp(108px, 4.95vw, 126px);
-    --pp-gap: clamp(18px, 1.725vw, 27px);
+    --pp-gap: 12px;
 
+    --pp-left-min: 240px;
     --pp-left-w: clamp(260px, 22vw, 360px);
-    --pp-brand-w: clamp(520px, 34vw, 700px);
+    --pp-brand-w: min(760px, 56vw);
+    --pp-right-min: 260px;
     --pp-right-w: clamp(280px, 22vw, 380px);
 
     --pp-btn-h: clamp(36px, 2.175vw, 39px);
@@ -2916,13 +2920,33 @@ footer,
     --pp-input-expanded-w: clamp(144px, 9.0vw, 177px);
   }
 
+  .pp-topnav{
+    padding: 0.55rem 1.1rem !important;
+  }
+
   /* Symmetric layout: keeps banner perfectly centered while resizing */
   .pp-topnav__row{
     display: grid;
-    grid-template-columns: 1fr minmax(0, var(--pp-brand-w)) 1fr;
+    grid-template-columns:
+      minmax(var(--pp-left-min), 1fr)
+      minmax(0, var(--pp-brand-w))
+      minmax(var(--pp-right-min), 1fr);
     align-items: center;
     gap: var(--pp-gap);
     grid-auto-rows: var(--pp-hdr-h);
+  }
+
+  .pp-topnav__logo.pp-topnav__brandCard{
+    height: var(--pp-hdr-h) !important;
+    width: min(100%, var(--pp-brand-w)) !important;
+    max-width: var(--pp-brand-w) !important;
+  }
+
+  .pp-topnav__logo.pp-topnav__brandCard img{
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center !important;
   }
 
   .pp-topnav__left{
@@ -3225,7 +3249,7 @@ footer,
    - Banner gets its own row
    - Left + Right sit beneath it
    ========================================================= */
-@media (min-width: 901px) and (max-width: 1400px){
+@media (min-width: 901px) and (max-width: 1400px) and (min-height: 860px){
   .pp-topnav__row{
     /* 2 columns, 2 rows */
     grid-template-columns: var(--pp-left-w) 1fr;
@@ -3290,6 +3314,57 @@ footer,
   width: 1px;
   background: rgba(148,163,184,0.12);
   pointer-events:none;
+}
+
+/* =========================================================
+   Desktop header: lock left card alignment (theme spans 2 rows)
+   ========================================================= */
+@media (min-width: 901px){
+  /* Make the left card a 2-row grid: [theme] [search stack] */
+  .pp-topnav__row .pp-topnav__left{
+    display: grid !important;
+    grid-template-columns: var(--pp-btn-h, 38px) 1fr !important;
+    grid-template-rows: repeat(2, var(--pp-input-h, 40px)) !important;
+    column-gap: 10px !important;
+    row-gap: 0.40rem !important;
+    align-items: stretch !important;
+  }
+
+  /* Theme button spans both rows (matches total height of the 2 inputs) */
+  .pp-topnav__row .pp-topnav__left > .pp-theme-toggle{
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+    height: 100% !important;
+    align-self: stretch !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Search stack fills the two rows */
+  .pp-topnav__row .pp-topnav__searchWrap{
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+    height: 100% !important;
+    align-content: stretch !important;
+    grid-auto-rows: 1fr !important;
+  }
+
+  /* Your inputs are inside wrapper divs; make wrappers + inputs stretch */
+  .pp-topnav__row .pp-topnav__searchWrap > *{
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+  .pp-topnav__row .pp-topnav__searchInput{
+    height: 100% !important;
+  }
+
+  /* The vertical divider line was positioned for flex; re-position it */
+  .pp-topnav__left::after{
+    left: calc(6px + var(--pp-btn-h, 38px) + 10px) !important;
+    top: 6px !important;
+    bottom: 6px !important;
+  }
 }
 
 .pp-topnav__logo{
@@ -12602,4 +12677,388 @@ body[data-theme="light"] .menu-content::after{
 .order-panel-container .pp-removeItemBtn:active,
 .order-panel-container--mobileCart .pp-removeItemBtn:active{
   transform: scale(0.96);
+}
+
+/* =========================================================
+   RESPONSIVE MODE: COMPACT DESKTOP (Nest Hub Max etc)
+   - Keeps desktop components (navbar etc)
+   - But makes layout behave like a "wide tablet":
+     sidebar stacks under content, sticky/100vh disabled,
+     grid becomes auto-fit to avoid awkward squeezes.
+   ========================================================= */
+
+/* JS-driven mode */
+html[data-pp-layout="compact"] .app-grid-layout {
+  grid-template-columns: 1fr !important;
+}
+
+html[data-pp-layout="compact"] .right-sidebar {
+  display: block !important;
+  position: relative !important;
+  top: auto !important;
+  height: auto !important;
+  border-left: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+html[data-pp-layout="compact"] .order-panel-container {
+  position: relative !important;
+  top: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  margin-top: 0.9rem !important;
+}
+
+/* Reduce "wasted" space so it looks intentional on odd screens */
+html[data-pp-layout="compact"] .app-grid-layout {
+  gap: 1rem !important;
+  padding-inline: 0.9rem !important;
+}
+
+html[data-pp-layout="compact"] .main-content-area {
+  padding: 0.75rem 1.1rem 1.2rem !important;
+}
+
+/* Menu grid adapts to available width instead of forcing 3/4 columns */
+html[data-pp-layout="compact"] .menu-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+}
+
+/* ---------- CSS-only fallback (no JS needed) ---------- */
+/* If desktop breakpoint is hit, but the screen is short or squarish */
+@media (min-width: 1024px) and (max-height: 780px),
+       (min-width: 1024px) and (max-aspect-ratio: 27/20) {
+  .app-grid-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .right-sidebar {
+    display: block !important;
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    border-left: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .order-panel-container {
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    margin-top: 0.9rem !important;
+  }
+
+  .menu-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  }
+}
+
+/* =========================================================
+   COMPACT HEADER MODE (odd aspect ratios: Nest Hub Max etc)
+   Forces 1-row header layout (Left | Banner | Right),
+   overrides the 901–1400 "two-row" desktop header rules.
+   ========================================================= */
+
+html[data-pp-layout="compact"] .pp-topnav {
+  padding: 0.72rem 1.1rem !important;
+}
+
+/* Use more stable sizing (based on height constraints, not vw) */
+html[data-pp-layout="compact"] {
+  --pp-hdr-h: 92px;
+  --pp-gap: 14px;
+  --pp-left-w: 360px;
+  --pp-right-w: 380px;
+  --pp-brand-w: 620px;
+}
+
+/* Force the header grid back to the symmetric single-row layout */
+html[data-pp-layout="compact"] .pp-topnav__row {
+  display: grid !important;
+  grid-template-columns: 1fr minmax(0, var(--pp-brand-w)) 1fr !important;
+  grid-template-rows: var(--pp-hdr-h) !important;
+  grid-auto-rows: unset !important;
+  align-items: center !important;
+  gap: var(--pp-gap) !important;
+}
+
+/* Ensure the three zones sit correctly */
+html[data-pp-layout="compact"] .pp-topnav__left {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  align-self: center !important;
+  height: var(--pp-hdr-h) !important;
+  max-width: var(--pp-left-w) !important;
+}
+
+html[data-pp-layout="compact"] .pp-topnav__right {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+  align-self: center !important;
+  height: var(--pp-hdr-h) !important;
+  max-width: var(--pp-right-w) !important;
+}
+
+/* Banner: always centered, same row */
+html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  justify-self: center !important;
+  align-self: center !important;
+  height: var(--pp-hdr-h) !important;
+  width: min(100%, var(--pp-brand-w)) !important;
+  max-width: var(--pp-brand-w) !important;
+}
+
+/* Optional: slightly tighten the rightStack so it doesn't feel "tall" */
+html[data-pp-layout="compact"] .pp-topnav__rightStack {
+  gap: 4px !important;
+  padding: 6px !important;
+}
+
+/* If your banner image inside the brand card is cropping oddly */
+html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+}
+
+/* =========================================================
+   SHORT DESKTOP HEADER PROFILE (Nest Hub Max / weird ratios)
+   - Give left card more width so search inputs don't crop
+   - Lock left internals: theme spans 2 rows, inputs stretch
+   ========================================================= */
+
+@media (min-width: 901px) and (max-height: 860px){
+
+  /* Tune the desktop header sizing for short displays */
+  :root{
+    --pp-hdr-h: 96px;
+    --pp-gap: 14px;
+
+    /* give left/right more space on these screens */
+    --pp-left-w: min(460px, 38vw);
+    --pp-right-w: min(420px, 34vw);
+
+    /* keep banner sane */
+    --pp-brand-w: min(640px, 52vw);
+  }
+
+  /* Left card: hard grid layout (theme spans both rows) */
+  .pp-topnav__row .pp-topnav__left{
+    display: grid !important;
+    grid-template-columns: 46px minmax(0, 1fr) !important;
+    grid-template-rows: 1fr 1fr !important;
+    column-gap: 10px !important;
+    row-gap: 0.40rem !important;
+
+    align-items: stretch !important;
+    overflow: hidden !important; /* prevents the inputs bleeding into the banner */
+  }
+
+  .pp-topnav__row .pp-topnav__left > .pp-theme-toggle{
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+    height: 100% !important;
+    width: 46px !important;
+    min-width: 46px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .pp-topnav__row .pp-topnav__left .pp-topnav__searchWrap{
+    grid-column: 2 !important;
+    grid-row: 1 / span 2 !important;
+    height: 100% !important;
+
+    /* ensure the wrap itself is two equal rows */
+    display: grid !important;
+    grid-template-rows: 1fr 1fr !important;
+    gap: 0.40rem !important;
+    min-width: 0 !important;
+  }
+
+  /* Your inputs are inside inline wrapper <div style=...> — make them stretch */
+  .pp-topnav__row .pp-topnav__left .pp-topnav__searchWrap > div{
+    height: 100% !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .pp-topnav__row .pp-topnav__left .pp-topnav__searchInput{
+    height: 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Divider line: align to new theme column width */
+  .pp-topnav__row .pp-topnav__left::after{
+    left: calc(6px + 46px + 10px) !important;
+    top: 6px !important;
+    bottom: 6px !important;
+  }
+}
+
+/* =========================================================
+   APP VIEWPORT MODE (Wide + short screens)
+   - Header + QuickNav stay visible
+   - Main grid consumes remaining height
+   - Left and right columns scroll internally
+   ========================================================= */
+@media (min-width: 980px) and (max-height: 900px){
+
+  /* Treat the whole page as an app viewport */
+  html, body{
+    height: 100%;
+    overflow: hidden;            /* no document scroll */
+  }
+
+  #root{
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* The header + quicknav must not add extra outside spacing */
+  .pp-topnav,
+  header{
+    margin: 0 !important;
+  }
+
+  .quick-nav-container{
+    margin: 0 !important;
+  }
+
+  /* Make your main grid the viewport content area */
+  .app-grid-layout{
+    /* Fill the screen on wide+short devices (Nest Hub Max etc) */
+    max-width: none;
+    width: 100%;
+    margin: 0;
+
+    /* Use CSS var you already set on <html> */
+    --pp-head-stack: calc(var(--pp-topnav-h, 180px) + var(--pp-quicknav-h, 56px));
+
+    /* Fill remaining viewport under header+quicknav */
+    height: calc(100vh - var(--pp-head-stack));
+    overflow: hidden;
+
+    /* 2-col app layout (keep right panel usable, but responsive) */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 35vw);
+    gap: 16px;
+    align-items: start;
+
+    /* kill any sneaky spacing */
+    padding: 0 14px;
+  }
+
+  /* Left column scroll area (menu) */
+  .app-grid-layout .menu-content{
+    height: 100%;
+    overflow: auto;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  /* Right column scroll area (order) */
+  .app-grid-layout .right-sidebar{
+    height: 100%;
+    overflow: hidden;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    align-self: start;
+  }
+
+  .app-grid-layout .right-sidebar .order-panel-container{
+    height: 100% !important;
+    overflow: auto !important;
+    top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  /* Compact UI slightly so it looks intentional on 800–900px tall screens */
+  .info-box{
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .pp-emptyCart{
+    padding: 12px !important;
+    min-height: 160px !important;
+  }
+
+  .place-order-button{
+    min-height: 44px !important;
+    border-radius: 14px !important;
+  }
+
+  /* QuickNav chips slightly smaller so more content fits */
+  .quick-nav-list a{
+    padding: 0.42rem 0.85rem !important;
+    font-size: 0.76rem !important;
+  }
+}
+
+/* Fill screen on wide+short displays (Nest Hub Max 1280x800 etc)
+   This does NOT change mobile or normal desktop; it only removes the boxed max-width wrapper. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  /* pick ALL wrappers that might be boxing the app */
+  #root,
+  .app,
+  .app-shell,
+  .app-container,
+  .app-grid-layout {
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 820px) {
+  html, body, #root {
+    transform: none !important;
+    zoom: 1 !important;
+  }
+}
+
+/* ✅ Fill height on wide + short displays (Nest Hub Max etc) */
+@media (min-width: 1024px) and (max-height: 820px) {
+  html, body {
+    height: 100%;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  /* whichever wrapper exists in your app, force full-height */
+  .app-grid-layout,
+  .app,
+  .app-shell,
+  .app-container {
+    min-height: 100vh !important;
+    height: auto;
+    align-items: stretch;
+  }
+
+  /* If .app-grid-layout is a grid, make sure it has a "1fr" row to grow */
+  .app-grid-layout {
+    grid-auto-rows: minmax(0, auto);
+  }
+
+  /* This is the important one for grids: allow children to actually stretch */
+  .pp-main,
+  .pp-left,
+  .pp-right,
+  .main-content,
+  .content,
+  .menu-column,
+  .cart-column {
+    min-height: 0;
+  }
 }
