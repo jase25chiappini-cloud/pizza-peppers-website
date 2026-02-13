@@ -1198,7 +1198,11 @@ body {
     display: block;
     position: sticky;
     top: 0;
-    height: 100vh;
+    height: 100%;
+    min-height: 0;       /* REQUIRED for nested flex/grid children to shrink */
+    overflow: hidden;    /* right column should not extend page height */
+    display: flex;
+    flex-direction: column;
   }
 
   /* Light sidebar: crisp white column */
@@ -1213,6 +1217,13 @@ body {
     background: #020617;
     box-shadow: -26px 0 70px rgba(0,0,0,0.9);
     border-left: 1px solid rgba(15,23,42,0.9);
+  }
+
+  .right-sidebar .order-panel-container{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -1841,6 +1852,21 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* Safety: footer must never float as an overlay */
+.site-footer{
+  position: static;
+  inset: auto;
+  transform: none;
+}
+
+.ashmore-lockup,
+.ashmore-co-lockup,
+.ashmore-footer-lockup{
+  position: static;
+  inset: auto;
+  transform: none;
 }
 .footer-text {
   font-family: 'Orbitron', sans-serif;
@@ -2690,6 +2716,13 @@ input[type="number"] {
 @media (min-width: 1024px) {
   .app-grid-layout {
     grid-template-columns: minmax(0, 1fr) 35%;
+    /* CRITICAL: constrain the whole 2-column layout to the viewport height */
+    height: 100dvh;
+    min-height: 100dvh;
+    /* prevents grid children from making the page taller */
+    overflow: hidden;
+    /* ensures the single row can shrink properly */
+    grid-template-rows: minmax(0, 1fr);
   }
 }
 
@@ -2698,6 +2731,20 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+@media (min-width: 1024px) {
+  .left-pane {
+    /* allow the left column to shrink inside the fixed-height grid */
+    min-height: 0;
+    height: 100%;
+  }
+
+  .main-content-area {
+    /* keep scrolling inside the column, not the document */
+    min-height: 0;
+    height: 100%;
+  }
 }
 
 /* Main content slab already has theme styles; this just ensures it never hugs the edges on mobile */
@@ -5199,9 +5246,16 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   .order-panel-container--detail{
     /* keeps your current look, but ensures children can use full height */
     min-height: 0;
+    /* When ItemDetailPanel is open, keep the right panel as a fixed-height shell
+       and let the inner body scroll (prevents the panel extending the page). */
+    overflow: hidden;
+    position: relative;
   }
 
   .pp-itemdetail-modal{
+    /* Overlay inside the right panel so it doesn't extend page height */
+    position: absolute;
+    inset: 0;
     height: 100%;
     min-height: 0;
     display: flex;
@@ -5213,14 +5267,24 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   /* your ItemDetailPanel root */
   .pp-itemdetail-modal__panel .detail-panel{
     height: 100% !important;
     min-height: 0;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
+  }
+
+  /* Make the body the scroll container (not the whole right column) */
+  .pp-itemdetail-modal__panel .detail-panel-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* let the hero take more vertical space */
@@ -12727,8 +12791,8 @@ html[data-pp-layout="compact"] .menu-grid {
 
 /* ---------- CSS-only fallback (no JS needed) ---------- */
 /* If desktop breakpoint is hit, but the screen is short or squarish */
-@media (min-width: 1024px) and (max-height: 780px),
-       (min-width: 1024px) and (max-aspect-ratio: 27/20) {
+@media (min-width: 1024px) and (min-height: 701px) and (max-height: 780px),
+       (min-width: 1024px) and (min-height: 701px) and (max-aspect-ratio: 27/20) {
   .app-grid-layout {
     grid-template-columns: 1fr !important;
   }
@@ -12826,6 +12890,30 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   object-fit: contain !important;
 }
 
+/* Extra tightening for very short displays (Nest Hub ~600px tall) */
+@media (min-width: 901px) and (max-height: 700px){
+  html[data-pp-layout="compact"]{
+    --pp-hdr-h: 74px;
+    --pp-gap: 10px;
+
+    /* Slightly smaller zones so it doesn’t feel “zoomed” */
+    --pp-left-w: 320px;
+    --pp-right-w: 340px;
+    --pp-brand-w: 520px;
+  }
+
+  html[data-pp-layout="compact"] .pp-topnav{
+    padding: 0.50rem 0.85rem !important;
+  }
+
+  /* Keep banner from looking scaled-up */
+  html[data-pp-layout="compact"] .pp-topnav__logoImg--banner{
+    transform: none !important;
+    object-fit: contain !important;
+    object-position: center !important;
+  }
+}
+
 /* =========================================================
    SHORT DESKTOP HEADER PROFILE (Nest Hub Max / weird ratios)
    - Give left card more width so search inputs don't crop
@@ -12909,7 +12997,7 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
    - Main grid consumes remaining height
    - Left and right columns scroll internally
    ========================================================= */
-@media (min-width: 980px) and (max-height: 900px){
+@media (min-width: 980px) and (min-height: 701px) and (max-height: 900px){
 
   /* Treat the whole page as an app viewport */
   html, body{
@@ -12920,6 +13008,64 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   #root{
     height: 100%;
     overflow: hidden;
+  }
+
+  /* ===========================
+     Nest Hub Max header tuning
+     - the banner image uses a global transform: scale(3.06)
+     - on 1280x800 that prevents "auto fit"
+     - so we override banner scaling ONLY in this viewport mode
+     =========================== */
+
+  :root{
+    /* slightly shorter header feels better on 800px tall screens */
+    --pp-hdr-h: 82px;
+    /* keep banner centered and not too wide */
+    --pp-brand-w: min(560px, 48vw);
+  }
+
+  .pp-topnav{
+    /* tighten vertical padding so header doesn't eat height */
+    padding: 0.45rem 0.95rem !important;
+  }
+
+  /* Ensure the brand card follows the tuned header height */
+  .pp-topnav__logo.pp-topnav__brandCard{
+    height: var(--pp-hdr-h) !important;
+    width: min(100%, var(--pp-brand-w)) !important;
+    max-width: var(--pp-brand-w) !important;
+  }
+
+  /* The real fix: override the global "zoomed banner" transform */
+  .pp-topnav__logoImg--banner{
+    transform: scale(2) !important;   /* stop forced zoom */
+    transform-origin: center !important;
+    object-fit: contain !important;
+    object-position: center !important;
+  }
+
+  /* Optional: make it look crisp and not "floaty" on Hub Max */
+  .pp-topnav__brandCard{
+    border-radius: 18px;
+  }
+
+  /* Wide-short screens should never use boxed wrappers */
+  #root,
+  .app,
+  .app-shell,
+  .app-container,
+  .app-grid-layout{
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  html,
+  body,
+  #root{
+    transform: none !important;
+    zoom: 1 !important;
   }
 
   /* The header + quicknav must not add extra outside spacing */
@@ -12956,18 +13102,37 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     padding: 0 14px;
   }
 
-  /* Left column scroll area (menu) */
-  .app-grid-layout .menu-content{
+  /* LEFT PANE: ensure it fills the grid height and allows the <main> to become the scroller */
+  .app-grid-layout .left-pane{
     height: 100%;
-    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Left column scroll area (REAL container in App.jsx is <main class="main-content-area">) */
+  .app-grid-layout .main-content-area{
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
     padding-top: 0 !important;
     margin-top: 0 !important;
+  }
+
+  /* Keep Ashmore footer exactly like PC, just make it sit at the bottom when content is short */
+  .app-grid-layout .main-content-area .site-footer{
+    margin-top: auto;
   }
 
   /* Right column scroll area (order) */
   .app-grid-layout .right-sidebar{
     height: 100%;
-    overflow: hidden;
+    overflow: hidden !important;
     margin-top: 0 !important;
     padding-top: 0 !important;
     align-self: start;
@@ -12975,9 +13140,16 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
 
   .app-grid-layout .right-sidebar .order-panel-container{
     height: 100% !important;
-    overflow: auto !important;
+    overflow-y: auto !important;
     top: 0 !important;
     margin-top: 0 !important;
+  }
+
+  /* If ItemDetailPanel is open, don't make the whole right column scroll;
+     keep a fixed shell and let the inner detail body scroll. */
+  .app-grid-layout .right-sidebar .order-panel-container.order-panel-container--detail{
+    overflow: hidden !important;
+    position: relative;
   }
 
   /* Compact UI slightly so it looks intentional on 800–900px tall screens */
@@ -13001,64 +13173,588 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     padding: 0.42rem 0.85rem !important;
     font-size: 0.76rem !important;
   }
-}
 
-/* Fill screen on wide+short displays (Nest Hub Max 1280x800 etc)
-   This does NOT change mobile or normal desktop; it only removes the boxed max-width wrapper. */
-@media (min-width: 1024px) and (max-height: 820px) {
-  /* pick ALL wrappers that might be boxing the app */
-  #root,
-  .app,
-  .app-shell,
-  .app-container,
-  .app-grid-layout {
-    width: 100% !important;
-    max-width: none !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-}
-
-@media (min-width: 1024px) and (max-height: 820px) {
-  html, body, #root {
-    transform: none !important;
-    zoom: 1 !important;
-  }
-}
-
-/* ✅ Fill height on wide + short displays (Nest Hub Max etc) */
-@media (min-width: 1024px) and (max-height: 820px) {
-  html, body {
-    height: 100%;
-  }
-
-  #root {
-    min-height: 100vh;
-  }
-
-  /* whichever wrapper exists in your app, force full-height */
-  .app-grid-layout,
-  .app,
-  .app-shell,
-  .app-container {
-    min-height: 100vh !important;
-    height: auto;
-    align-items: stretch;
-  }
-
-  /* If .app-grid-layout is a grid, make sure it has a "1fr" row to grow */
-  .app-grid-layout {
-    grid-auto-rows: minmax(0, auto);
-  }
-
-  /* This is the important one for grids: allow children to actually stretch */
   .pp-main,
   .pp-left,
   .pp-right,
   .main-content,
   .content,
   .menu-column,
-  .cart-column {
+  .cart-column{
     min-height: 0;
+  }
+
+  /* Hub Max: force Ashmore/footer lockup back into normal flow (kills fixed/absolute floating) */
+  .site-footer{
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    transform: none !important;
+  }
+
+  /* Any element inside the footer that tries to float */
+  .site-footer *{
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    transform: none !important;
+  }
+
+  /* Keep the footer sitting at the end of the scroll column like PC */
+  .app-grid-layout .main-content-area{
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .app-grid-layout .main-content-area .site-footer{
+    margin-top: auto !important;
+  }
+
+}
+
+/* === Nest Hub Max (1280x800-ish) consolidated override === */
+/* Same PC template. Only fixes wide+short aspect sizing/scroll/footer placement. */
+@media (min-width: 1100px) and (max-width: 1400px) and (min-height: 700px) and (max-height: 900px) {
+
+  html, body {
+    height: 100%;
+    overflow: hidden !important; /* internal scrollers */
+  }
+
+  /* Viewport-locked 2-col shell */
+  .app-grid-layout{
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+
+  /* Allow overflow containers to actually scroll */
+  .left-pane,
+  .main-content-area,
+  .right-sidebar,
+  .right-sidebar .order-panel-container{
+    min-height: 0 !important;
+  }
+
+  /* LEFT column: the <main> is the scroller and a flex column */
+  .app-grid-layout .left-pane{
+    height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .app-grid-layout .main-content-area{
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* FORCE the footer to the bottom when content is short */
+  .app-grid-layout .main-content-area .site-footer{
+    margin-top: auto !important;
+    flex: 0 0 auto !important;
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+  }
+
+  /* RIGHT column: fixed shell + internal scroll */
+  .app-grid-layout .right-sidebar{
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .app-grid-layout .right-sidebar .order-panel-container{
+    height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* =========================================================
+   RATIO AUTO-ADJUST (wide + short displays, e.g. Nest Hub)
+   - DOES NOT affect real mobile (phones)
+   - DOES NOT affect normal desktop/laptops (taller screens)
+   ========================================================= */
+@media (min-width: 900px) and (max-width: 1200px) and (max-height: 720px) {
+
+  /* --- Header compacting --- */
+  html[data-pp-layout="compact"]{
+    --pp-hdr-h: 72px;
+    --pp-gap: 10px;
+
+    /* If you use width vars for header columns */
+    --pp-left-w: 320px;
+    --pp-right-w: 340px;
+    --pp-brand-w: 520px;
+  }
+
+  html[data-pp-layout="compact"] .pp-topnav{
+    min-height: var(--pp-hdr-h) !important;
+    padding: 0.45rem 0.75rem !important;
+  }
+
+  html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard{
+    height: var(--pp-hdr-h) !important;
+    max-height: var(--pp-hdr-h) !important;
+  }
+
+  html[data-pp-layout="compact"] .pp-topnav__logoImg--banner{
+    transform: none !important;
+    object-fit: contain !important;
+    object-position: center !important;
+  }
+
+  /* Reduce pill/button sizes in header without changing desktop elsewhere */
+  html[data-pp-layout="compact"] .pp-topnav button,
+  html[data-pp-layout="compact"] .pp-topnav .chip,
+  html[data-pp-layout="compact"] .pp-topnav input{
+    font-size: 0.92rem !important;
+    height: 38px !important;
+  }
+
+  html[data-pp-layout="compact"] .pp-topnav input{
+    padding-block: 0.35rem !important;
+  }
+
+  /* --- Category nav / QuickNav compacting --- */
+  html[data-pp-nav="compact"] .quick-nav,
+  html[data-pp-nav="compact"] .pp-quicknav,
+  html[data-pp-nav="compact"] .quick-nav-wrap{
+    padding: 6px 8px !important;
+  }
+
+  html[data-pp-nav="compact"] .quick-nav .chip,
+  html[data-pp-nav="compact"] .pp-quicknav .chip,
+  html[data-pp-nav="compact"] .quick-nav button,
+  html[data-pp-nav="compact"] .pp-quicknav button{
+    height: 34px !important;
+    font-size: 0.90rem !important;
+    padding: 0 10px !important;
+  }
+
+  /* Prevent nav row looking “zoomed” by limiting max width */
+  html[data-pp-nav="compact"] .quick-nav__inner,
+  html[data-pp-nav="compact"] .pp-quicknav__inner{
+    max-width: 980px !important;
+    margin-inline: auto !important;
+  }
+}
+
+/* =========================================================
+   Nest Hub desktop (1024x600-ish): tighten + scale down
+   - ratio-only: does not affect phones or normal desktops
+   - keeps PC template, just makes it denser and proportional
+   ========================================================= */
+@media (min-width: 1000px) and (max-width: 1050px) and (max-height: 650px) {
+
+  /* Global density: shrink rem-based sizing */
+  html {
+    font-size: 13px !important; /* was effectively 16 -> this is the real "scale" */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Reduce overall page padding + gaps */
+  .app-grid-layout{
+    padding-inline: 10px !important;
+    padding-block: 10px !important;
+    gap: 10px !important;
+    column-gap: 12px !important;
+  }
+
+  /* Keep the right panel from feeling oversized */
+  .app-grid-layout{
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 34vw, 360px) !important;
+  }
+
+  /* ---------- Header: shorter + tighter ---------- */
+  .pp-topnav{
+    padding: 0.35rem 0.6rem !important;
+  }
+
+  /* If you have a logo card height var, reduce it */
+  :root{
+    --pp-hdr-h: 68px;
+  }
+
+  .pp-topnav__logo.pp-topnav__brandCard{
+    height: var(--pp-hdr-h) !important;
+    max-height: var(--pp-hdr-h) !important;
+  }
+
+  /* Controls: shorter */
+  .pp-topnav input,
+  .pp-topnav button,
+  .pp-topnav .chip{
+    height: 32px !important;
+    font-size: 0.88rem !important;
+  }
+
+  .pp-topnav input{
+    padding-block: 0.25rem !important;
+  }
+
+  /* ---------- Category nav: tighter ---------- */
+  .quick-nav-container{
+    padding: 6px 8px !important;
+    border-radius: 14px !important;
+  }
+
+  .quick-nav-list{
+    gap: 10px !important;
+  }
+
+  .quick-nav-item a{
+    height: 30px !important;
+    padding: 0 12px !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.10em !important;
+  }
+
+  .quick-nav-arrow{
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  /* ---------- Cards/content: less “giant” ---------- */
+  .menu-grid{
+    gap: 10px !important;
+  }
+
+  /* If your cards share a common wrapper, this helps a lot */
+  .menu-card,
+  .product-card,
+  .pp-card,
+  .card{
+    border-radius: 18px !important;
+  }
+
+  /* Reduce internal padding if present */
+  .menu-card,
+  .product-card,
+  .pp-card{
+    padding: 10px !important;
+  }
+
+  /* Right sidebar spacing */
+  .right-sidebar{
+    padding: 10px !important;
+  }
+
+  .right-sidebar .order-panel-container{
+    gap: 10px !important;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): hard scale-down the whole UI
+   - ratio-only: affects ONLY ~1024×600 class of screens
+   - does not touch mobile or normal desktop
+   ========================================================= */
+@media (min-width: 1000px) and (max-width: 1050px) and (min-height: 580px) and (max-height: 620px) {
+  html, body {
+    overflow-x: hidden !important;
+  }
+
+  /* Scale everything down */
+  #root {
+    transform: scale(0.86);
+    transform-origin: top left;
+
+    /* Compensate width so layout still fits viewport after scaling */
+    width: calc(100% / 0.86);
+  }
+
+  /* Prevent “extra empty space” below due to transform */
+  body {
+    min-height: calc(100vh / 0.86);
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): DESKTOP template, but compact density
+   - keeps PC layout
+   - tighter header + quicknav + spacing
+   - does NOT affect phones or normal desktops
+   ========================================================= */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* Global density: shrink rem-based sizing */
+  html{
+    font-size: 13px; /* try 13px first; if still big, use 12.5px */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Use full screen height on Nest Hub */
+  html, body{
+    height: 100%;
+  }
+
+  #root{
+    min-height: 100vh;
+  }
+
+  /* Make the main 2-col shell fill the viewport height */
+  .app-grid-layout{
+    min-height: calc(100vh - 10px) !important; /* small buffer for your padding */
+    align-content: start !important;
+  }
+
+  /* Let each side stretch so there’s no dead space */
+  .app-grid-layout .left-pane,
+  .app-grid-layout .right-sidebar{
+    min-height: calc(100vh - 10px) !important;
+  }
+
+  /* Keep scrolling on the page (not sideways), but allow vertical scroll if content exceeds */
+  body{
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* Tighten overall page spacing */
+  .app-grid-layout{
+    padding-inline: 10px !important;
+    padding-block: 10px !important;
+    gap: 10px !important;
+    column-gap: 12px !important;
+  }
+
+  /* Keep desktop 2-col but make the sidebar less chunky */
+  .app-grid-layout{
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 33vw, 360px) !important;
+  }
+
+  /* Header: shorter, less padding */
+  .pp-topnav{
+    padding: 0.35rem 0.60rem !important;
+  }
+
+  /* Controls: smaller height */
+  .pp-topnav input,
+  .pp-topnav button,
+  .pp-topnav .chip{
+    height: 32px !important;
+    font-size: 0.88rem !important;
+  }
+
+  /* QuickNav: apply “mobile-style compact” sizing on Nest Hub */
+  .quick-nav-container{
+    margin: 0 0 0.45rem !important;
+    padding: 0.18rem !important;
+    min-height: 38px !important;
+    border-radius: 14px !important;
+  }
+
+  .quick-nav-scroll{
+    padding: 4px 6px !important;
+    gap: 6px !important;
+  }
+
+  .quick-nav-list{
+    gap: 0.35rem !important;
+  }
+
+  .quick-nav-item a{
+    height: 28px !important;
+    padding: 0 0.62rem !important;
+    font-size: 0.62rem !important;
+    letter-spacing: 0.085em !important;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): force full-height desktop shell
+   Fixes bottom dead-space caused by calc(100vh - headerStack)
+   ========================================================= */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* Use the "dynamic" viewport height so Chrome device emulation matches */
+  html, body{
+    height: 100% !important;
+  }
+
+  #root{
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+  }
+
+  /* If your app uses a viewport-locked shell, force it to fill */
+  .app-grid-layout{
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+
+    /* Ensure the grid actually stretches */
+    align-content: stretch !important;
+    align-items: stretch !important;
+  }
+
+  /* Make both columns stretch to fill height */
+  .left-pane,
+  .right-sidebar{
+    height: auto !important;
+    min-height: 0 !important;
+    align-self: stretch !important;
+  }
+
+  /* Ensure the scroll happens inside the content areas (like PC) */
+  .main-content-area{
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  .right-sidebar .order-panel-container{
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): make the app actually fill the viewport
+   Fixes the bottom dead-space by forcing a flex-height chain.
+   ========================================================= */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* If you previously set html font-size too low, bump slightly */
+  html{
+    font-size: 14px !important; /* was 13px -> this helps "too small" feeling */
+  }
+
+  html, body{
+    height: 100% !important;
+  }
+
+  /* Root must be the height owner */
+  #root{
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+
+    /* Critical: allow children to stretch */
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+  }
+
+  /* Treat header + quicknav as fixed-height rows */
+  .pp-topnav,
+  .quick-nav-container{
+    flex: 0 0 auto !important;
+  }
+
+  /* Make the main layout consume remaining height */
+  .app-grid-layout{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+
+    /* Don’t let old calc() heights cap it */
+    height: auto !important;
+
+    /* Better desktop proportions on 1024x600 */
+    /* narrower menu, slightly slimmer sidebar */
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 33vw, 360px) !important;
+  }
+
+  /* Stop the menu area from getting too wide */
+  .left-pane{
+    max-width: 660px !important;
+  }
+
+  /* Center the left pane so it looks intentional */
+  .left-pane{
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  /* Both columns must be allowed to shrink + stretch */
+  .left-pane,
+  .right-sidebar{
+    min-height: 0 !important;
+    align-self: stretch !important;
+
+    /* Common fix: make each column a flex column */
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Scroll should happen inside the content areas, not the page */
+  .main-content-area{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+
+  /* Menu grid: 2 columns on Nest Hub so cards aren't massive */
+  .menu-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  /* If you have category “sections” with inner grids, cover that too */
+  .menu-category .menu-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .right-sidebar .order-panel-container{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): force 2-up card grids (deals + regular)
+   ========================================================= */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* 1) The main card grids (try all common containers) */
+  .menu-grid,
+  .menu-items-grid,
+  .menu-list,
+  .menu-items,
+  .menu-cards,
+  .pp-menu-grid{
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  /* 2) Deals/Specials grids (often nested) */
+  .specials-grid,
+  .deals-grid,
+  .combo-grid,
+  .menu-category--specials .menu-grid,
+  .menu-category--specials .menu-items-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* 3) Make sure each card can shrink within a grid cell */
+  .menu-card,
+  .product-card,
+  .deal-card,
+  .pp-card{
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 4) Reduce “giant card” feel by tightening image height a touch */
+  .menu-card img,
+  .product-card img,
+  .deal-card img{
+    max-height: 170px !important;
+    object-fit: cover !important;
   }
 }

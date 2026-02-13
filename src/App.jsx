@@ -338,6 +338,19 @@ function scrubBadAddressFields(obj) {
   return next;
 }
 
+// =========================================================
+// Viewport classification (single source of truth)
+// - Standard mobile: <= 1023.98px
+// =========================================================
+function ppIsMobileViewport() {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia("(max-width: 1023.98px)").matches;
+}
+
+function ppMobileMql() {
+  return window.matchMedia("(max-width: 1023.98px)");
+}
+
 // --- RESTORED HALF & HALF COMPONENT ---
 const HalfAndHalfSelector = ({
   menuItems,
@@ -366,7 +379,7 @@ const HalfAndHalfSelector = ({
   const [pendingHalfB, setPendingHalfB] = React.useState(null);
   const [isNarrowScreen, setIsNarrowScreen] = React.useState(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 1023.98px)").matches;
+    return ppIsMobileViewport();
   });
   // --- Mobile wizard step (authoritative) ---
   const [wizardStep, setWizardStep] = React.useState("A"); // "A" | "B" | "CONFIRM"
@@ -447,11 +460,11 @@ const HalfAndHalfSelector = ({
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const mql = ppMobileMql();
     const onChange = (event) => setIsNarrowScreen(event.matches);
     if (mql.addEventListener) mql.addEventListener("change", onChange);
     else mql.addListener(onChange);
-    setIsNarrowScreen(mql.matches);
+    setIsNarrowScreen(ppIsMobileViewport());
     return () => {
       if (mql.removeEventListener) mql.removeEventListener("change", onChange);
       else mql.removeListener(onChange);
@@ -2676,18 +2689,18 @@ const MealDealBuilderPanel = ({
 }) => {
   const [isViewportMobile, setIsViewportMobile] = React.useState(() => {
     if (typeof window === "undefined" || !window.matchMedia) return !!isMobileProp;
-    return window.matchMedia("(max-width: 1023.98px)").matches;
+    return ppIsMobileViewport();
   });
 
   React.useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const mql = ppMobileMql();
     const onChange = (e) => setIsViewportMobile(!!e.matches);
 
     if (mql.addEventListener) mql.addEventListener("change", onChange);
     else mql.addListener(onChange);
 
-    setIsViewportMobile(!!mql.matches);
+    setIsViewportMobile(ppIsMobileViewport());
 
     return () => {
       if (mql.removeEventListener) mql.removeEventListener("change", onChange);
@@ -13639,7 +13652,7 @@ function Navbar({
   // Mobile navbar: keep the top bar tight, open search in a dropdown drawer.
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined" || !window.matchMedia) return false;
-    return window.matchMedia("(max-width: 1023.98px)").matches;
+    return ppIsMobileViewport();
   });
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const navRef = useRef(null);
@@ -13696,7 +13709,7 @@ function Navbar({
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const mql = ppMobileMql();
     const onChange = (e) => setIsMobile(!!e.matches);
     try {
       mql.addEventListener("change", onChange);
@@ -14619,14 +14632,15 @@ function AppLayout({ isMapsLoaded }) {
   React.useEffect(() => {
     if (!loyaltyEnabled && isLoyaltyOpen) setIsLoyaltyOpen(false);
   }, [loyaltyEnabled, isLoyaltyOpen]);
+
   // Mobile detection (keeps it in sync when resizing devtools)
   const [isMobileScreen, setIsMobileScreen] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 1023.98px)").matches;
+    return ppIsMobileViewport();
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const mq = window.matchMedia("(max-width: 1023.98px)");
+    const mq = ppMobileMql();
     const onChange = () => setIsMobileScreen(mq.matches);
     onChange();
     mq.addEventListener?.("change", onChange);
@@ -14634,15 +14648,15 @@ function AppLayout({ isMapsLoaded }) {
   }, []);
   const [isMobile, setIsMobile] = React.useState(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 1023.98px)").matches;
+    return ppIsMobileViewport();
   });
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const mql = window.matchMedia("(max-width: 1023.98px)");
+    const mql = ppMobileMql();
     const onChange = (e) => setIsMobile(e.matches);
     if (mql.addEventListener) mql.addEventListener("change", onChange);
     else mql.addListener(onChange);
-    setIsMobile(mql.matches);
+    setIsMobile(ppIsMobileViewport());
     return () => {
       if (mql.removeEventListener) mql.removeEventListener("change", onChange);
       else mql.removeListener(onChange);
@@ -16057,34 +16071,36 @@ function AppLayout({ isMapsLoaded }) {
           ) : null}
 
           <main className="main-content-area">
-            {/* <DebugMenuFetch /> */} {/* TEMP widget hidden */}
-            {!isAdminRoute && menuError ? (
-              <div className="mb-4 text-center text-xs text-red-300 opacity-80">
-                Menu error: {String(menuError?.message || menuError)}
-              </div>
-            ) : null}
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  <Home
-                    menuData={menuDataForHome}
-                    handleItemClick={handleItemClick}
-                    hhMobilePicking={hhMobilePicking}
-                    hhMobileDraft={hhMobileDraft}
-                    setHhMobileDraft={setHhMobileDraft}
-                    mealDealDraft={mealDealDraft}
-                    onResumeMealDeal={handleResumeMealDeal}
-                  />
-                }
-              />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/terms" element={<TermsPage />} />
-              <Route
-                path="*"
-                element={<div style={{ padding: 16 }}>Route fallback OK</div>}
-              />
-            </Routes>
+            <div className="main-content-area__body">
+              {/* <DebugMenuFetch /> */} {/* TEMP widget hidden */}
+              {!isAdminRoute && menuError ? (
+                <div className="mb-4 text-center text-xs text-red-300 opacity-80">
+                  Menu error: {String(menuError?.message || menuError)}
+                </div>
+              ) : null}
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <Home
+                      menuData={menuDataForHome}
+                      handleItemClick={handleItemClick}
+                      hhMobilePicking={hhMobilePicking}
+                      hhMobileDraft={hhMobileDraft}
+                      setHhMobileDraft={setHhMobileDraft}
+                      mealDealDraft={mealDealDraft}
+                      onResumeMealDeal={handleResumeMealDeal}
+                    />
+                  }
+                />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route
+                  path="*"
+                  element={<div style={{ padding: 16 }}>Route fallback OK</div>}
+                />
+              </Routes>
+            </div>
             {!isAdminRoute ? <Footer /> : null}
           </main>
         </div>
