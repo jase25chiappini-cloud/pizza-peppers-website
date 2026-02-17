@@ -14003,4 +14003,193 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     width: 44px !important;
     object-fit: contain !important;
   }
+
+  /* =========================================================
+     Nest Hub: Order header row (YOUR ORDER + pills inline)
+     ========================================================= */
+  .order-panel-container:not(.order-panel-container--detail):not(.order-panel-container--mealdeal):not(.order-panel-container--halfhalf) .pp-orderHeaderRow{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    margin: 0 0 10px !important;
+  }
+
+  .order-panel-container:not(.order-panel-container--detail):not(.order-panel-container--mealdeal):not(.order-panel-container--halfhalf) .pp-orderHeaderRow .panel-title{
+    margin: 0 !important;
+    font-size: 1.05rem !important;
+    letter-spacing: 0.10em !important;
+    white-space: nowrap !important;
+    line-height: 1 !important;
+  }
+
+  .order-panel-container:not(.order-panel-container--detail):not(.order-panel-container--mealdeal):not(.order-panel-container--halfhalf) .pp-orderTypeSwitch{
+    padding: 0.25rem !important;
+    border-radius: 999px !important;
+    margin: 0 !important;
+  }
+
+  .order-panel-container .pp-orderTypeBtn{
+    min-height: 34px !important;
+    padding: 0.35rem 0.75rem !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.08em !important;
+    border-radius: 999px !important;
+  }
+
+  /* =========================================================
+     Nest Hub: make pickup/delivery + voucher “modules” slimmer
+     ========================================================= */
+  .order-panel-container .info-box{
+    padding: 10px 10px 8px !important;
+    border-radius: 16px !important;
+  }
+
+  .info-box .pp-infoTop{
+    padding-bottom: 8px !important;
+  }
+  .info-box .pp-infoBottom{
+    gap: 6px !important;
+  }
+  .info-box .pp-infoTopLabel,
+  .info-box .pp-infoBottomLabel{
+    font-size: 12px !important;
+  }
+
+  .order-panel-container .voucher,
+  .order-panel-container .voucher-row,
+  .order-panel-container .pp-voucherRow,
+  .order-panel-container .pp-voucher{
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .order-panel-container input,
+  .order-panel-container .pp-voucher input{
+    min-height: 34px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024x600): ultra-compact order panel (last-wins)
+   ========================================================= */
+@media (width: 1024px) and (height: 600px),
+       (min-width: 1000px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* Right column overall padding tighter */
+  .right-sidebar{
+    padding: 10px !important;
+  }
+
+  /* The main order panel wrapper */
+  .right-sidebar .order-panel-container{
+    padding: 12px !important;
+    border-radius: 18px !important;
+    gap: 10px !important;
+  }
+
+  /* ===== Header row: title + segmented control inline ===== */
+  .right-sidebar .pp-orderHeaderRow{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    margin: 0 0 8px !important;
+  }
+
+  .right-sidebar .pp-orderHeaderRow .panel-title{
+    margin: 0 !important;
+    font-size: 1.02rem !important;
+    line-height: 1 !important;
+    letter-spacing: 0.10em !important;
+    white-space: nowrap !important;
+  }
+
+  /* segmented control container (tight like your reference image) */
+  .right-sidebar .pp-orderTypeSwitch{
+    margin: 0 !important;
+    padding: 3px !important;
+    border-radius: 999px !important;
+  }
+
+  /* buttons inside */
+  .right-sidebar .pp-orderTypeBtn{
+    min-height: 30px !important;
+    padding: 6px 10px !important;
+    font-size: 0.76rem !important;
+    line-height: 1 !important;
+    letter-spacing: 0.08em !important;
+    border-radius: 999px !important;
+  }
+
+  /* ===== Compact the “Pickup from / Pickup time” module ===== */
+  .right-sidebar .info-box{
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+  .right-sidebar .info-box .pp-infoTop{
+    padding-bottom: 8px !important;
+  }
+  .right-sidebar .info-box .pp-infoBottom{
+    gap: 6px !important;
+  }
+  .right-sidebar .info-box .pp-infoTopLabel,
+  .right-sidebar .info-box .pp-infoBottomLabel{
+    font-size: 11.5px !important;
+    line-height: 1.1 !important;
+  }
+  .right-sidebar .info-box .pp-infoTopValue,
+  .right-sidebar .info-box .pp-infoBottomValue{
+    font-size: 12.5px !important;
+    line-height: 1.15 !important;
+  }
+
+  /* Change button slimmer */
+  .right-sidebar .info-box button,
+  .right-sidebar .info-box .pp-changeBtn{
+    min-height: 30px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    border-radius: 999px !important;
+  }
+
+  /* ===== Voucher module slimmer ===== */
+  .right-sidebar .voucher,
+  .right-sidebar .pp-voucher,
+  .right-sidebar .voucher-row,
+  .right-sidebar .pp-voucherRow{
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .right-sidebar input,
+  .right-sidebar .voucher input{
+    min-height: 32px !important;
+    font-size: 13px !important;
+    padding: 6px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  /* ===== Cart area: reclaim space (less padding, more usable height) ===== */
+  .right-sidebar .cart-empty,
+  .right-sidebar .cart-panel,
+  .right-sidebar .order-cart,
+  .right-sidebar .cart-items{
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .right-sidebar .cart-empty,
+  .right-sidebar .cart-panel{
+    min-height: 220px !important; /* so it doesn't become “one item tall” */
+  }
+
+  /* Checkout/footer bar slimmer */
+  .right-sidebar .checkout-bar,
+  .right-sidebar .checkout-footer,
+  .right-sidebar .place-order-bar{
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
 }

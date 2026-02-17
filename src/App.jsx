@@ -10579,35 +10579,37 @@ function OrderInfoPanel({
 
   return (
     <>
-      <h2 className="panel-title">Your Order</h2>
+      <div className="pp-orderHeaderRow">
+        <h2 className="panel-title">Your Order</h2>
 
-      <div className="pp-orderTypeSwitch">
-        <button
-          type="button"
-          className={[
-            "pp-orderTypeBtn",
-            orderType === "Pickup" ? "is-active" : "",
-          ].join(" ")}
-          onClick={() => {
-            setOrderType("Pickup");
-            setOrderAddress("");
-            setOrderDeliveryFee(0);
-            setOrderAddressError("");
-          }}
-        >
-          Pickup
-        </button>
+        <div className="pp-orderTypeSwitch">
+          <button
+            type="button"
+            className={[
+              "pp-orderTypeBtn",
+              orderType === "Pickup" ? "is-active" : "",
+            ].join(" ")}
+            onClick={() => {
+              setOrderType("Pickup");
+              setOrderAddress("");
+              setOrderDeliveryFee(0);
+              setOrderAddressError("");
+            }}
+          >
+            Pickup
+          </button>
 
-        <button
-          type="button"
-          className={[
-            "pp-orderTypeBtn",
-            orderType === "Delivery" ? "is-active" : "",
-          ].join(" ")}
-          onClick={() => setOrderType("Delivery")}
-        >
-          Delivery
-        </button>
+          <button
+            type="button"
+            className={[
+              "pp-orderTypeBtn",
+              orderType === "Delivery" ? "is-active" : "",
+            ].join(" ")}
+            onClick={() => setOrderType("Delivery")}
+          >
+            Delivery
+          </button>
+        </div>
       </div>
 
       <div className="info-box" style={{ marginTop: "0.85rem" }}>
