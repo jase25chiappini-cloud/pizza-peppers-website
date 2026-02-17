@@ -827,7 +827,67 @@ html { scroll-behavior: smooth; }
 }
 
 *{box-sizing:border-box}
-html,body{height:100%}
+
+/* Ensure the document + app always fills the viewport */
+html, body {
+  height: 100%;
+  min-height: 100%;
+}
+
+/* =========================================================
+   Nest Hub (1024×600): FINAL last-wins fix
+   - Right sidebar must start BELOW the left-only header
+   - Neutralise inner sticky+vh sizing that fights the layout
+   ========================================================= */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* Header height on desktop rules is --pp-hdr-h (set at min-width:901px) */
+  :root{
+    --pp-nesthub-header-offset: calc(var(--pp-hdr-h, 88px) + 10px);
+  }
+
+  /* Push the entire right column down so it never sits under the header */
+  .right-sidebar{
+    position: sticky !important;
+    top: var(--pp-nesthub-header-offset) !important;
+
+    /* Make it fit within the remaining viewport */
+    height: calc(100dvh - var(--pp-nesthub-header-offset)) !important;
+    min-height: 0 !important;
+
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* This is the conflict: global sticky + calc(100vh - 3rem).
+     Kill it on Nest Hub so the panel can fill the right column normally. */
+  .order-panel-container{
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Let the panel content scroll inside the right column */
+  .right-sidebar .order-panel-container{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+#root {
+  height: 100%;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100dvh;
+}
+
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
@@ -2709,6 +2769,7 @@ input[type="number"] {
   padding-inline: 1.25rem;
   padding-top: 0;
   padding-bottom: 1.25rem;
+  min-height: 100dvh;
   gap: 1.25rem;
   column-gap: 2.5rem;
 }
@@ -13283,6 +13344,54 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   }
 }
 
+/* === Nest Hub (1024x600-ish): make menu grid behave like Hub Max === */
+@media (min-width: 1000px) and (max-width: 1050px) and (max-height: 650px) {
+
+  /* A) Layout height lock (no page grow, inner right-panel scroll) */
+  .app-grid-layout {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .right-sidebar {
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .order-panel__scroll,
+  .right-sidebar .order-panel-container {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Force the same “desktop grid density” as Hub Max */
+  .menu-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1.5rem !important;
+  }
+
+  .menu-item-card {
+    grid-column: auto !important;
+  }
+
+  /* Your compact mode currently overrides menu-grid to auto-fit; override that too */
+  html[data-pp-layout="compact"] .menu-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Keep meal deals looking like Hub Max (2 across) */
+  .menu-item-card--mealdeal{
+    grid-column: span 2 !important;
+  }
+}
+
 /* =========================================================
    RATIO AUTO-ADJUST (wide + short displays, e.g. Nest Hub)
    - DOES NOT affect real mobile (phones)
@@ -13350,228 +13459,6 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   html[data-pp-nav="compact"] .pp-quicknav__inner{
     max-width: 980px !important;
     margin-inline: auto !important;
-  }
-}
-
-/* =========================================================
-   Nest Hub desktop (1024x600-ish): tighten + scale down
-   - ratio-only: does not affect phones or normal desktops
-   - keeps PC template, just makes it denser and proportional
-   ========================================================= */
-@media (min-width: 1000px) and (max-width: 1050px) and (max-height: 650px) {
-
-  /* Global density: shrink rem-based sizing */
-  html {
-    font-size: 13px !important; /* was effectively 16 -> this is the real "scale" */
-    -webkit-text-size-adjust: 100%;
-  }
-
-  /* Reduce overall page padding + gaps */
-  .app-grid-layout{
-    padding-inline: 10px !important;
-    padding-block: 10px !important;
-    gap: 10px !important;
-    column-gap: 12px !important;
-  }
-
-  /* Keep the right panel from feeling oversized */
-  .app-grid-layout{
-    grid-template-columns: minmax(0, 1fr) clamp(300px, 34vw, 360px) !important;
-  }
-
-  /* ---------- Header: shorter + tighter ---------- */
-  .pp-topnav{
-    padding: 0.35rem 0.6rem !important;
-  }
-
-  /* If you have a logo card height var, reduce it */
-  :root{
-    --pp-hdr-h: 68px;
-  }
-
-  .pp-topnav__logo.pp-topnav__brandCard{
-    height: var(--pp-hdr-h) !important;
-    max-height: var(--pp-hdr-h) !important;
-  }
-
-  /* Controls: shorter */
-  .pp-topnav input,
-  .pp-topnav button,
-  .pp-topnav .chip{
-    height: 32px !important;
-    font-size: 0.88rem !important;
-  }
-
-  .pp-topnav input{
-    padding-block: 0.25rem !important;
-  }
-
-  /* ---------- Category nav: tighter ---------- */
-  .quick-nav-container{
-    padding: 6px 8px !important;
-    border-radius: 14px !important;
-  }
-
-  .quick-nav-list{
-    gap: 10px !important;
-  }
-
-  .quick-nav-item a{
-    height: 30px !important;
-    padding: 0 12px !important;
-    font-size: 0.78rem !important;
-    letter-spacing: 0.10em !important;
-  }
-
-  .quick-nav-arrow{
-    width: 32px !important;
-    height: 32px !important;
-  }
-
-  /* ---------- Cards/content: less “giant” ---------- */
-  .menu-grid{
-    gap: 10px !important;
-  }
-
-  /* If your cards share a common wrapper, this helps a lot */
-  .menu-card,
-  .product-card,
-  .pp-card,
-  .card{
-    border-radius: 18px !important;
-  }
-
-  /* Reduce internal padding if present */
-  .menu-card,
-  .product-card,
-  .pp-card{
-    padding: 10px !important;
-  }
-
-  /* Right sidebar spacing */
-  .right-sidebar{
-    padding: 10px !important;
-  }
-
-  .right-sidebar .order-panel-container{
-    gap: 10px !important;
-  }
-}
-
-/* =========================================================
-   Nest Hub (1024×600): hard scale-down the whole UI
-   - ratio-only: affects ONLY ~1024×600 class of screens
-   - does not touch mobile or normal desktop
-   ========================================================= */
-@media (min-width: 1000px) and (max-width: 1050px) and (min-height: 580px) and (max-height: 620px) {
-  html, body {
-    overflow-x: hidden !important;
-  }
-
-  /* Scale everything down */
-  #root {
-    transform: scale(0.86);
-    transform-origin: top left;
-
-    /* Compensate width so layout still fits viewport after scaling */
-    width: calc(100% / 0.86);
-  }
-
-  /* Prevent “extra empty space” below due to transform */
-  body {
-    min-height: calc(100vh / 0.86);
-  }
-}
-
-/* =========================================================
-   Nest Hub (1024×600): DESKTOP template, but compact density
-   - keeps PC layout
-   - tighter header + quicknav + spacing
-   - does NOT affect phones or normal desktops
-   ========================================================= */
-@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
-
-  /* Global density: shrink rem-based sizing */
-  html{
-    font-size: 13px; /* try 13px first; if still big, use 12.5px */
-    -webkit-text-size-adjust: 100%;
-  }
-
-  /* Use full screen height on Nest Hub */
-  html, body{
-    height: 100%;
-  }
-
-  #root{
-    min-height: 100vh;
-  }
-
-  /* Make the main 2-col shell fill the viewport height */
-  .app-grid-layout{
-    min-height: calc(100vh - 10px) !important; /* small buffer for your padding */
-    align-content: start !important;
-  }
-
-  /* Let each side stretch so there’s no dead space */
-  .app-grid-layout .left-pane,
-  .app-grid-layout .right-sidebar{
-    min-height: calc(100vh - 10px) !important;
-  }
-
-  /* Keep scrolling on the page (not sideways), but allow vertical scroll if content exceeds */
-  body{
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  /* Tighten overall page spacing */
-  .app-grid-layout{
-    padding-inline: 10px !important;
-    padding-block: 10px !important;
-    gap: 10px !important;
-    column-gap: 12px !important;
-  }
-
-  /* Keep desktop 2-col but make the sidebar less chunky */
-  .app-grid-layout{
-    grid-template-columns: minmax(0, 1fr) clamp(300px, 33vw, 360px) !important;
-  }
-
-  /* Header: shorter, less padding */
-  .pp-topnav{
-    padding: 0.35rem 0.60rem !important;
-  }
-
-  /* Controls: smaller height */
-  .pp-topnav input,
-  .pp-topnav button,
-  .pp-topnav .chip{
-    height: 32px !important;
-    font-size: 0.88rem !important;
-  }
-
-  /* QuickNav: apply “mobile-style compact” sizing on Nest Hub */
-  .quick-nav-container{
-    margin: 0 0 0.45rem !important;
-    padding: 0.18rem !important;
-    min-height: 38px !important;
-    border-radius: 14px !important;
-  }
-
-  .quick-nav-scroll{
-    padding: 4px 6px !important;
-    gap: 6px !important;
-  }
-
-  .quick-nav-list{
-    gap: 0.35rem !important;
-  }
-
-  .quick-nav-item a{
-    height: 28px !important;
-    padding: 0 0.62rem !important;
-    font-size: 0.62rem !important;
-    letter-spacing: 0.085em !important;
   }
 }
 
@@ -13756,5 +13643,364 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   .deal-card img{
     max-height: 170px !important;
     object-fit: cover !important;
+  }
+
+  /* ===============================
+     Nest Hub: kill conflicting sticky
+     =============================== */
+
+  /* The header is sticky, so the right column MUST NOT be sticky on Hub */
+  .right-sidebar{
+    position: relative !important;
+    top: auto !important;
+  }
+
+  /* This is the main conflict: global sticky + calc(100vh - 3rem) */
+  .order-panel-container{
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Keep the order panel filling the right column and scrolling internally */
+  .right-sidebar .order-panel-container{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): FINAL override (last-wins)
+   - Force full-height 2-col shell (no page dead space)
+   - Scroll inside columns, not the document
+   - Force 2-up menu cards like Hub Max
+   ========================================================= */
+@media (min-width: 1000px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* Nest Hub: header must NOT go full-bleed. Keep it the same width as the menu/left column */
+  .pp-topnav{
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    left: auto !important;
+    right: auto !important;
+  }
+
+  /* Safety: if any full-bleed rule exists anywhere, neutralize it on Hub */
+  .pp-topnav{
+    transform: none !important;
+  }
+
+  /* Ensure the right column is not covered even if something spills */
+  .right-sidebar{
+    position: relative !important;
+    z-index: 5 !important;
+  }
+  .left-pane{
+    position: relative !important;
+    z-index: 1 !important;
+  }
+
+  /* Nest Hub: kill sticky stacking (both wrappers) */
+  .right-sidebar,
+  .order-panel-container{
+    position: relative !important;
+    top: auto !important;
+  }
+
+  .pp-topnav{
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+  }
+
+  /* Nest Hub: right panel must NOT sticky to viewport top (it will sit under header) */
+  .right-sidebar{
+    position: relative !important;
+    top: auto !important;
+  }
+
+  /* Header overlays across the right column on Hub — push order panel down */
+  .right-sidebar{
+    box-sizing: border-box !important;
+
+    /* Clear the sticky header height */
+    padding-top: calc(var(--pp-topnav-h, var(--pp-hdr-h, 90px)) + 10px) !important;
+
+    /* Keep the panel inside the viewport after adding padding-top */
+    height: calc(100dvh - var(--pp-topnav-h, var(--pp-hdr-h, 90px)) ) !important;
+  }
+
+  .right-sidebar .order-panel-container{
+    height: 100% !important;
+  }
+
+  html, body{
+    height: 100% !important;
+    overflow: hidden !important; /* kill document scroll */
+  }
+
+  #root{
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+  }
+
+  .app-grid-layout{
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    align-content: stretch !important;
+    align-items: stretch !important;
+  }
+
+  .left-pane,
+  .main-content-area,
+  .right-sidebar,
+  .right-sidebar .order-panel-container{
+    min-height: 0 !important;
+  }
+
+  .main-content-area{
+    height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .right-sidebar{
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .right-sidebar .order-panel-container{
+    height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Menu density: 2-up like Hub Max */
+  .menu-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  /* Prevent any “special” card from spanning full width on Hub */
+  .menu-item-card,
+  .menu-item-card--mealdeal{
+    grid-column: auto !important;
+  }
+
+  /* ---------- Density + readability tuning ---------- */
+
+  /* Slightly reduce global type + padding, but keep it readable */
+  .app-grid-layout{
+    gap: 12px !important;
+  }
+
+  /* Give the order panel more real estate (less cramped) */
+  .app-grid-layout{
+    grid-template-columns: minmax(0, 1fr) 380px !important; /* was too tight */
+  }
+
+  /* Reduce “chrome” padding a bit so content fits */
+  .topbar, .header, .topnav, .app-header{
+    padding: 10px 12px !important;
+  }
+
+  /* Category chips: prevent truncation */
+  .quicknav, .category-rail, .category-pills{
+    gap: 8px !important;
+  }
+  .quicknav button, .category-rail button, .category-pills button,
+  .quicknav .chip, .category-rail .chip, .category-pills .chip{
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important; /* keep single-line */
+  }
+
+  /* Order panel: stop text clipping + allow wrap where needed */
+  .right-sidebar{
+    padding: 12px !important;
+  }
+  .right-sidebar .order-panel-container{
+    padding: 12px !important;
+  }
+  .right-sidebar *{
+    min-width: 0; /* critical for text + flex children */
+  }
+
+  /* Make the cart area actually usable: grow and scroll internally */
+  .right-sidebar .order-panel-container{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  /* This targets the big cart box (empty state / items list).
+     If your class differs, apply these styles to that cart box wrapper. */
+  .cart-empty-box,
+  .cart-items,
+  .cart-panel,
+  .order-cart{
+    flex: 1 1 auto !important;
+    min-height: 220px !important;   /* ensures it’s not “one item tall” */
+    overflow: auto !important;
+  }
+
+  /* Make the checkout button area not steal too much space */
+  .checkout-bar,
+  .checkout-footer,
+  .place-order-bar{
+    padding: 10px 12px !important;
+  }
+
+  /* Pickup/delivery rows: avoid ellipsis cutting info */
+  .order-info-row,
+  .pickup-row,
+  .delivery-row{
+    white-space: normal !important;
+  }
+  .order-info-row .value,
+  .pickup-row .value,
+  .delivery-row .value{
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  /* FIX: order panel container has a global sticky + vh height — disable on Nest Hub */
+  .order-panel-container{
+    position: relative !important;
+    top: auto !important;
+
+    /* stop the global calc(100vh - 3rem) from fighting our layout */
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Let it become the scroll container inside the right column */
+  .right-sidebar{
+    position: relative !important; /* prevents sticky stacking weirdness */
+    top: auto !important;
+  }
+
+  .right-sidebar .order-panel-container{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): FINAL layout lock (last-wins)
+   - Left column must NOT be max-width centered
+   - Right column must start below the sticky header
+   ========================================================= */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* 1) Undo the “centered left-pane” conflict */
+  .left-pane{
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* 2) Ensure header width matches the menu column (no full-bleed tricks) */
+  .pp-topnav{
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  /* 3) The real overlap fix: right sidebar must clear the sticky header */
+  .right-sidebar{
+    position: relative !important;
+    top: auto !important;
+
+    height: 100% !important;      /* fill the grid row */
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* 4) Kill the inner sticky/vh sizing that fights our column height */
+  .order-panel-container{
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .right-sidebar .order-panel-container{
+    height: 100% !important;
+    overflow-y: auto !important;
+    min-height: 0 !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- Nest Hub: reduce “cut off” text + allow wrapping where needed --- */
+  .quicknav button,
+  .category-rail button,
+  .category-pills button,
+  .quicknav .chip,
+  .category-rail .chip,
+  .category-pills .chip{
+    font-size: 12px !important;
+    line-height: 1.05 !important;
+    padding: 8px 12px !important;
+  }
+
+  .order-panel-container .row,
+  .order-panel-container .order-row,
+  .order-panel-container .pickup-row,
+  .order-panel-container .delivery-row{
+    font-size: 12px !important;
+    line-height: 1.15 !important;
+  }
+
+  .order-panel-container .value,
+  .order-panel-container .row .value,
+  .order-panel-container .pickup-row .value,
+  .order-panel-container .delivery-row .value{
+    font-size: 12px !important;
+    line-height: 1.15 !important;
+
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .order-panel-container .cart-empty,
+  .order-panel-container .cart-empty * ,
+  .order-panel-container .continue-btn,
+  .order-panel-container .checkout-btn{
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+  }
+
+  .order-panel-container .voucher,
+  .order-panel-container .voucher *{
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+  }
+
+  /* --- Nest Hub: force square logo in header --- */
+  .pp-logo img,
+  .brand-logo img,
+  .logo img{
+    content: url("/pwa-512.png") !important;
+    height: 44px !important;
+    width: 44px !important;
+    object-fit: contain !important;
   }
 }

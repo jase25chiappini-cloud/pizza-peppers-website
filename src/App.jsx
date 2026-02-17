@@ -15809,6 +15809,7 @@ function AppLayout({ isMapsLoaded }) {
   ]
     .filter(Boolean)
     .join(" ");
+  const orderPanelScrollClassName = `${orderPanelClassName} order-panel__scroll`;
   const mobileOrderPanelClassName = [
     "order-panel-container",
     "order-panel-container--mobileCart",
@@ -16107,7 +16108,7 @@ function AppLayout({ isMapsLoaded }) {
         {/* Desktop only: keep the right sidebar */}
         {!isAdminRoute && !isMobileScreen && (
           <div className={rightSidebarClassName}>
-            <div className={orderPanelClassName}>{rightPanelBody}</div>
+            <div className={orderPanelScrollClassName}>{rightPanelBody}</div>
           </div>
         )}
         {!isAdminRoute && showViewOrderFab && (
