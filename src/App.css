@@ -14192,4 +14192,242 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     padding: 10px !important;
     border-radius: 16px !important;
   }
+
+  /* =========================================================
+     Nest Hub: voucher dropdown like reference (compact + “Add Voucher” pill)
+     ========================================================= */
+  .right-sidebar .pp-voucherCard{
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .right-sidebar .pp-voucherHeader{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  .right-sidebar .pp-voucherTitle{
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+    font-weight: 700 !important;
+  }
+
+  .right-sidebar .pp-voucherHint{
+    font-size: 11.5px !important;
+    line-height: 1.1 !important;
+    opacity: 0.75 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 220px !important;
+  }
+
+  .right-sidebar .pp-voucherToggle{
+    border-radius: 999px !important;
+    padding: 6px 10px !important;
+    min-height: 30px !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .right-sidebar .pp-voucherBody{
+    margin-top: 8px !important;
+  }
+
+  .right-sidebar .pp-voucherBody input,
+  .right-sidebar .pp-voucherBody button{
+    min-height: 32px !important;
+    font-size: 13px !important;
+    padding: 6px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .right-sidebar details.pp-voucherCard > summary{
+    list-style: none !important;
+  }
+  .right-sidebar details.pp-voucherCard > summary::-webkit-details-marker{
+    display: none !important;
+  }
+
+  /* =========================================================
+     Nest Hub: favour cart space + slimmer Continue button
+     ========================================================= */
+
+  /* Tighten the right column + panel padding (gives cart more room) */
+  .right-sidebar{
+    padding: 8px !important;
+  }
+
+  .right-sidebar .order-panel-container{
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+
+  /* Slim down the top modules so cart gets more height */
+  .right-sidebar .pp-orderHeaderRow{
+    margin: 0 0 6px !important;
+  }
+
+  .right-sidebar .info-box{
+    padding: 8px 10px !important;
+  }
+
+  .right-sidebar .pp-voucherCard,
+  .right-sidebar .voucher,
+  .right-sidebar .pp-voucher,
+  .right-sidebar .voucher-row,
+  .right-sidebar .pp-voucherRow{
+    padding: 7px 9px !important;
+  }
+
+  /* Make cart area claim remaining space */
+  .right-sidebar .cart-panel,
+  .right-sidebar .order-cart,
+  .right-sidebar .cart-items,
+  .right-sidebar .cart-empty{
+    flex: 1 1 auto !important;
+    min-height: 260px !important;     /* increases visible cart area */
+    padding: 8px 10px !important;
+  }
+
+  /* If your empty-state box has extra padding, tighten it */
+  .right-sidebar .cart-empty *{
+    line-height: 1.15 !important;
+  }
+
+  /* ===== Continue / checkout bar: slimmer ===== */
+  .right-sidebar .checkout-bar,
+  .right-sidebar .checkout-footer,
+  .right-sidebar .place-order-bar{
+    padding: 8px !important;
+    border-radius: 14px !important;
+  }
+
+  /* The button itself */
+  .right-sidebar .continue-btn,
+  .right-sidebar .checkout-btn,
+  .right-sidebar button.continue,
+  .right-sidebar button.checkout{
+    min-height: 34px !important;
+    padding: 7px 10px !important;
+    font-size: 12.5px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Reduce any extra wrapper padding around the button (common culprit) */
+  .right-sidebar .checkout-bar > *,
+  .right-sidebar .checkout-footer > *,
+  .right-sidebar .place-order-bar > *{
+    margin: 0 !important;
+  }
+}
+
+/* =========================================================
+   Nest Hub (1024×600): RIGHT PANEL COMPACT v3 (last-wins)
+   - Cart gets the space (cart list becomes the scroller)
+   - Less padding everywhere
+   - Slim Continue button + container
+   ========================================================= */
+@media (min-width: 1024px) and (max-width: 1100px) and (max-height: 650px){
+
+  /* Right column outer padding */
+  .right-sidebar{
+    padding: 8px !important;
+  }
+
+  /* This is the REAL desktop right-panel wrapper (see App.jsx orderPanelScrollClassName) */
+  .right-sidebar .order-panel__scroll{
+    height: 100% !important;
+    min-height: 0 !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+
+    padding: 10px !important;     /* tighter overall */
+    overflow: hidden !important;  /* IMPORTANT: stop whole panel scrolling */
+    border-radius: 18px !important;
+  }
+
+  /* Header row tighter */
+  .right-sidebar .pp-orderHeaderRow{
+    margin: 0 !important;
+    gap: 8px !important;
+  }
+  .right-sidebar .pp-orderHeaderRow .panel-title{
+    margin: 0 !important;
+    font-size: 0.98rem !important;
+    line-height: 1 !important;
+  }
+
+  /* Pickup/Delivery segmented control slimmer */
+  .right-sidebar .pp-orderTypeSwitch{
+    margin: 0 !important;
+    padding: 3px !important;
+    border-radius: 999px !important;
+  }
+  .right-sidebar .pp-orderTypeBtn{
+    min-height: 30px !important;
+    padding: 6px 10px !important;
+    font-size: 0.76rem !important;
+    line-height: 1 !important;
+    border-radius: 999px !important;
+  }
+
+  /* Pickup/Delivery info module slimmer */
+  .right-sidebar .info-box{
+    padding: 8px 10px !important;
+    border-radius: 16px !important;
+  }
+
+  /* Voucher slot slimmer (this wraps <VoucherDropdown /> in App.jsx) */
+  .right-sidebar .pp-voucherSlot{
+    margin: 0 !important;
+  }
+
+  /* Make the cart list the “main area” */
+  .right-sidebar .cart-items-list{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: auto !important;          /* cart scrolls, not whole panel */
+    padding-right: 0.25rem !important;
+  }
+
+  /* Tighten items slightly */
+  .right-sidebar .cart-item{
+    padding: 0.55rem 0.15rem !important;
+    font-size: 0.83rem !important;
+  }
+
+  /* Tighten totals + voucher + fee area */
+  .right-sidebar .cart-total-section{
+    flex: 0 0 auto !important;
+    padding: 0 !important;
+    margin-top: 4px !important;
+  }
+
+  /* Continue button container slimmer (covers common wrappers) */
+  .right-sidebar .pp-mobileCartStickyCta,
+  .right-sidebar .checkout-bar,
+  .right-sidebar .checkout-footer,
+  .right-sidebar .place-order-bar{
+    padding: 6px !important;
+    border-radius: 14px !important;
+  }
+
+  /* Continue button itself (your button class is place-order-button) */
+  .right-sidebar .place-order-button{
+    min-height: 34px !important;
+    padding: 7px 10px !important;
+    font-size: 12.5px !important;
+    border-radius: 14px !important;
+  }
+
+  .right-sidebar .pp-ctaText{
+    font-size: 12.5px !important;
+    line-height: 1.1 !important;
+  }
 }

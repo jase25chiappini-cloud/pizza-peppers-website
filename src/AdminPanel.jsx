@@ -9,6 +9,80 @@ const STATUS_FILTERS = ["all", "active", "inactive"];
 
 const FEATURE_FLAGS_UPDATED_EVENT = "pp-featureflags-updated";
 const FEATURE_LOYALTY_ENABLED_KEY = "pp_feature_loyalty_enabled";
+// Hard gate: only admins may view this page.
+const REQUIRED_ADMIN_ROLE = "admin";
+
+// Extra safety: auto-lock the admin page after inactivity.
+// (Backend auth still must enforce role/permissions.)
+const ADMIN_IDLE_LOGOUT_MS = 10 * 60 * 1000;
+
+function clearLocalAdminSession() {
+  try {
+    localStorage.removeItem("pp_session_v1");
+  } catch {}
+  try {
+    localStorage.removeItem("pp_auth_token_v1");
+  } catch {}
+}
+
+function AdminLockedScreen({ reason = "" }) {
+  return (
+    <div className="admin-root">
+      <div className="admin-shell">
+        <header className="admin-topbar">
+          <div className="admin-topbar-left">
+            <div className="admin-adminpill">Admin</div>
+            <div>
+              <div className="admin-topbar-title">Access required</div>
+              <div className="admin-topbar-sub">This page is restricted to admins only.</div>
+            </div>
+          </div>
+          <div className="admin-topbar-right">
+            <button
+              className="admin-btn admin-btn-ghost"
+              onClick={() => (window.location.href = "/")}
+              type="button"
+            >
+              Back to POS
+            </button>
+          </div>
+        </header>
+
+        <div className="admin-card admin-controls" style={{ padding: 16 }}>
+          {reason ? (
+            <div className="admin-banner error" style={{ marginBottom: 10 }}>
+              {reason}
+            </div>
+          ) : null}
+
+          <div className="admin-muted" style={{ marginBottom: 14 }}>
+            If you are an admin, sign in first.
+          </div>
+
+          <div className="admin-action-row" style={{ justifyContent: "flex-start" }}>
+            <button
+              className="admin-btn admin-btn-primary"
+              onClick={() => (window.location.href = "/login")}
+              type="button"
+            >
+              Go to login
+            </button>
+            <button
+              className="admin-btn admin-btn-ghost"
+              onClick={() => {
+                clearLocalAdminSession();
+                window.location.href = "/";
+              }}
+              type="button"
+            >
+              Clear local session
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function readLoyaltyFlag() {
   try {
@@ -40,8 +114,9 @@ export default function AdminPanelPage() {
   const [session, setSession] = useState(() => readSession());
   const token = session?.token || readAuthTokenFallback();
   const actorRole = session?.user?.role || "customer";
-  const canEditRole = actorRole === "admin";
-  const canManageUsers = actorRole === "admin" || actorRole === "staff";
+  const isAuthorized = !!token && actorRole === REQUIRED_ADMIN_ROLE;
+  const canEditRole = isAuthorized;
+  const canManageUsers = isAuthorized;
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -69,6 +144,7 @@ export default function AdminPanelPage() {
   const refresh = async () => {
     setErr("");
     setOk("");
+    if (!isAuthorized) return;
 
     if (!API_BASE && !import.meta.env.DEV) {
       setErr(
@@ -84,16 +160,24 @@ export default function AdminPanelPage() {
     try {
       setLoading(true);
       const res = await fetch(`${API_BASE}/admin/users`, {
+        cache: "no-store",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       const data = await readJsonSafe(res);
 
-      if (res.status === 401)
-        throw new Error("Unauthorized (token invalid/expired).");
-      if (res.status === 403)
-        throw new Error("Forbidden (your account is not staff/admin).");
+      if (res.status === 401 || res.status === 403) {
+        clearLocalAdminSession();
+        setSession(null);
+        setUsers([]);
+        setSelectedIds(new Set());
+        throw new Error(
+          res.status === 401
+            ? "Unauthorized (token invalid/expired)."
+            : "Forbidden (your account is not admin).",
+        );
+      }
       if (!res.ok || !data?.ok)
         throw new Error(data?.error || "Failed to load users.");
 
@@ -117,10 +201,14 @@ export default function AdminPanelPage() {
   };
 
   useEffect(() => {
-    refresh();
-    const t = setInterval(() => setSession(readSession()), 1500);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const sync = () => setSession(readSession());
+    sync();
+    window.addEventListener("focus", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("storage", sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -138,13 +226,49 @@ export default function AdminPanelPage() {
   }, []);
 
   useEffect(() => {
-    if (token) refresh();
+    if (!isAuthorized) return;
+    refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [isAuthorized, token]);
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+
+    let last = Date.now();
+    const touch = () => {
+      last = Date.now();
+    };
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "pointerdown"];
+    events.forEach((ev) => window.addEventListener(ev, touch, { passive: true }));
+
+    const t = window.setInterval(() => {
+      if (Date.now() - last > ADMIN_IDLE_LOGOUT_MS) {
+        clearLocalAdminSession();
+        window.location.href = "/";
+      }
+    }, 15 * 1000);
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, touch));
+      window.clearInterval(t);
+    };
+  }, [isAuthorized]);
 
   useEffect(() => {
     setPage(1);
   }, [query, roleFilter, statusFilter, pageSize]);
+
+  if (!isAuthorized) {
+    return (
+      <AdminLockedScreen
+        reason={
+          token
+            ? "Your account is not permitted to view the admin console."
+            : "You are not signed in as an admin."
+        }
+      />
+    );
+  }
 
   const stats = useMemo(() => {
     const total = users.length;
@@ -264,6 +388,7 @@ export default function AdminPanelPage() {
   const updateUser = async (userId, body) => {
     const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
       method: "PATCH",
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
@@ -271,8 +396,17 @@ export default function AdminPanelPage() {
       body: JSON.stringify(body),
     });
     const data = await readJsonSafe(res);
-    if (res.status === 401) throw new Error("Unauthorized (token invalid/expired).");
-    if (res.status === 403) throw new Error("Forbidden (not permitted).");
+    if (res.status === 401 || res.status === 403) {
+      clearLocalAdminSession();
+      setSession(null);
+      setUsers([]);
+      setSelectedIds(new Set());
+      throw new Error(
+        res.status === 401
+          ? "Unauthorized (token invalid/expired)."
+          : "Forbidden (not permitted).",
+      );
+    }
     if (!res.ok || !data?.ok)
       throw new Error(data?.error || "Save failed.");
     return data;
@@ -398,8 +532,7 @@ export default function AdminPanelPage() {
             <button
               className="admin-btn admin-btn-danger"
               onClick={() => {
-                localStorage.removeItem("pp_session_v1");
-                localStorage.removeItem("pp_auth_token_v1");
+                clearLocalAdminSession();
                 window.location.href = "/";
               }}
               title="Sign out of admin"
@@ -734,6 +867,10 @@ export default function AdminPanelPage() {
         <EditUserModal
           apiBase={API_BASE}
           token={token}
+          onAuthFailure={() => {
+            clearLocalAdminSession();
+            window.location.href = "/login";
+          }}
           actorRole={actorRole}
           user={editUser}
           onClose={closeEdit}
@@ -779,7 +916,7 @@ function StatusBadge({ active }) {
   );
 }
 
-function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
+function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved, onAuthFailure }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
@@ -814,6 +951,7 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
 
       const res = await fetch(`${apiBase}/admin/users/${user.id}`, {
         method: "PATCH",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -821,9 +959,11 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
         body: JSON.stringify(body),
       });
       const data = await readJsonSafe(res);
-      if (res.status === 401)
-        throw new Error("Unauthorized (token invalid/expired).");
-      if (res.status === 403) throw new Error("Forbidden (not permitted).");
+      if (res.status === 401 || res.status === 403) {
+        clearLocalAdminSession();
+        if (onAuthFailure) onAuthFailure();
+        return;
+      }
       if (!res.ok || !data?.ok)
         throw new Error(data?.error || "Save failed.");
 
@@ -851,6 +991,7 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
         `${apiBase}/admin/users/${user.id}/set-password`,
         {
           method: "POST",
+          cache: "no-store",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
@@ -859,9 +1000,11 @@ function EditUserModal({ apiBase, token, actorRole, user, onClose, onSaved }) {
         },
       );
       const data = await readJsonSafe(res);
-      if (res.status === 401)
-        throw new Error("Unauthorized (token invalid/expired).");
-      if (res.status === 403) throw new Error("Forbidden (not permitted).");
+      if (res.status === 401 || res.status === 403) {
+        clearLocalAdminSession();
+        if (onAuthFailure) onAuthFailure();
+        return;
+      }
       if (!res.ok || !data?.ok)
         throw new Error(data?.error || "Password reset failed.");
 
@@ -1047,6 +1190,7 @@ function CreateUserModal({ apiBase, token, canEditRole, onClose, onCreated }) {
       if (Object.keys(patch).length) {
         const resPatch = await fetch(`${apiBase}/admin/users/${created.id}`, {
           method: "PATCH",
+          cache: "no-store",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
@@ -1054,6 +1198,11 @@ function CreateUserModal({ apiBase, token, canEditRole, onClose, onCreated }) {
           body: JSON.stringify(patch),
         });
         const patchData = await readJsonSafe(resPatch);
+        if (resPatch.status === 401 || resPatch.status === 403) {
+          clearLocalAdminSession();
+          window.location.href = "/login";
+          return;
+        }
         if (!resPatch.ok || !patchData?.ok)
           throw new Error(patchData?.error || "Role update failed.");
       }
