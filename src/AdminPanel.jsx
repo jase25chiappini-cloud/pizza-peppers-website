@@ -9,12 +9,28 @@ const STATUS_FILTERS = ["all", "active", "inactive"];
 
 const FEATURE_FLAGS_UPDATED_EVENT = "pp-featureflags-updated";
 const FEATURE_LOYALTY_ENABLED_KEY = "pp_feature_loyalty_enabled";
+const ADMIN_THEME_KEY = "pp_admin_theme_v1";
 // Hard gate: only admins may view this page.
 const REQUIRED_ADMIN_ROLE = "admin";
 
 // Extra safety: auto-lock the admin page after inactivity.
 // (Backend auth still must enforce role/permissions.)
 const ADMIN_IDLE_LOGOUT_MS = 10 * 60 * 1000;
+
+function getInitialAdminTheme() {
+  try {
+    const v = localStorage.getItem(ADMIN_THEME_KEY);
+    if (v === "light" || v === "dark") return v;
+  } catch {}
+
+  try {
+    if (typeof window !== "undefined" && window.matchMedia) {
+      return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+  } catch {}
+
+  return "dark";
+}
 
 function clearLocalAdminSession() {
   try {
@@ -25,9 +41,9 @@ function clearLocalAdminSession() {
   } catch {}
 }
 
-function AdminLockedScreen({ reason = "" }) {
+function AdminLockedScreen({ reason = "", theme = "dark" }) {
   return (
-    <div className="admin-root">
+    <div className="admin-root" data-theme={theme}>
       <div className="admin-shell">
         <header className="admin-topbar">
           <div className="admin-topbar-left">
@@ -136,6 +152,7 @@ export default function AdminPanelPage() {
   const [bulkAction, setBulkAction] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(() => readLoyaltyFlag());
+  const [theme, setTheme] = useState(() => getInitialAdminTheme());
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -232,6 +249,12 @@ export default function AdminPanelPage() {
   }, [isAuthorized, token]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(ADMIN_THEME_KEY, theme);
+    } catch {}
+  }, [theme]);
+
+  useEffect(() => {
     if (!isAuthorized) return;
 
     let last = Date.now();
@@ -261,6 +284,7 @@ export default function AdminPanelPage() {
   if (!isAuthorized) {
     return (
       <AdminLockedScreen
+        theme={theme}
         reason={
           token
             ? "Your account is not permitted to view the admin console."
@@ -479,7 +503,7 @@ export default function AdminPanelPage() {
   };
 
   return (
-    <div className="admin-root">
+    <div className="admin-root" data-theme={theme}>
       <div className="admin-shell">
         <header className="admin-topbar">
           <div className="admin-topbar-left">
@@ -504,6 +528,15 @@ export default function AdminPanelPage() {
               </div>
               <div className={`admin-role-badge role-${actorRole}`}>{actorRole}</div>
             </div>
+
+            <button
+              className="admin-btn admin-btn-ghost admin-theme-toggle"
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+              title="Toggle light/dark"
+              type="button"
+            >
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </button>
 
             <button
               className="admin-btn admin-btn-ghost"

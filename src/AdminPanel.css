@@ -14,6 +14,7 @@
   --ap-radius-sm: 12px;
   --ap-pad: 14px;
   --ap-gap: 12px;
+  --ap-root-pad: 14px;
 }
 
 /* FULLSCREEN ADMIN — no parent layout interference */
@@ -21,18 +22,50 @@
   position: fixed;
   inset: 0;
   z-index: 5000;
-  overflow: auto;
+  display: flex;
+  overflow: hidden;
 
-  /* keep your existing look */
-  padding: 18px;
+  padding: var(--ap-root-pad);
   box-sizing: border-box;
+
+  color: var(--ap-text);
+}
+
+.admin-root[data-theme="dark"]{
+  color-scheme: dark;
+  background:
+    radial-gradient(1200px circle at 15% 0%, rgba(59, 130, 246, 0.10), transparent 55%),
+    radial-gradient(900px circle at 82% 18%, rgba(190, 242, 100, 0.10), transparent 55%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.95), rgba(15, 23, 42, 0.92));
+}
+
+.admin-root[data-theme="light"]{
+  color-scheme: light;
+
+  --ap-bg: rgba(248, 250, 252, 0.92);
+  --ap-card: rgba(255, 255, 255, 0.82);
+  --ap-border: rgba(15, 23, 42, 0.12);
+  --ap-border-strong: rgba(15, 23, 42, 0.18);
+  --ap-text: rgba(15, 23, 42, 0.92);
+  --ap-muted: rgba(51, 65, 85, 0.78);
+  --ap-good: rgba(34, 197, 94, 0.95);
+  --ap-shadow: 0 18px 50px rgba(2, 6, 23, 0.12);
+
+  background:
+    radial-gradient(1200px circle at 12% 0%, rgba(59, 130, 246, 0.14), transparent 58%),
+    radial-gradient(900px circle at 85% 18%, rgba(34, 197, 94, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.96));
 }
 
 /* Centered console frame */
 .admin-shell{
   width: 100%;
-  max-width: 1760px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
+
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 
   display: flex;
   flex-direction: column;
@@ -44,6 +77,81 @@
   background: rgba(2, 6, 23, 0.52);
   box-shadow: 0 24px 90px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(14px);
+}
+
+.admin-root[data-theme="light"] .admin-shell{
+  background: rgba(255, 255, 255, 0.70);
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.10);
+}
+
+.admin-root[data-theme="light"] .admin-topbar{
+  background: rgba(255, 255, 255, 0.70);
+}
+
+.admin-root[data-theme="light"] .admin-whoami{
+  background: rgba(255, 255, 255, 0.60);
+}
+
+.admin-root[data-theme="light"] .admin-card,
+.admin-root[data-theme="light"] .admin-controls.admin-card,
+.admin-root[data-theme="light"] .admin-stat,
+.admin-root[data-theme="light"] .admin-table-card,
+.admin-root[data-theme="light"] .admin-banner,
+.admin-root[data-theme="light"] .admin-modal,
+.admin-root[data-theme="light"] .admin-drawer{
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 14px 40px rgba(2, 6, 23, 0.10);
+}
+
+.admin-root[data-theme="light"] .admin-btn{
+  background: rgba(255, 255, 255, 0.78);
+}
+.admin-root[data-theme="light"] .admin-btn:hover:not(:disabled){
+  background: rgba(255, 255, 255, 0.95);
+}
+.admin-root[data-theme="light"] .admin-btn-ghost{
+  background: rgba(248, 250, 252, 0.72);
+}
+.admin-root[data-theme="light"] .admin-btn-primary{
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.18), rgba(255, 255, 255, 0.92));
+}
+.admin-root[data-theme="light"] .admin-btn-danger{
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.16), rgba(255, 255, 255, 0.92));
+}
+.admin-root[data-theme="light"] .admin-btn-good{
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.16), rgba(255, 255, 255, 0.92));
+}
+
+.admin-root[data-theme="light"] .admin-input,
+.admin-root[data-theme="light"] .admin-select{
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.admin-root[data-theme="light"] .admin-readonly{
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.admin-root[data-theme="light"] .admin-modal-backdrop{
+  background: rgba(2, 6, 23, 0.40);
+}
+
+.admin-root[data-theme="light"] .admin-chip{
+  background: rgba(255, 255, 255, 0.78);
+}
+.admin-root[data-theme="light"] .admin-chip:hover:not(.is-active){
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.admin-root[data-theme="light"] .admin-tr:hover .admin-td{
+  background: rgba(226, 232, 240, 0.72);
+}
+
+.admin-root[data-theme="light"] .role-customer{
+  background: rgba(241, 245, 249, 0.92);
+}
+
+.admin-root[data-theme="light"] .admin-flag-row{
+  background: rgba(15, 23, 42, 0.03);
 }
 
 /* Workspace layout (single column) */
@@ -100,6 +208,13 @@
 }
 
 @media (max-width: 560px){
+  .admin-root{
+    --ap-root-pad: 10px;
+  }
+  .admin-shell{
+    padding: 14px;
+    border-radius: 18px;
+  }
   .admin-stats-inline{
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -313,6 +428,10 @@
 .admin-btn-good {
   border-color: rgba(190, 242, 100, 0.22);
   background: linear-gradient(180deg, rgba(190, 242, 100, 0.12), rgba(15, 23, 42, 0.55));
+}
+
+.admin-theme-toggle{
+  white-space: nowrap;
 }
 
 /* Stats */
