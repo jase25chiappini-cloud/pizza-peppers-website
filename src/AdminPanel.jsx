@@ -229,20 +229,6 @@ export default function AdminPanelPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return;
-    const body = document.body;
-    const key = "__ppScrollLockCount";
-    const count = (window[key] || 0) + 1;
-    window[key] = count;
-    if (count === 1) body.classList.add("pp-scroll-locked");
-    return () => {
-      const next = Math.max(0, (window[key] || 0) - 1);
-      window[key] = next;
-      if (next === 0) body.classList.remove("pp-scroll-locked");
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isAuthorized) return;
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps

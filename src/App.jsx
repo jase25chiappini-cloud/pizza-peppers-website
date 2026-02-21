@@ -116,7 +116,7 @@ const _toCentsFromMenuSurcharge = (v) => {
   return Math.round(n * 100);
 };
 
-const _lookupHalfHalfSurchargeCents = (menuRows, half) => {
+const _lookupHalfHalfSurchargeCents = (menuRows, half, menuSettings = null) => {
   if (!half) return 0;
 
   // Prefer the actual menu row so we read menu.json's field reliably.
@@ -133,7 +133,20 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half) => {
     half?.half_and_half_surcharge_cents ??
     0;
 
-  return _toCentsFromMenuSurcharge(v);
+  const cents = _toCentsFromMenuSurcharge(v);
+  if (cents > 0) return cents;
+
+  // menu (3).json uses settings.half_surcharge
+  const fallback =
+    menuSettings?.half_surcharge ??
+    menuSettings?.half_surcharge_cents ??
+    menuSettings?.half_and_half_surcharge ??
+    menuSettings?.half_and_half_surcharge_cents ??
+    menuSettings?.halfHalfSurcharge ??
+    menuSettings?.halfHalfSurchargeCents ??
+    0;
+
+  return _toCentsFromMenuSurcharge(fallback);
 };
 
 // ----------------- PROFILE STORAGE (shared) -----------------
@@ -962,8 +975,16 @@ const HalfAndHalfSelector = ({
     const gfUpchargeCents = isHalfGlutenFree && isLarge ? Math.max(aGf, bGf) : 0;
 
     const hhSurchargeCents = Math.max(
-      _lookupHalfHalfSurchargeCents(menuItems, halfA || pendingHalfA),
-      _lookupHalfHalfSurchargeCents(menuItems, halfB || pendingHalfB),
+      _lookupHalfHalfSurchargeCents(
+        menuItems,
+        halfA || pendingHalfA,
+        menuData?.settings,
+      ),
+      _lookupHalfHalfSurchargeCents(
+        menuItems,
+        halfB || pendingHalfB,
+        menuData?.settings,
+      ),
     );
 
     return basePrice + gfUpchargeCents + hhSurchargeCents;
@@ -1029,8 +1050,8 @@ const HalfAndHalfSelector = ({
     const normalizedSizeRef = normalizeAddonSizeRef(currentSizeToken);
     const isLarge = (normalizedSizeRef || "").toString().toUpperCase() === "LARGE";
     const hhSurchargeCents = Math.max(
-      _lookupHalfHalfSurchargeCents(menuItems, halfA),
-      _lookupHalfHalfSurchargeCents(menuItems, halfB),
+      _lookupHalfHalfSurchargeCents(menuItems, halfA, menuData?.settings),
+      _lookupHalfHalfSurchargeCents(menuItems, halfB, menuData?.settings),
     );
 
     // Construct a synthetic "Half & Half" item and send it through the same pipeline
@@ -7591,6 +7612,13 @@ function Menu({ menuData, onItemClick }) {
           <div className="menu-grid">
             {(category.items || []).map((item) => {
               const isHalfHalf = isHalfHalfItem(item);
+              const hhSurchargeCents = isHalfHalf
+                ? _toCentsFromMenuSurcharge(
+                    menuData?.settings?.half_surcharge ??
+                      menuData?.settings?.half_and_half_surcharge ??
+                      0,
+                  )
+                : 0;
               const displayImage = !isHalfHalf
                 ? getProductImageUrl(item)
                 : getProductImageUrl({ name: "Half & Half" });
@@ -7667,11 +7695,11 @@ function Menu({ menuData, onItemClick }) {
                               {item.name}
                             </div>
                           )}
-                          {!isHalfHalf ? (
-                            <div className="pp-cardOverlay__price">
-                              {currency(minPriceCents(item))}
-                            </div>
-                          ) : null}
+                          <div className="pp-cardOverlay__price">
+                            {isHalfHalf
+                              ? `+${currency(hhSurchargeCents)}`
+                              : currency(minPriceCents(item))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -9056,30 +9084,30 @@ function VoucherDropdown({ value, onChange, title = "Voucher", compact = false }
   };
 
   return (
-    <div ref={wrapRef} style={{ marginBottom: "0.75rem" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className={[
-          "pp-voucherBtn",
-          open ? "is-open" : "",
-          compact ? "is-compact" : "",
-        ].filter(Boolean).join(" ")}
-      >
-        <div className="pp-voucherText">
+    <div ref={wrapRef} className={`pp-voucherCard ${compact ? "is-compact" : ""}`}>
+      <div className="pp-voucherHeader">
+        <div className="pp-voucherTitleWrap">
           <div className="pp-voucherTitle">{title}</div>
-          <div className="pp-voucherSub">
+          <div className="pp-voucherHint">
             {applied ? `Applied: ${applied}` : "Enter a voucher code"}
           </div>
         </div>
-
-        <span aria-hidden="true" className="pp-voucherCaret">
-          v
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className={[
+            "pp-voucherToggle",
+            open ? "is-open" : "",
+            compact ? "is-compact" : "",
+          ].filter(Boolean).join(" ")}
+        >
+          + Add Voucher
+        </button>
+      </div>
 
       <div
+        className="pp-voucherBody"
         style={{
           overflow: "hidden",
           maxHeight: open ? `${maxH}px` : "0px",
@@ -14558,6 +14586,7 @@ function AppLayout({ isMapsLoaded }) {
   }, [cart]);
   // Mobile cart FAB: item count + subtle "added" animation
   const [cartFabBump, setCartFabBump] = React.useState(false);
+  const mainScrollRef = useRef(null);
   const cartFabPrevCountRef = React.useRef(null);
   const cartFabTimerRef = React.useRef(null);
 
@@ -14648,6 +14677,7 @@ function AppLayout({ isMapsLoaded }) {
     mq.addEventListener?.("change", onChange);
     return () => mq.removeEventListener?.("change", onChange);
   }, []);
+
   const [isMobile, setIsMobile] = React.useState(() => {
     if (typeof window === "undefined") return false;
     return ppIsMobileViewport();
@@ -16051,7 +16081,8 @@ function AppLayout({ isMapsLoaded }) {
         }}
       />
 
-      <div className="app-grid-layout">
+      <div className="pp-app-shell">
+        <div className="app-grid-layout">
         <div className="left-pane">
           {!isAdminRoute ? (
             <>
@@ -16073,7 +16104,7 @@ function AppLayout({ isMapsLoaded }) {
             </>
           ) : null}
 
-          <main className="main-content-area">
+          <main className="main-content-area" ref={mainScrollRef}>
             <div className="main-content-area__body">
               {/* <DebugMenuFetch /> */} {/* TEMP widget hidden */}
               {!isAdminRoute && menuError ? (
@@ -16104,7 +16135,8 @@ function AppLayout({ isMapsLoaded }) {
                 />
               </Routes>
             </div>
-            {!isAdminRoute ? <Footer /> : null}
+            {/* Desktop + Hub: footer is part of the left scroll column (never overlay) */}
+            {!isAdminRoute && !isMobileScreen ? <Footer /> : null}
           </main>
         </div>
         {/* Desktop only: keep the right sidebar */}
@@ -16185,6 +16217,7 @@ function AppLayout({ isMapsLoaded }) {
           />
         )}
       </div>
+    </div>
       {/* Mobile: render selected item modals outside the grid (so they can't be hidden) */}
       {!isAdminRoute && isMobileScreen && !!selectedItem ? rightPanelBody : null}
       {!isAdminRoute && isMobile && isMealDealSelected && (
@@ -16572,6 +16605,7 @@ function AboutPanel({ isMapsLoaded }) {
 }
 
 export default App;
+
 
 
 

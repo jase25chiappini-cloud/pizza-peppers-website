@@ -1204,7 +1204,6 @@ body {
 }
 
 /* Ensure the actual menu scroll area stays scrollable */
-.menu-content,
 .main-content-area,
 .pp-menu-scroll{
   overflow-y: auto;
@@ -1215,11 +1214,39 @@ body {
 /* Main content column */
 .main-content-area {
   padding: 0.70rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content-area__body{
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (min-width: 1024px) {
   .main-content-area {
     padding: 0.90rem 1.75rem 2.25rem;
+  }
+}
+
+@media (min-width: 1024px) and (min-height: 901px) {
+  .main-content-area{
+    padding-bottom: 0.95rem;
+  }
+
+  .main-content-area__body > .menu-content{
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .main-content-area__body > :not(.menu-content){
+    flex: 0 0 auto;
+  }
+
+  .menu-content{
+    overflow: visible !important;
   }
 }
 
@@ -1256,9 +1283,10 @@ body {
 @media (min-width: 1024px) {
   .right-sidebar {
     display: block;
-    position: sticky;
-    top: 0;
+    position: relative;
+    top: auto;
     height: 100%;
+    max-height: 100%;
     min-height: 0;       /* REQUIRED for nested flex/grid children to shrink */
     overflow: hidden;    /* right column should not extend page height */
     display: flex;
@@ -1282,7 +1310,12 @@ body {
   .right-sidebar .order-panel-container{
     flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    position: relative; /* overrides sticky 100vh math */
+    top: auto;
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
   }
 }
@@ -1292,9 +1325,11 @@ body {
   background-color: var(--surface);
   border-radius: 0.75rem;
   padding: 1.5rem;
-  position: sticky;
-  top: 1.5rem;
-  height: calc(100vh - 3rem);
+  position: relative;
+  top: auto;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
   border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -1906,12 +1941,20 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   100% { left: 110%; }
 }
 .site-footer {
-  padding: 3rem 1rem;
-  margin-top: 4rem;
+  padding: 14px 1.25rem calc(14px + env(safe-area-inset-bottom));
+  margin: 0;
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: center;
   align-items: center;
+
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.10));
+}
+
+.main-content-area .site-footer{
+  margin-top: 18px;
+  flex: 0 0 auto;
 }
 
 /* Safety: footer must never float as an overlay */
@@ -1919,6 +1962,16 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   position: static;
   inset: auto;
   transform: none;
+}
+
+[data-theme="dark"] .site-footer{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.10));
+}
+
+[data-theme="light"] .site-footer{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.78), rgba(241,245,249,0.72));
 }
 
 .ashmore-lockup,
@@ -2760,6 +2813,50 @@ input[type="number"] {
 
 /* === FINAL POLISH: LAYOUT & GRID === */
 
+/* App shell: grid fills remaining height, footer sits below */
+.pp-app-shell{
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Desktop footer should sit at the bottom of the app shell */
+@media (min-width: 1024px){
+  .pp-app-shell{
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Footer is a direct child of the shell on desktop */
+  .pp-app-shell > .site-footer{
+    margin-top: auto;
+  }
+}
+
+/* Desktop (tall screens): lock the app to the viewport and use internal scrollers */
+@media (min-width: 1024px) and (min-height: 901px){
+  html, body{
+    height: 100%;
+    overflow: hidden; /* no document scroll */
+  }
+
+  #root{
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .pp-app-shell{
+    height: 100dvh;   /* NOT min-height */
+    overflow: hidden; /* grid + footer stay inside the viewport */
+  }
+}
+
+.pp-app-shell .app-grid-layout{
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 /* Main grid should use full width, not fixed desktop max-width */
 .app-grid-layout {
   display: grid;
@@ -2778,12 +2875,13 @@ input[type="number"] {
   .app-grid-layout {
     grid-template-columns: minmax(0, 1fr) 35%;
     /* CRITICAL: constrain the whole 2-column layout to the viewport height */
-    height: 100dvh;
-    min-height: 100dvh;
+    height: auto;
+    min-height: 0;
     /* prevents grid children from making the page taller */
     overflow: hidden;
     /* ensures the single row can shrink properly */
     grid-template-rows: minmax(0, 1fr);
+    padding-bottom: 0.75rem;
   }
 }
 
@@ -2799,12 +2897,16 @@ input[type="number"] {
     /* allow the left column to shrink inside the fixed-height grid */
     min-height: 0;
     height: 100%;
+    overflow: hidden;
   }
 
   .main-content-area {
     /* keep scrolling inside the column, not the document */
     min-height: 0;
-    height: 100%;
+    flex: 1 1 auto;
+    height: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 }
 
@@ -9916,7 +10018,11 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 .left-pane .main-content-area{
   position: relative;
   isolation: isolate;
-  overflow: visible;
+  /* Main scroll container (desktop + storefront) */
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 /* fine micro-diagonal film (very subtle) */
@@ -10723,13 +10829,6 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
   box-shadow: 0 18px 46px rgba(2,6,23,0.10) !important;
 }
 
-/* Ensure last categories can scroll under the sticky header+quicknav line */
-.menu-content::after{
-  content: "";
-  display: block;
-  height: 380px; /* was too small; this makes the last categories reachable */
-}
-
 /* =========================================================
    MENU RUNWAY (makes first/last categories reachable for sticky tracking)
    ========================================================= */
@@ -10738,6 +10837,36 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 .menu-content{
   padding-top: 0.35rem;
   padding-bottom: calc(55vh + 220px);
+}
+
+/* Desktop: prevent nested scrolling so footer stays at the bottom of the real scroll */
+@media (min-width: 901px){
+  .menu-content{
+    overflow: visible;
+  }
+}
+
+/* Desktop: let the last category panel extend to the bottom of the visible page */
+@media (min-width: 1024px){
+  /* On desktop we don't need the huge mobile runway padding */
+  .menu-content{
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding-bottom: 1.75rem;
+  }
+
+  .menu-category{
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* If there’s only one category, or we’re at the last one,
+     make it fill the remaining height so the border doesn’t “cut off” mid-screen */
+  .menu-category:last-child{
+    flex: 1 1 auto;
+    margin-bottom: 0; /* kills the big gap under the last category */
+  }
 }
 
 
@@ -11123,13 +11252,6 @@ body{
 [data-theme="light"] .pp-autocomplete-mount [class*="icon"]{
   color: rgba(15,23,42,0.78) !important;
   fill: currentColor !important;
-}
-
-/* Ensure last categories can scroll under the sticky header+quicknav line */
-.menu-content::after{
-  content: "";
-  display: block;
-  height: 380px; /* was too small; this makes the last categories reachable */
 }
 
 /* =========================================================
@@ -11918,12 +12040,17 @@ body[data-theme="light"]{
   position: relative;
   border-radius: 18px;
   padding: 0.75rem;
+  /* Runway so the slab doesn't look "cut off" on short categories (PC) */
+  padding-bottom: calc(32vh + 160px);
   isolation: isolate; /* keep pseudo layers sane */
 }
 
 /* Desktop spacing a touch bigger */
 @media (min-width: 1024px){
-  .menu-content{ padding: 0.95rem; }
+  .menu-content{
+    padding: 0.95rem;
+    padding-bottom: calc(32vh + 160px);
+  }
 }
 
 /* Light: give the menu area its own "slab" like dark mode */
@@ -12012,6 +12139,7 @@ body[data-theme="light"] .menu-content{
   position: relative !important;
   border-radius: 18px !important;
   padding: 0.95rem !important;
+  padding-bottom: calc(32vh + 160px) !important;
 
   background:
     radial-gradient(900px 420px at 18% 8%, rgba(34,197,94,0.11), transparent 62%),
@@ -13050,6 +13178,19 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     top: 6px !important;
     bottom: 6px !important;
   }
+
+  .app-grid-layout .main-content-area{
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
 }
 
 /* =========================================================
@@ -13149,9 +13290,11 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     /* Use CSS var you already set on <html> */
     --pp-head-stack: calc(var(--pp-topnav-h, 180px) + var(--pp-quicknav-h, 56px));
 
-    /* Fill remaining viewport under header+quicknav */
-    height: calc(100vh - var(--pp-head-stack));
+    /* Fill the viewport, then let inner panes allocate internally */
+    height: 100dvh;
+    min-height: 100dvh;
     overflow: hidden;
+    grid-template-rows: minmax(0, 1fr);
 
     /* 2-col app layout (keep right panel usable, but responsive) */
     display: grid;
@@ -13177,7 +13320,7 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
-    height: 100%;
+    height: auto;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -13310,7 +13453,8 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   }
 
   .app-grid-layout .main-content-area{
-    height: 100% !important;
+    flex: 1 1 auto !important;
+    height: auto !important;
     min-height: 0 !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -13322,11 +13466,17 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
 
   /* FORCE the footer to the bottom when content is short */
   .app-grid-layout .main-content-area .site-footer{
-    margin-top: auto !important;
+    margin-top: 16px !important;
     flex: 0 0 auto !important;
     position: static !important;
     inset: auto !important;
     transform: none !important;
+  }
+
+  /* Hub Max: footer is inside <main> again — restore normal document flow */
+  .app-grid-layout .main-content-area__body{
+    flex: 0 0 auto !important;
+    min-height: auto !important;
   }
 
   /* RIGHT column: fixed shell + internal scroll */
@@ -13341,6 +13491,10 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     overflow-x: hidden !important;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+  }
+
+  .pp-app-shell > .site-footer{
+    display: none !important;
   }
 }
 
@@ -13389,6 +13543,20 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   /* Keep meal deals looking like Hub Max (2 across) */
   .menu-item-card--mealdeal{
     grid-column: span 2 !important;
+  }
+
+  /* Hub: footer is inside <main> again — restore normal document flow */
+  .app-grid-layout .main-content-area__body{
+    flex: 0 0 auto !important;
+    min-height: auto !important;
+  }
+
+  .app-grid-layout .main-content-area .site-footer{
+    margin-top: 16px !important;
+  }
+
+  .pp-app-shell > .site-footer{
+    display: none !important;
   }
 }
 
@@ -14429,5 +14597,182 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   .right-sidebar .pp-ctaText{
     font-size: 12.5px !important;
     line-height: 1.1 !important;
+  }
+}
+
+/* =========================================================
+   HOTFIX: Desktop menu should feel continuous to the bottom
+   - Fixes “wrecked” menu slab + ensures last category fills space
+   ========================================================= */
+@media (min-width: 1024px){
+
+  /* 1) Left content must be the scroller (not page / not weird overflow-visible rules) */
+  .left-pane .main-content-area{
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  /* 2) Make the menu stack fill the available height */
+  .left-pane .main-content-area .menu-content{
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100% !important;
+
+    /* stop the huge runway padding from creating weird dead space */
+    padding-bottom: 1.25rem !important;
+  }
+
+  /* 3) Prevent any menu “texture” layers from sitting above real content */
+  .left-pane .main-content-area .menu-content::before,
+  .left-pane .main-content-area .menu-content::after{
+    z-index: 0 !important;
+  }
+  .left-pane .main-content-area .menu-content > *{
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 4) Kill the old runway pseudo-spacer on desktop (it’s causing layout weirdness) */
+  .left-pane .main-content-area .menu-content::after{
+    content: none !important;
+    display: none !important;
+    height: 0 !important;
+  }
+
+  /* 5) THIS is the “extend to bottom” part: last category panel fills remaining space */
+  .left-pane .main-content-area .menu-category{
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+  }
+  .left-pane .main-content-area .menu-category:last-child{
+    flex: 1 1 auto;
+  }
+}
+
+/* =========================================================
+   PC ONLY (mouse): lock shell to viewport and push footer to bottom
+   - fixes the "dead strip under footer"
+   - does NOT apply to Nest Hub / Hub Max (touch/coarse pointer)
+   ========================================================= */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
+
+  html, body{
+    height: 100%;
+    overflow: hidden; /* no document scroll on PC */
+  }
+
+  #root{
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .pp-app-shell{
+    height: 100dvh;     /* hard lock */
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The grid must NOT enforce its own viewport height */
+  .pp-app-shell .app-grid-layout{
+    flex: 1 1 auto;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: hidden;
+  }
+
+  .app-grid-layout{
+    min-height: 0 !important; /* overrides earlier min-height:100dvh */
+  }
+
+  /* Footer is now guaranteed to sit at the bottom edge */
+  .pp-app-shell > .site-footer{
+    margin-top: auto;
+  }
+}
+
+/* PC only: keep footer below fold until you scroll */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
+  .left-pane .main-content-area .menu-content{
+    padding-bottom: clamp(240px, 32vh, 520px) !important;
+  }
+
+  /* Hard guarantee: footer is normal flow on PC */
+  .main-content-area .site-footer{
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+    width: 100% !important;
+    margin-top: 18px !important;
+  }
+}
+
+/* =========================================================
+   PC ONLY: footer should be in normal flow (not pulled into view)
+   Fixes the "logo sitting at bottom of screen" problem.
+   ========================================================= */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
+
+  /* Stop flex from forcing the footer into the viewport */
+  .main-content-area .site-footer{
+    margin-top: 18px !important;   /* NOT auto */
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+  }
+
+  /* Stop the body from expanding to fill the viewport */
+  .main-content-area__body{
+    flex: 0 0 auto !important;
+    min-height: auto !important;
+
+    /* Runway so the footer sits BELOW the viewport until you scroll */
+    padding-bottom: clamp(260px, 38vh, 620px) !important;
+  }
+}
+
+/* =========================================================
+   PC (mouse): compact footer + ensure it appears AFTER menu
+   ========================================================= */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
+
+  /* Stop the "push footer into view" behavior */
+  .app-grid-layout .main-content-area .site-footer{
+    margin-top: 14px !important;   /* NOT auto */
+    flex: 0 0 auto !important;
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+  }
+
+  /* Make the footer bar small (the lockup already has its own glass plate) */
+  .site-footer{
+    padding: 8px 0 10px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-top: 1px solid rgba(148,163,184,0.18) !important;
+  }
+
+  /* Shrink the Ashmore plate */
+  .ashmore-lockup{
+    padding: 8px 12px !important;
+    border-radius: 14px !important;
+    box-shadow:
+      0 12px 30px rgba(0,0,0,0.18),
+      0 0 0 2px rgba(190,242,100,0.08) !important;
+  }
+  .ashmore-lockup__mark{
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .ashmore-lockup__kicker{
+    font-size: 10px !important;
+    letter-spacing: 1.4px !important;
+  }
+  .ashmore-lockup__brand{
+    font-size: 14px !important;
+    letter-spacing: 1.2px !important;
   }
 }
