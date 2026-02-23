@@ -149,6 +149,18 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half, menuSettings = null) => {
   return _toCentsFromMenuSurcharge(fallback);
 };
 
+function ppGetMenuSettings(menuData) {
+  // Supports both raw menu.json and API-wrapped shapes (data/menu/raw)
+  return (
+    menuData?.settings ||
+    menuData?.data?.settings ||
+    menuData?.menu?.settings ||
+    menuData?.raw?.settings ||
+    menuData?.data?.raw?.settings ||
+    {}
+  );
+}
+
 // ----------------- PROFILE STORAGE (shared) -----------------
 const PROFILE_UPDATED_EVENT = "pp-profile-updated";
 
@@ -990,12 +1002,12 @@ const HalfAndHalfSelector = ({
       _lookupHalfHalfSurchargeCents(
         menuItems,
         halfA || pendingHalfA,
-        menuData?.settings,
+        ppGetMenuSettings(menuData),
       ),
       _lookupHalfHalfSurchargeCents(
         menuItems,
         halfB || pendingHalfB,
-        menuData?.settings,
+        ppGetMenuSettings(menuData),
       ),
     );
 
@@ -1062,8 +1074,16 @@ const HalfAndHalfSelector = ({
     const normalizedSizeRef = normalizeAddonSizeRef(currentSizeToken);
     const isLarge = (normalizedSizeRef || "").toString().toUpperCase() === "LARGE";
     const hhSurchargeCents = Math.max(
-      _lookupHalfHalfSurchargeCents(menuItems, halfA, menuData?.settings),
-      _lookupHalfHalfSurchargeCents(menuItems, halfB, menuData?.settings),
+      _lookupHalfHalfSurchargeCents(
+        menuItems,
+        halfA,
+        ppGetMenuSettings(menuData),
+      ),
+      _lookupHalfHalfSurchargeCents(
+        menuItems,
+        halfB,
+        ppGetMenuSettings(menuData),
+      ),
     );
 
     // Construct a synthetic "Half & Half" item and send it through the same pipeline
@@ -7612,6 +7632,7 @@ function HalfHalfPizzaThumbnail() {
 
 // Menu
 function Menu({ menuData, onItemClick, showFooter = false }) {
+  const settings = ppGetMenuSettings(menuData);
   return (
     <div className="menu-content">
       {(menuData?.categories || []).map((category) => (
@@ -7626,8 +7647,10 @@ function Menu({ menuData, onItemClick, showFooter = false }) {
               const isHalfHalf = isHalfHalfItem(item);
               const hhSurchargeCents = isHalfHalf
                 ? _toCentsFromMenuSurcharge(
-                    menuData?.settings?.half_surcharge ??
-                      menuData?.settings?.half_and_half_surcharge ??
+                    settings?.half_surcharge ??
+                      settings?.half_and_half_surcharge ??
+                      settings?.halfHalfSurcharge ??
+                      settings?.halfHalfSurchargeCents ??
                       0,
                   )
                 : 0;
@@ -15772,8 +15795,8 @@ function AppLayout({ isMapsLoaded }) {
     console.log("[menu][effect] start");
     (async () => {
       try {
-        const api = await fetchMenu(MENU_URL);
-        const normalized = transformMenuStable(api);
+        const menuJson = await fetchMenu(MENU_URL);
+        const normalized = transformMenuStable(menuJson);
         const optionListsMap = Object.fromEntries(
           (normalized?.option_lists || []).map((ol) => [
             ol?.ref || ol?.id || ol?.name,
@@ -15806,6 +15829,7 @@ function AppLayout({ isMapsLoaded }) {
           return { ...cat, items: [hh, ...items] };
         });
         setMenuData({ ...normalized, categories, optionListsMap });
+        console.log("MENU SETTINGS KEYS:", Object.keys(ppGetMenuSettings(menuJson)));
         setMenuError(null);
       } catch (err) {
         console.warn("[menu][effect] error", err);
