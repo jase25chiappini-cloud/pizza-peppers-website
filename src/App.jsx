@@ -116,6 +116,23 @@ const _toCentsFromMenuSurcharge = (v) => {
   return Math.round(n * 100);
 };
 
+// If the DB menu on Render doesn't provide a surcharge, we override here.
+// Set on Render Static Site: VITE_PP_HALF_HALF_SURCHARGE=2  (dollars)
+// (If you set "0" explicitly, surcharge disables.)
+const DEFAULT_HALF_HALF_SURCHARGE_CENTS = (() => {
+  const raw = String(
+    import.meta.env.VITE_PP_HALF_HALF_SURCHARGE ??
+      import.meta.env.VITE_PP_HALF_SURCHARGE ??
+      ""
+  ).trim();
+
+  // If env is present (even "0"), respect it.
+  if (raw !== "") return _toCentsFromMenuSurcharge(Number(raw));
+
+  // Fallback default if nothing is configured
+  return 200; // $2.00
+})();
+
 const _lookupHalfHalfSurchargeCents = (menuRows, half, menuSettings = null) => {
   if (!half) return 0;
 
@@ -146,7 +163,8 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half, menuSettings = null) => {
     menuSettings?.halfHalfSurchargeCents ??
     0;
 
-  return _toCentsFromMenuSurcharge(fallback);
+  const fb = _toCentsFromMenuSurcharge(fallback);
+  return fb > 0 ? fb : DEFAULT_HALF_HALF_SURCHARGE_CENTS;
 };
 
 function ppGetMenuSettings(menuData) {
@@ -7645,15 +7663,19 @@ function Menu({ menuData, onItemClick, showFooter = false }) {
           <div className="menu-grid">
             {(category.items || []).map((item) => {
               const isHalfHalf = isHalfHalfItem(item);
-              const hhSurchargeCents = isHalfHalf
-                ? _toCentsFromMenuSurcharge(
-                    settings?.half_surcharge ??
-                      settings?.half_and_half_surcharge ??
-                      settings?.halfHalfSurcharge ??
-                      settings?.halfHalfSurchargeCents ??
-                      0,
-                  )
-                : 0;
+              const hhSurchargeCents = (() => {
+                if (!isHalfHalf) return 0;
+
+                const raw = _toCentsFromMenuSurcharge(
+                  settings?.half_surcharge ??
+                    settings?.half_and_half_surcharge ??
+                    settings?.halfHalfSurcharge ??
+                    settings?.halfHalfSurchargeCents ??
+                    0
+                );
+
+                return raw > 0 ? raw : DEFAULT_HALF_HALF_SURCHARGE_CENTS;
+              })();
               const displayImage = !isHalfHalf
                 ? getProductImageUrl(item)
                 : getProductImageUrl({ name: "Half & Half" });
