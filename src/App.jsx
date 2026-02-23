@@ -116,22 +116,41 @@ const _toCentsFromMenuSurcharge = (v) => {
   return Math.round(n * 100);
 };
 
-// If the DB menu on Render doesn't provide a surcharge, we override here.
-// Set on Render Static Site: VITE_PP_HALF_HALF_SURCHARGE=2  (dollars)
-// (If you set "0" explicitly, surcharge disables.)
-const DEFAULT_HALF_HALF_SURCHARGE_CENTS = (() => {
-  const raw = String(
-    import.meta.env.VITE_PP_HALF_HALF_SURCHARGE ??
-      import.meta.env.VITE_PP_HALF_SURCHARGE ??
-      ""
-  ).trim();
+// Menu payload shape differs between local JSON and Render DB.
+// Normalize settings + provide a safe fallback for Half&Half surcharge.
+const ppGetMenuSettings = (menuData) =>
+  menuData?.settings ||
+  menuData?.data?.settings ||
+  menuData?.raw?.settings ||
+  menuData?.menu?.settings ||
+  menuData?.data?.raw?.settings ||
+  {};
 
-  // If env is present (even "0"), respect it.
-  if (raw !== "") return _toCentsFromMenuSurcharge(Number(raw));
+const DEFAULT_HALF_HALF_SURCHARGE_CENTS = 200; // $2.00 fallback
 
-  // Fallback default if nothing is configured
-  return 200; // $2.00
+const ENV_HALF_HALF_SURCHARGE_CENTS = (() => {
+  const raw = String(import.meta.env.VITE_PP_HALF_HALF_SURCHARGE ?? "").trim();
+  if (raw === "") return 0; // not set
+  return _toCentsFromMenuSurcharge(raw); // dollars (2) -> 200
 })();
+
+const ppResolveHalfHalfSurchargeCents = (menuData, menuSettings = null) => {
+  const s = menuSettings || ppGetMenuSettings(menuData);
+
+  const fromSettings = _toCentsFromMenuSurcharge(
+    s?.half_surcharge ??
+      s?.half_surcharge_cents ??
+      s?.half_and_half_surcharge ??
+      s?.half_and_half_surcharge_cents ??
+      s?.halfHalfSurcharge ??
+      s?.halfHalfSurchargeCents ??
+      0
+  );
+
+  if (fromSettings > 0) return fromSettings;
+  if (ENV_HALF_HALF_SURCHARGE_CENTS > 0) return ENV_HALF_HALF_SURCHARGE_CENTS;
+  return DEFAULT_HALF_HALF_SURCHARGE_CENTS;
+};
 
 const _lookupHalfHalfSurchargeCents = (menuRows, half, menuSettings = null) => {
   if (!half) return 0;
@@ -164,20 +183,8 @@ const _lookupHalfHalfSurchargeCents = (menuRows, half, menuSettings = null) => {
     0;
 
   const fb = _toCentsFromMenuSurcharge(fallback);
-  return fb > 0 ? fb : DEFAULT_HALF_HALF_SURCHARGE_CENTS;
+  return fb > 0 ? fb : ppResolveHalfHalfSurchargeCents(null, menuSettings);
 };
-
-function ppGetMenuSettings(menuData) {
-  // Supports both raw menu.json and API-wrapped shapes (data/menu/raw)
-  return (
-    menuData?.settings ||
-    menuData?.data?.settings ||
-    menuData?.menu?.settings ||
-    menuData?.raw?.settings ||
-    menuData?.data?.raw?.settings ||
-    {}
-  );
-}
 
 // ----------------- PROFILE STORAGE (shared) -----------------
 const PROFILE_UPDATED_EVENT = "pp-profile-updated";
@@ -7650,7 +7657,6 @@ function HalfHalfPizzaThumbnail() {
 
 // Menu
 function Menu({ menuData, onItemClick, showFooter = false }) {
-  const settings = ppGetMenuSettings(menuData);
   return (
     <div className="menu-content">
       {(menuData?.categories || []).map((category) => (
@@ -7663,19 +7669,9 @@ function Menu({ menuData, onItemClick, showFooter = false }) {
           <div className="menu-grid">
             {(category.items || []).map((item) => {
               const isHalfHalf = isHalfHalfItem(item);
-              const hhSurchargeCents = (() => {
-                if (!isHalfHalf) return 0;
-
-                const raw = _toCentsFromMenuSurcharge(
-                  settings?.half_surcharge ??
-                    settings?.half_and_half_surcharge ??
-                    settings?.halfHalfSurcharge ??
-                    settings?.halfHalfSurchargeCents ??
-                    0
-                );
-
-                return raw > 0 ? raw : DEFAULT_HALF_HALF_SURCHARGE_CENTS;
-              })();
+              const hhSurchargeCents = isHalfHalf
+                ? ppResolveHalfHalfSurchargeCents(menuData)
+                : 0;
               const displayImage = !isHalfHalf
                 ? getProductImageUrl(item)
                 : getProductImageUrl({ name: "Half & Half" });
