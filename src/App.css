@@ -1200,7 +1200,8 @@ body {
 .pp-scroll-locked{
   overflow: hidden !important;
   overscroll-behavior: contain;
-  touch-action: none;
+  /* If this ever gets stuck, don't kill all touch scrolling */
+  touch-action: auto;
 }
 
 /* Ensure the actual menu scroll area stays scrollable */
@@ -2820,20 +2821,6 @@ input[type="number"] {
   flex-direction: column;
 }
 
-/* Desktop footer should sit at the bottom of the app shell */
-@media (min-width: 1024px){
-  .pp-app-shell{
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Footer is a direct child of the shell on desktop */
-  .pp-app-shell > .site-footer{
-    margin-top: auto;
-  }
-}
-
 /* Desktop (tall screens): lock the app to the viewport and use internal scrollers */
 @media (min-width: 1024px) and (min-height: 901px){
   html, body{
@@ -3036,7 +3023,8 @@ footer,
 }
 
 /* Keep mobile fast + make header true top + full-bleed without breaking QuickNav */
-@media (max-width: 900px){
+@media (max-width: 1023.98px),
+       (hover: none) and (pointer: coarse) and (max-width: 1366px){
   :root{
     /* Used elsewhere to offset sticky QuickNav, etc. Keep this in sync with the header height */
     --pp-topnav-h: calc(env(safe-area-inset-top) + 94px);
@@ -3107,7 +3095,7 @@ footer,
   position: relative;
 }
 
-@media (min-width: 901px){
+@media (min-width: 1024px){
   :root{
     --pp-hdr-h: 88px;
     --pp-right-h: clamp(108px, 4.95vw, 126px);
@@ -3529,15 +3517,24 @@ footer,
 /* =========================================================
    Desktop header: lock left card alignment (theme spans 2 rows)
    ========================================================= */
-@media (min-width: 901px){
+@media (min-width: 1024px){
   /* Make the left card a 2-row grid: [theme] [search stack] */
   .pp-topnav__row .pp-topnav__left{
     display: grid !important;
     grid-template-columns: var(--pp-btn-h, 38px) 1fr !important;
-    grid-template-rows: repeat(2, var(--pp-input-h, 40px)) !important;
+
+    /* IMPORTANT: rows flex to the card height (prevents overflow) */
+    grid-template-rows: 1fr 1fr !important;
+
     column-gap: 10px !important;
-    row-gap: 0.40rem !important;
+    row-gap: 6px !important;
+
+    /* give inputs room to breathe inside the card */
+    padding: 8px !important;
+
     align-items: stretch !important;
+    box-sizing: border-box;
+    overflow: hidden; /* keeps shadows inside the card */
   }
 
   /* Theme button spans both rows (matches total height of the 2 inputs) */
@@ -3558,22 +3555,19 @@ footer,
     height: 100% !important;
     align-content: stretch !important;
     grid-auto-rows: 1fr !important;
+    gap: 6px !important;
   }
 
-  /* Your inputs are inside wrapper divs; make wrappers + inputs stretch */
-  .pp-topnav__row .pp-topnav__searchWrap > *{
-    height: 100% !important;
-    min-height: 0 !important;
-  }
   .pp-topnav__row .pp-topnav__searchInput{
-    height: 100% !important;
+    height: 100% !important;  /* overrides fixed var(--pp-input-h) */
+    min-height: 0 !important;
   }
 
   /* The vertical divider line was positioned for flex; re-position it */
   .pp-topnav__left::after{
-    left: calc(6px + var(--pp-btn-h, 38px) + 10px) !important;
-    top: 6px !important;
-    bottom: 6px !important;
+    left: calc(8px + var(--pp-btn-h, 38px) + 10px) !important;
+    top: 8px !important;
+    bottom: 8px !important;
   }
 }
 
@@ -3670,9 +3664,10 @@ footer,
 }
 
 /* =========================================================
-   MOBILE HEADER — minimal pill (<=900px)
+   MOBILE HEADER — minimal pill (<=1023.98px)
    ========================================================= */
-@media (max-width: 900px){
+@media (max-width: 1023.98px),
+       (hover: none) and (pointer: coarse) and (max-width: 1366px){
   .pp-topnav__row--mobileMinimal{
     display: flex !important;
     align-items: center !important;
@@ -3757,6 +3752,47 @@ footer,
     height: 100%;
     object-fit: contain;
     display: block;
+  }
+}
+
+/* =========================================================
+   TABLET (Surface Pro 7 etc): bigger banner + wider buttons
+   Applies only to the 760–1023.98px band
+   ========================================================= */
+@media (min-width: 760px) and (max-width: 1023.98px){
+  :root{
+    --pp-topnav-h: calc(env(safe-area-inset-top) + 112px);
+  }
+
+  /* Slightly taller header pill */
+  .pp-topnav__row--mobileMinimal{
+    min-height: 86px !important;
+    padding: 10px 14px !important;
+    gap: 12px !important;
+  }
+
+  /* Wider buttons so they fill more of the header */
+  .pp-topnav__mIconBtn{
+    height: 48px !important;
+    width: 72px !important;          /* wider */
+    padding: 0 14px !important;
+    border-radius: 18px !important;
+  }
+
+  .pp-topnav__mIcon{
+    font-size: 18px !important;
+  }
+
+  /* Bigger banner container */
+  .pp-topnav__mLogo{
+    height: 72px !important;
+    max-width: clamp(520px, 92vw, 960px) !important;
+  }
+
+  /* Nudge the banner scale up slightly */
+  .pp-topnav__logoImg--banner{
+    transform: scale(3.25) !important;
+    object-position: center 56% !important;
   }
 }
 
@@ -8814,6 +8850,126 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 }
 
 /* =========================================================
+   TOUCH TABLETS (iPad Pro etc): enable mobile bottom nav + view order FAB
+   This fixes: bottom menu showing as plain text + view order not floating.
+   ========================================================= */
+@media (hover: none) and (pointer: coarse) and (max-width: 1366px){
+
+  :root{
+    /* Slightly taller for tablets */
+    --pp-bottomnav-h: 72px;
+  }
+
+  /* Give content room so it’s not hidden behind the fixed bottom nav */
+  .app-grid-layout{
+    padding-bottom: calc(0.55rem + var(--pp-bottomnav-h) + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Bottom nav (same behavior as mobile) */
+  .pp-bottomnav{
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 58;
+
+    height: calc(var(--pp-bottomnav-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+
+    border-top: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--pp-surface, var(--panel)) 86%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .pp-bottomnav.pp-bottomnav--3{
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .pp-bottomnav__item{
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--text-medium);
+
+    display: grid;
+    place-items: center;
+    gap: 5px;
+
+    padding: 12px 8px 10px;
+    cursor: pointer;
+  }
+
+  .pp-bottomnav__icon{
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .pp-bottomnav__label{
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0.02em;
+  }
+
+  .pp-bottomnav__item--loyalty .pp-bottomnav__label{
+    font-size: 10px;
+    line-height: 1.05;
+    white-space: normal;
+    max-width: 110px;
+  }
+
+  .pp-bottomnav__item.is-active{
+    color: #ef4444;
+  }
+
+  /* View Order container should not take layout space */
+  .pp-mobileViewOrderBar{
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 59;
+    pointer-events: none;
+  }
+
+  /* View Order FAB (same style as phone) */
+  .pp-cart-fab{
+    position: fixed;
+    right: 1rem;
+    bottom: calc(1rem + var(--pp-bottomnav-h) + env(safe-area-inset-bottom)) !important;
+    z-index: 60;
+
+    padding: 0.75rem 1.05rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.28);
+    background: rgba(15,23,42,0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-float);
+
+    font-weight: 900;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    line-height: 1;
+
+    pointer-events: auto;
+  }
+
+  /* If cart is open, hide bottom nav (you already have this globally, but keep it safe) */
+  .pp-mobileCartOpen .pp-bottomnav{
+    display: none !important;
+  }
+}
+
+/* =========================================================
    Mobile bottom nav: ALWAYS visible above overlays/modals
    ========================================================= */
 @media (max-width: 1023.98px){
@@ -10840,7 +10996,7 @@ html[data-theme="light"] .detail-panel > button.quantity-btn[title="Close"]{
 }
 
 /* Desktop: prevent nested scrolling so footer stays at the bottom of the real scroll */
-@media (min-width: 901px){
+@media (min-width: 1024px){
   .menu-content{
     overflow: visible;
   }
@@ -13199,7 +13355,7 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
    - Main grid consumes remaining height
    - Left and right columns scroll internally
    ========================================================= */
-@media (min-width: 980px) and (min-height: 701px) and (max-height: 900px){
+@media (hover: none) and (pointer: coarse) and (min-width: 980px) and (min-height: 701px) and (max-height: 900px){
 
   /* Treat the whole page as an app viewport */
   html, body{
@@ -13421,7 +13577,7 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
 
 /* === Nest Hub Max (1280x800-ish) consolidated override === */
 /* Same PC template. Only fixes wide+short aspect sizing/scroll/footer placement. */
-@media (min-width: 1100px) and (max-width: 1400px) and (min-height: 700px) and (max-height: 900px) {
+@media (hover: none) and (pointer: coarse) and (min-width: 1100px) and (max-width: 1400px) and (min-height: 700px) and (max-height: 900px) {
 
   html, body {
     height: 100%;
@@ -13493,13 +13649,10 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     overscroll-behavior: contain;
   }
 
-  .pp-app-shell > .site-footer{
-    display: none !important;
-  }
 }
 
 /* === Nest Hub (1024x600-ish): make menu grid behave like Hub Max === */
-@media (min-width: 1000px) and (max-width: 1050px) and (max-height: 650px) {
+@media (hover: none) and (pointer: coarse) and (min-width: 1000px) and (max-width: 1050px) and (max-height: 650px) {
 
   /* A) Layout height lock (no page grow, inner right-panel scroll) */
   .app-grid-layout {
@@ -13555,9 +13708,6 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
     margin-top: 16px !important;
   }
 
-  .pp-app-shell > .site-footer{
-    display: none !important;
-  }
 }
 
 /* =========================================================
@@ -13565,7 +13715,7 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
    - DOES NOT affect real mobile (phones)
    - DOES NOT affect normal desktop/laptops (taller screens)
    ========================================================= */
-@media (min-width: 900px) and (max-width: 1200px) and (max-height: 720px) {
+@media (hover: none) and (pointer: coarse) and (min-width: 900px) and (max-width: 1200px) and (max-height: 720px) {
 
   /* --- Header compacting --- */
   html[data-pp-layout="compact"]{
@@ -14600,53 +14750,40 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   }
 }
 
-/* =========================================================
-   HOTFIX: Desktop menu should feel continuous to the bottom
-   - Fixes “wrecked” menu slab + ensures last category fills space
-   ========================================================= */
+/* ========================================================
+   Desktop menu layout (PC): no forced stretching.
+   Footer should appear right after the menu ends.
+   ======================================================== */
 @media (min-width: 1024px){
 
-  /* 1) Left content must be the scroller (not page / not weird overflow-visible rules) */
+  /* Main scroll container */
   .left-pane .main-content-area{
     overflow-y: auto !important;
     overflow-x: hidden !important;
   }
 
-  /* 2) Make the menu stack fill the available height */
+  /* Menu should NOT be a flex column that stretches */
   .left-pane .main-content-area .menu-content{
-    display: flex !important;
-    flex-direction: column !important;
-    min-height: 100% !important;
+    display: block !important;
+    min-height: auto !important;
 
-    /* stop the huge runway padding from creating weird dead space */
-    padding-bottom: 1.25rem !important;
+    /* prevent nested scroll trapping */
+    overflow: visible !important;
+
+    /* small runway only (not a massive zone) */
+    padding-bottom: 120px !important;
   }
 
-  /* 3) Prevent any menu “texture” layers from sitting above real content */
-  .left-pane .main-content-area .menu-content::before,
-  .left-pane .main-content-area .menu-content::after{
-    z-index: 0 !important;
-  }
-  .left-pane .main-content-area .menu-content > *{
-    position: relative;
-    z-index: 1;
-  }
-
-  /* 4) Kill the old runway pseudo-spacer on desktop (it’s causing layout weirdness) */
+  /* If you have any old runway pseudo-spacer, kill it on desktop */
   .left-pane .main-content-area .menu-content::after{
     content: none !important;
     display: none !important;
     height: 0 !important;
   }
 
-  /* 5) THIS is the “extend to bottom” part: last category panel fills remaining space */
-  .left-pane .main-content-area .menu-category{
-    display: flex;
-    flex-direction: column;
-    flex: 0 0 auto;
-  }
+  /* CRITICAL: do not stretch the last category */
   .left-pane .main-content-area .menu-category:last-child{
-    flex: 1 1 auto;
+    flex: 0 0 auto !important;
   }
 }
 
@@ -14686,93 +14823,322 @@ html[data-pp-layout="compact"] .pp-topnav__logo.pp-topnav__brandCard img {
   .app-grid-layout{
     min-height: 0 !important; /* overrides earlier min-height:100dvh */
   }
-
-  /* Footer is now guaranteed to sit at the bottom edge */
-  .pp-app-shell > .site-footer{
-    margin-top: auto;
-  }
 }
 
-/* PC only: keep footer below fold until you scroll */
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine){
-  .left-pane .main-content-area .menu-content{
-    padding-bottom: clamp(240px, 32vh, 520px) !important;
-  }
-
-  /* Hard guarantee: footer is normal flow on PC */
-  .main-content-area .site-footer{
-    position: static !important;
-    transform: none !important;
-    inset: auto !important;
-    width: 100% !important;
-    margin-top: 18px !important;
-  }
-}
-
-/* =========================================================
-   PC ONLY: footer should be in normal flow (not pulled into view)
-   Fixes the "logo sitting at bottom of screen" problem.
-   ========================================================= */
-@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
-
-  /* Stop flex from forcing the footer into the viewport */
-  .main-content-area .site-footer{
-    margin-top: 18px !important;   /* NOT auto */
-    position: static !important;
-    transform: none !important;
-    inset: auto !important;
-  }
-
-  /* Stop the body from expanding to fill the viewport */
-  .main-content-area__body{
-    flex: 0 0 auto !important;
-    min-height: auto !important;
-
-    /* Runway so the footer sits BELOW the viewport until you scroll */
-    padding-bottom: clamp(260px, 38vh, 620px) !important;
-  }
-}
-
-/* =========================================================
-   PC (mouse): compact footer + ensure it appears AFTER menu
-   ========================================================= */
-@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
-
-  /* Stop the "push footer into view" behavior */
-  .app-grid-layout .main-content-area .site-footer{
-    margin-top: 14px !important;   /* NOT auto */
-    flex: 0 0 auto !important;
-    position: static !important;
-    inset: auto !important;
-    transform: none !important;
-  }
-
-  /* Make the footer bar small (the lockup already has its own glass plate) */
   .site-footer{
-    padding: 8px 0 10px !important;
+    padding: 10px 0 12px !important;
     background: transparent !important;
     box-shadow: none !important;
-    border-top: 1px solid rgba(148,163,184,0.18) !important;
   }
 
-  /* Shrink the Ashmore plate */
   .ashmore-lockup{
     padding: 8px 12px !important;
     border-radius: 14px !important;
-    box-shadow:
-      0 12px 30px rgba(0,0,0,0.18),
-      0 0 0 2px rgba(190,242,100,0.08) !important;
   }
-  .ashmore-lockup__mark{
-    width: 28px !important;
-    height: 28px !important;
+  .ashmore-lockup__mark{ width: 28px !important; height: 28px !important; }
+  .ashmore-lockup__kicker{ font-size: 10px !important; letter-spacing: 0.22em !important; }
+  .ashmore-lockup__brand{ font-size: 14px !important; letter-spacing: 0.12em !important; }
+}
+
+/* =========================================================
+   PC (mouse): footer should be AFTER menu, not “stuck” in view,
+   and never end up behind menu slab layers.
+   ========================================================= */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
+
+  /* Don’t force-fill the column (that drags footer into the viewport) */
+  .main-content-area__body{
+    flex: 0 0 auto !important;
+    min-height: auto !important;
   }
-  .ashmore-lockup__kicker{
-    font-size: 10px !important;
-    letter-spacing: 1.4px !important;
+
+  /* Footer must be normal flow and visible */
+  .main-content-area__body .site-footer{
+    position: relative !important;  /* creates a clean stacking context */
+    z-index: 5 !important;
+
+    margin-top: 14px !important;
+    padding: 10px 0 12px !important;
+
+    border-top: 1px solid rgba(148,163,184,0.18) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    inset: auto !important;
+    transform: none !important;
   }
-  .ashmore-lockup__brand{
-    font-size: 14px !important;
-    letter-spacing: 1.2px !important;
+
+  /* Keep the lockup compact */
+  .main-content-area__body .ashmore-lockup{
+    padding: 8px 12px !important;
+    border-radius: 14px !important;
   }
+  .ashmore-lockup__mark{ width: 28px !important; height: 28px !important; }
+  .ashmore-lockup__kicker{ font-size: 10px !important; letter-spacing: 0.22em !important; }
+  .ashmore-lockup__brand{ font-size: 14px !important; letter-spacing: 0.12em !important; }
+
+  /* Small runway so the footer appears after the menu ends (not a giant dead zone) */
+  .menu-content{
+    padding-bottom: 120px !important;
+  }
+}
+/* =========================================================
+   MOBILE: remove oversized dead space under menu
+   - Keep only enough runway for the fixed "View Order" bar
+   - Convert old ::after runway into an overlay (no layout height)
+   ========================================================= */
+@media (max-width: 900px){
+
+  /* Match your existing mobile bottom bar spacing (body already uses ~76px) */
+  :root{ --pp-mobile-bottombar-h: 76px; }
+
+  /* Replace the massive runway with a tight one */
+  .menu-content{
+    padding-bottom: calc(var(--pp-mobile-bottombar-h) + env(safe-area-inset-bottom) + 28px) !important;
+  }
+
+  /* IMPORTANT: stop the old runway pseudo-element from adding height */
+  .menu-content::after{
+    position: absolute !important;
+    inset: 0 !important;
+    height: auto !important;      /* no 260px spacer */
+    display: block !important;
+    pointer-events: none;
+  }
+}
+/* =========================================================
+   MOBILE: kill the massive bottom void under menu
+   Root cause: menu-content has HUGE padding-bottom + ::after height runway
+   ========================================================= */
+@media (max-width: 900px){
+
+  /* 1) Tight runway: just enough to clear the fixed "VIEW ORDER" bar */
+  html body .menu-content{
+    padding-bottom: calc(76px + env(safe-area-inset-bottom) + 18px) !important;
+  }
+
+  /* 2) Stop the old ::after runway from adding layout height */
+  html body .menu-content::after{
+    content: "" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    height: auto !important;          /* prevents the old 260px spacer */
+    pointer-events: none !important;
+  }
+
+  /* Optional: give dark mode a subtle vignette since ::after is now overlay */
+  html body[data-theme="dark"] .menu-content::after{
+    background:
+      radial-gradient(900px 520px at 50% 120%, rgba(0,0,0,0.35), transparent 60%);
+    opacity: 0.45;
+  }
+}
+
+/* =========================================================
+   PC (mouse): footer appears AFTER menu
+   - main-content-area is the scroller
+   - menu-content must NOT be a scroller
+   ========================================================= */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
+
+  /* Main scroll container (you currently have a conflicting overflow: visible) */
+  .left-pane .main-content-area{
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Kill nested scrolling (this is why you never reach the footer) */
+  .menu-content{
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Footer must be visible and in normal flow */
+  .main-content-area .site-footer{
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+
+    margin-top: 14px !important;   /* NOT auto */
+    padding: 10px 0 12px !important;
+    border-top: 1px solid rgba(148,163,184,0.18) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    z-index: 2 !important;
+  }
+
+  .site-footer .ashmore-lockup{
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+
+    padding: 8px 12px !important;
+    border-radius: 14px !important;
+  }
+}
+
+/* =========================================================
+   PC (mouse): real footer below menu (in-flow, compact)
+   ========================================================= */
+@media (hover: hover) and (pointer: fine){
+
+  /* Make sure it can’t be hidden or turned into an overlay */
+  .site-footer{
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+
+    width: 100% !important;
+    margin: 16px 0 0 !important;
+    padding: 10px 0 12px !important;
+
+    border-top: 1px solid rgba(148,163,184,0.18) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    z-index: 2 !important;
+  }
+
+  /* Compact the badge */
+  .site-footer .ashmore-lockup{
+    position: static !important;
+    transform: none !important;
+    inset: auto !important;
+
+    padding: 8px 12px !important;
+    border-radius: 14px !important;
+  }
+  .ashmore-lockup__mark{ width: 28px !important; height: 28px !important; }
+  .ashmore-lockup__kicker{ font-size: 10px !important; letter-spacing: 0.22em !important; }
+  .ashmore-lockup__brand{ font-size: 14px !important; letter-spacing: 0.12em !important; }
+
+  /* Small runway so the footer isn't jammed into the last row */
+  .menu-content{ padding-bottom: 120px !important; }
+}
+
+/* === FINAL: DESKTOP FOOTER AFTER MENU (do not duplicate) === */
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine){
+  .left-pane .main-content-area .menu-content{
+    display: block !important;
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding-bottom: 28px !important; /* small runway only */
+  }
+
+  /* Never stretch the last category (prevents a huge empty “footer zone”) */
+  .left-pane .main-content-area .menu-category:last-child{
+    flex: 0 0 auto !important;
+  }
+
+  /* Footer is now inside .menu-content */
+  .left-pane .main-content-area .menu-content > .site-footer{
+    margin-top: 18px !important;
+  }
+
+  /* Safety: footer must never become an overlay */
+  .left-pane .main-content-area .site-footer{
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Mobile: footer should appear right after menu (not 55vh below it) */
+@media (max-width: 1023.98px){
+  /* Remove the old pseudo “runway” spacer on mobile */
+  .menu-content::after{
+    content: none !important;
+    display: none !important;
+    height: 0 !important;
+  }
+
+  /* Keep just enough space for the fixed bottom nav */
+  .menu-content{
+    padding-bottom: calc(var(--pp-bottomnav-h) + env(safe-area-inset-bottom) + 24px) !important;
+  }
+
+  /* Compact footer so it doesn’t feel massive on mobile */
+  .site-footer{
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom)) !important;
+    margin-top: 14px !important;
+  }
+
+  .ashmore-lockup{
+    padding: 10px 14px !important;
+    border-radius: 16px !important;
+  }
+  .ashmore-lockup__mark{ width: 30px !important; height: 30px !important; }
+  .ashmore-lockup__kicker{ font-size: 10px !important; letter-spacing: 0.22em !important; }
+  .ashmore-lockup__brand{ font-size: 14px !important; letter-spacing: 0.12em !important; }
+}
+
+/* =========================================================
+   iPad / touch tablet mode: single-column layout + comfy sizing
+   ========================================================= */
+@media (hover: none) and (pointer: coarse) and (max-width: 1366px){
+  /* kill desktop 2-column grid on touch tablets */
+  .app-grid-layout{
+    grid-template-columns: 1fr !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    column-gap: 0 !important;
+  }
+
+  /* keep the left pane behaving like tablet-mobile */
+  .left-pane{
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+
+  /* make sure main scroll works */
+  .main-content-area{
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+}
+
+/* =========================================================
+   Light mode: View Order / cart FAB should be readable
+   ========================================================= */
+html[data-theme="light"] .pp-cart-fab,
+body[data-theme="light"] .pp-cart-fab,
+[data-theme="light"] .pp-cart-fab{
+  background: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  color: rgba(15, 23, 42, 0.92) !important;
+
+  box-shadow:
+    0 14px 34px rgba(2, 6, 23, 0.14),
+    0 0 0 2px rgba(190, 242, 100, 0.18) !important;
+
+  backdrop-filter: blur(10px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+}
+
+html[data-theme="light"] .pp-cart-fab:hover,
+body[data-theme="light"] .pp-cart-fab:hover,
+[data-theme="light"] .pp-cart-fab:hover{
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(15, 23, 42, 0.20) !important;
+  box-shadow:
+    0 18px 44px rgba(2, 6, 23, 0.18),
+    0 0 0 2px rgba(190, 242, 100, 0.24) !important;
+}
+
+html[data-theme="light"] .pp-cart-fab:active,
+body[data-theme="light"] .pp-cart-fab:active,
+[data-theme="light"] .pp-cart-fab:active{
+  transform: translateY(1px) !important;
 }

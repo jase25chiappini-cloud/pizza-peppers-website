@@ -265,6 +265,14 @@ function ppUnlockBodyScroll() {
   }
 }
 
+function ppForceUnlockBodyScroll() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  try {
+    window.__ppScrollLockCount = 0;
+    document.body.classList.remove("pp-scroll-locked");
+  } catch {}
+}
+
 function pickProfileName(profile, user) {
   return (
     String(profile?.displayName || "").trim() ||
@@ -357,11 +365,15 @@ function scrubBadAddressFields(obj) {
 // =========================================================
 function ppIsMobileViewport() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia("(max-width: 1023.98px)").matches;
+  return ppMobileMql().matches;
 }
 
 function ppMobileMql() {
-  return window.matchMedia("(max-width: 1023.98px)");
+  // Phones <= 1023.98px, PLUS iPad/tablets (touch) up to iPad Pro width.
+  // iPad Pro CSS widths include ~834/1024/1194/1366.
+  return window.matchMedia(
+    "(max-width: 1023.98px), ((hover: none) and (pointer: coarse) and (max-width: 1366px))",
+  );
 }
 
 // --- RESTORED HALF & HALF COMPONENT ---
@@ -7599,7 +7611,7 @@ function HalfHalfPizzaThumbnail() {
 }
 
 // Menu
-function Menu({ menuData, onItemClick }) {
+function Menu({ menuData, onItemClick, showFooter = false }) {
   return (
     <div className="menu-content">
       {(menuData?.categories || []).map((category) => (
@@ -7719,6 +7731,8 @@ function Menu({ menuData, onItemClick }) {
           </div>
         </div>
       ))}
+
+      {showFooter ? <Footer /> : null}
     </div>
   );
 }
@@ -14323,6 +14337,7 @@ function Home({
   setHhMobileDraft,
   mealDealDraft,
   onResumeMealDeal,
+  isMobileScreen,
 }) {
   // --- Meal deal "resume" banner dismiss (does NOT delete the draft) ---
   const mealDealDraftKey = React.useMemo(() => {
@@ -14525,7 +14540,11 @@ function Home({
           </div>
         </div>
       )}
-      <Menu menuData={menuData} onItemClick={handleItemClick} />
+      <Menu
+        menuData={menuData}
+        onItemClick={handleItemClick}
+        showFooter={!!isMobileScreen}
+      />
     </>
   );
 }
@@ -14747,6 +14766,13 @@ function AppLayout({ isMapsLoaded }) {
     return () => ppUnlockBodyScroll();
   }, [isLoyaltyOpen]);
 
+  React.useEffect(() => {
+    if (!isMobile) return;
+    if (!selectedItem) return;
+    ppLockBodyScroll();
+    return () => ppUnlockBodyScroll();
+  }, [isMobile, selectedItem]);
+
   const anyOverlayOpen =
     authCtx.showLogin ||
     cartModalOpen ||
@@ -14756,12 +14782,35 @@ function AppLayout({ isMapsLoaded }) {
 
   React.useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return;
-    if (anyOverlayOpen) return;
 
-    try {
-      window.__ppScrollLockCount = 0;
-      document.body.classList.remove("pp-scroll-locked");
-    } catch {}
+    const fix = () => {
+      if (anyOverlayOpen) return;
+      ppForceUnlockBodyScroll();
+      // extra safety: some states hide the nav when cart is open
+      try {
+        document.body.classList.remove("pp-mobileCartOpen");
+      } catch {}
+    };
+
+    // run after first paint
+    const t = window.setTimeout(fix, 0);
+
+    const onPageShow = () => fix(); // iOS bfcache restore
+    const onFocus = () => fix();
+    const onVis = () => {
+      if (!document.hidden) fix();
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [anyOverlayOpen]);
 
   const showViewOrderFab =
@@ -16118,6 +16167,7 @@ function AppLayout({ isMapsLoaded }) {
                   element={
                     <Home
                       menuData={menuDataForHome}
+                      isMobileScreen={isMobileScreen}
                       handleItemClick={handleItemClick}
                       hhMobilePicking={hhMobilePicking}
                       hhMobileDraft={hhMobileDraft}
@@ -16135,8 +16185,6 @@ function AppLayout({ isMapsLoaded }) {
                 />
               </Routes>
             </div>
-            {/* Desktop + Hub: footer is part of the left scroll column (never overlay) */}
-            {!isAdminRoute && !isMobileScreen ? <Footer /> : null}
           </main>
         </div>
         {/* Desktop only: keep the right sidebar */}
