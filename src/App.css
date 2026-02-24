@@ -3530,7 +3530,7 @@ footer,
     row-gap: 6px !important;
 
     /* give inputs room to breathe inside the card */
-    padding: 8px !important;
+    padding: 6px !important;
 
     align-items: stretch !important;
     box-sizing: border-box;
@@ -3552,10 +3552,19 @@ footer,
   .pp-topnav__row .pp-topnav__searchWrap{
     grid-column: 2 !important;
     grid-row: 1 / span 2 !important;
+    display: grid !important;
+    grid-template-rows: 1fr 1fr !important;
+    grid-auto-rows: unset !important;
+
     height: 100% !important;
-    align-content: stretch !important;
-    grid-auto-rows: 1fr !important;
     gap: 6px !important;
+    min-height: 0 !important;
+    align-content: stretch !important;
+  }
+
+  .pp-topnav__row .pp-topnav__searchWrap > div{
+    height: 100% !important;
+    min-height: 0 !important;
   }
 
   .pp-topnav__row .pp-topnav__searchInput{
@@ -3565,9 +3574,9 @@ footer,
 
   /* The vertical divider line was positioned for flex; re-position it */
   .pp-topnav__left::after{
-    left: calc(8px + var(--pp-btn-h, 38px) + 10px) !important;
-    top: 8px !important;
-    bottom: 8px !important;
+    left: calc(6px + var(--pp-btn-h, 38px) + 10px) !important;
+    top: 6px !important;
+    bottom: 6px !important;
   }
 }
 
