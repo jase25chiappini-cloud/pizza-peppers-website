@@ -14795,9 +14795,9 @@ function AppLayout({ isMapsLoaded }) {
     option_lists: [],
     optionListsMap: {},
   });
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [menuReady, setMenuReady] = React.useState(false);
   const [menuError, setMenuError] = useState(null);
+  const bootDoneRef = React.useRef(false);
+  const [bootPhase, setBootPhase] = useState("BOOTING");
   // Global header search state
   const [searchName, setSearchName] = useState("");
   const [searchTopping, setSearchTopping] = useState("");
@@ -15401,10 +15401,11 @@ function AppLayout({ isMapsLoaded }) {
   }, [authLoadingFlag, authUser]);
 
   const forceMenuReady = React.useCallback(() => {
-    setIsLoading(false);
-    setMenuReady(true);
+    if (bootDoneRef.current) return;
+    bootDoneRef.current = true;
+    setBootPhase("READY");
     console.warn("[menu][dev] forced ready");
-  }, [setIsLoading, setMenuReady]);
+  }, [setBootPhase]);
 
   const prepareItemForPanel = useCallback((item) => {
     if (!item) return null;
@@ -15942,10 +15943,9 @@ function AppLayout({ isMapsLoaded }) {
       setMenuError(null);
     }
 
-    setIsLoading(true);
-    setMenuReady(false);
-
     const finishBoot = async (menuForPreload) => {
+      if (bootDoneRef.current) return;
+
       // Preload banner + first product images
       if (menuForPreload?.categories?.length) {
         await preloadCriticalAssets(menuForPreload);
@@ -15971,8 +15971,9 @@ function AppLayout({ isMapsLoaded }) {
       } catch {}
 
       if (!alive) return;
-      setIsLoading(false);
-      setMenuReady(true);
+      if (bootDoneRef.current) return;
+      bootDoneRef.current = true;
+      setBootPhase("READY");
     };
 
     // Kick off network fetch (always), update cache when it succeeds
@@ -16075,24 +16076,17 @@ function AppLayout({ isMapsLoaded }) {
   try {
     console.log(
       "[menu][render] menuLoading=",
-      isLoading,
+      bootPhase,
       " categories=",
       cats.length,
     );
   } catch {}
 
-  if (isLoading) {
-    const cached = (() => {
-      try {
-        return !!readMenuCache();
-      } catch {
-        return false;
-      }
-    })();
+  if (bootPhase === "BOOTING") {
     return (
       <LoadingScreen
         title="Loading menu"
-        subtitle={cached ? "Warming cache…" : "Fetching the latest items…"}
+        subtitle="Warming cache..."
       />
     );
   }
