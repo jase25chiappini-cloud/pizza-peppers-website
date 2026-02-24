@@ -5550,8 +5550,8 @@ async function fetchMenu(url = MENU_URL) {
   return unwrapMenuApi(raw);
 }
 
-// ----------------- MENU CACHE + BOOT PRELOAD -----------------
-const PP_MENU_CACHE_KEY = "pp_menu_cache_v3";
+// ----------------- BOOT CACHE (prevents 2nd loader on first launch) -----------------
+const PP_MENU_CACHE_KEY = "pp_menu_cache_v4";
 const PP_MENU_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function readMenuCache() {
@@ -5559,13 +5559,12 @@ function readMenuCache() {
     const raw = localStorage.getItem(PP_MENU_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-
-    const ts = Number(parsed.ts) || 0;
-    if (!ts || Date.now() - ts > PP_MENU_CACHE_MAX_AGE_MS) return null;
-
-    const data = parsed.data;
-    if (!data || !Array.isArray(data.categories) || data.categories.length === 0)
+    const ts = Number(parsed?.ts) || 0;
+    const data = parsed?.data;
+    if (!ts || !data || !Array.isArray(data.categories) || data.categories.length === 0)
       return null;
+
+    if (Date.now() - ts > PP_MENU_CACHE_MAX_AGE_MS) return null;
 
     return data;
   } catch {
@@ -5575,12 +5574,8 @@ function readMenuCache() {
 
 function writeMenuCache(data) {
   try {
-    if (!data || !Array.isArray(data.categories) || data.categories.length === 0)
-      return;
-    localStorage.setItem(
-      PP_MENU_CACHE_KEY,
-      JSON.stringify({ ts: Date.now(), data }),
-    );
+    if (!data || !Array.isArray(data.categories) || data.categories.length === 0) return;
+    localStorage.setItem(PP_MENU_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
   } catch {}
 }
 
@@ -5618,34 +5613,24 @@ function preloadImageUrl(url, timeoutMs = 1400) {
   });
 }
 
-async function preloadProductImage(p) {
-  const candidates = getProductImageUrlCandidates(p);
-  for (const u of candidates) {
-    // eslint-disable-next-line no-await-in-loop
-    const ok = await preloadImageUrl(u, 1200);
-    if (ok) return true;
-  }
-  return false;
-}
-
 async function preloadCriticalAssets(menuData) {
   try {
     const tasks = [preloadImageUrl(ppBanner, 1600)];
 
-    // Warm first screen images (keeps the first paint from “popping”)
-    const items = [];
+    // Warm first 10 product images (prevents "half-loaded" first paint)
     const cats = Array.isArray(menuData?.categories) ? menuData.categories : [];
+    let count = 0;
     for (const c of cats) {
       const its = Array.isArray(c?.items) ? c.items : [];
       for (const it of its) {
         if (!it || isHalfHalfItem(it)) continue;
-        items.push(it);
-        if (items.length >= 10) break;
+        const candidates = getProductImageUrlCandidates(it);
+        if (candidates?.[0]) tasks.push(preloadImageUrl(candidates[0], 1200));
+        count += 1;
+        if (count >= 10) break;
       }
-      if (items.length >= 10) break;
+      if (count >= 10) break;
     }
-
-    for (const it of items) tasks.push(preloadProductImage(it));
 
     // Never block forever
     await Promise.race([
@@ -5662,7 +5647,6 @@ async function preloadCriticalAssets(menuData) {
     }
   } catch {}
 }
-
 // cfg: choose keys from API (kept compatible with your JSON)
 const MENU_CFG = {
   catRefKey: "ref",
@@ -14789,14 +14773,20 @@ function AppLayout({ isMapsLoaded }) {
       if (cartFabTimerRef.current) window.clearTimeout(cartFabTimerRef.current);
     };
   }, []);
-  const [menuData, setMenuData] = React.useState({
-    categories: [],
-    option_lists: [],
-    optionListsMap: {},
+  const bootDoneRef = React.useRef(false);
+  const [menuData, setMenuData] = React.useState(() => {
+    if (typeof window === "undefined") {
+      return { categories: [], option_lists: [], optionListsMap: {} };
+    }
+    const cached = readMenuCache();
+    return cached || { categories: [], option_lists: [], optionListsMap: {} };
   });
   const [menuError, setMenuError] = useState(null);
-  const bootDoneRef = React.useRef(false);
-  const [bootPhase, setBootPhase] = useState("BOOTING");
+  const [bootPhase, setBootPhase] = useState(() => {
+    if (typeof window === "undefined") return "BOOTING";
+    const cached = readMenuCache();
+    return cached && cached.categories?.length ? "READY" : "BOOTING";
+  });
   // Global header search state
   const [searchName, setSearchName] = useState("");
   const [searchTopping, setSearchTopping] = useState("");
@@ -15919,59 +15909,42 @@ function AppLayout({ isMapsLoaded }) {
     setRightPanelView("about");
     if (isMobile) setCartModalOpen(true);
   };
-
   React.useEffect(() => {
     let alive = true;
-
-    const MIN_SPLASH_MS = 320;
-    const start = (typeof performance !== "undefined" ? performance.now() : Date.now());
 
     const cached = (typeof window !== "undefined") ? readMenuCache() : null;
     const hasCache = !!(cached?.categories?.length);
 
-    // If we have cache, paint immediately after preload (don’t wait for network).
+    // If cache exists, never show a loader again (even if app remounts)
     if (hasCache) {
       setMenuData(cached);
       setMenuError(null);
+      setBootPhase("READY");
+    } else {
+      setBootPhase("BOOTING");
     }
 
-    const finishBoot = async (menuForPreload) => {
+    const finishBootOnce = async (menuForPreload) => {
+      if (!alive) return;
       if (bootDoneRef.current) return;
 
-      // Preload banner + first product images
+      // Keep loader up until critical assets are warmed
       if (menuForPreload?.categories?.length) {
         await preloadCriticalAssets(menuForPreload);
       }
 
-      // Minimum loader time (prevents flash)
-      const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
-      const elapsed = Math.max(0, now - start);
-      if (elapsed < MIN_SPLASH_MS) {
-        await new Promise((r) => setTimeout(r, MIN_SPLASH_MS - elapsed));
-      }
-
-      // Let layout settle
-      try {
-        await new Promise((r) => requestAnimationFrame(() => r()));
-        await new Promise((r) => requestAnimationFrame(() => r()));
-      } catch {}
-
-      if (!alive || bootDoneRef.current) return;
+      if (!alive) return;
       bootDoneRef.current = true;
       setBootPhase("READY");
     };
 
-    // Kick off network fetch (always), update cache when it succeeds
     (async () => {
       try {
         const api = await fetchMenu(MENU_URL);
         const normalized = transformMenuStable(api);
 
         const optionListsMap = Object.fromEntries(
-          (normalized?.option_lists || []).map((ol) => [
-            ol?.ref || ol?.id || ol?.name,
-            ol,
-          ]),
+          (normalized?.option_lists || []).map((ol) => [ol?.ref || ol?.id || ol?.name, ol]),
         );
 
         let categories = Array.isArray(normalized?.categories)
@@ -15981,57 +15954,39 @@ function AppLayout({ isMapsLoaded }) {
             }))
           : [];
 
+        // Inject Half&Half items (same as your existing logic)
         categories = categories.map((cat) => {
           const ref = String(cat?.ref || cat?.id || "").toUpperCase();
           if (!isHalfHalfAllowedCategoryRef(ref)) return cat;
 
           const items = Array.isArray(cat?.items) ? cat.items : [];
           const hhId = `half_half__${ref}`;
+          if (items.some((it) => String(it?.id || "") === hhId)) return cat;
 
-          const already = items.some((it) => String(it?.id || "") === hhId);
-          if (already) return cat;
-
-          const hh = {
-            ...makeHalfHalfItemForCategory(cat),
-            id: hhId,
-            halfHalfCategoryRef: ref,
-          };
-
+          const hh = { ...makeHalfHalfItemForCategory(cat), id: hhId, halfHalfCategoryRef: ref };
           return { ...cat, items: [hh, ...items] };
         });
 
         const finalMenu = { ...normalized, categories, optionListsMap };
 
-        if (alive) {
-          setMenuData(finalMenu);
-          setMenuError(null);
-        }
+        if (!alive) return;
+        setMenuData(finalMenu);
+        setMenuError(null);
         writeMenuCache(finalMenu);
 
-        // If we didn’t have cache, we must boot on the fresh menu.
+        // Only show loader on first-ever boot (no cache)
         if (!hasCache) {
-          await finishBoot(finalMenu);
+          await finishBootOnce(finalMenu);
         }
       } catch (err) {
         console.warn("[menu][boot] fetch error", err);
         if (!alive) return;
+        setMenuError(err);
 
-        // If no cache, show error state (or your existing “no items” state)
-        if (!hasCache) {
-          setMenuData({ categories: [], option_lists: [], optionListsMap: {} });
-          setMenuError(err);
-          await finishBoot(null);
-        } else {
-          // Cached menu stays; just finish boot from cache
-          await finishBoot(cached);
-        }
+        // If no cache, still finish boot (avoids loops)
+        if (!hasCache) await finishBootOnce(null);
       }
     })();
-
-    // If we DO have cache, boot immediately from cache (don’t wait for fetch).
-    if (hasCache) {
-      finishBoot(cached);
-    }
 
     return () => {
       alive = false;
@@ -16071,7 +16026,7 @@ function AppLayout({ isMapsLoaded }) {
     return (
       <LoadingScreen
         title="Loading menu"
-        subtitle="Warming cache..."
+        subtitle="Warming cache…"
       />
     );
   }
