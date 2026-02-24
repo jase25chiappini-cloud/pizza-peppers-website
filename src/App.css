@@ -15142,3 +15142,34 @@ body[data-theme="light"] .pp-cart-fab:active,
 [data-theme="light"] .pp-cart-fab:active{
   transform: translateY(1px) !important;
 }
+
+/* =========================================================
+   Touch devices: disable "sticky hover" in Half & Half editor
+   iOS can keep :hover states while/after scrolling.
+   ========================================================= */
+@media (hover: none) and (pointer: coarse){
+
+  /* Remove tap highlight and prevent hover visuals from sticking */
+  .pp-halfhalf-panel .pp-hh-actionBtn,
+  .pp-halfhalf-panel .pp-hh-qtyBtn,
+  .pp-halfhalf-panel .pp-hh-gfToggle,
+  .pp-halfhalf-panel .pp-hh-pickCard,
+  .pp-halfhalf-panel .pp-halfhalf-option,
+  .pp-halfhalf-panel .pp-halfhalf-continueRow > button,
+  .pp-halfhalf-panel .pp-halfhalf-cta .place-order-button{
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Neutralize hover effects (transform/shadow/filter) */
+  .pp-halfhalf-panel .pp-hh-actionBtn:hover,
+  .pp-halfhalf-panel .pp-hh-qtyBtn:hover,
+  .pp-halfhalf-panel .pp-hh-gfToggle:hover,
+  .pp-halfhalf-panel .pp-hh-pickCard:hover,
+  .pp-halfhalf-panel .pp-halfhalf-option:hover,
+  .pp-halfhalf-panel .pp-halfhalf-continueRow > button:hover,
+  .pp-halfhalf-panel .pp-halfhalf-cta .place-order-button:hover{
+    transform: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
+}
