@@ -5551,15 +5551,14 @@ async function fetchMenu(url = MENU_URL) {
 }
 
 // ----------------- MENU CACHE + BOOT PRELOAD -----------------
-const PP_MENU_CACHE_KEY = "pp_menu_cache_v2";
-const PP_MENU_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+const PP_MENU_CACHE_KEY = "pp_menu_cache_v3";
+const PP_MENU_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function readMenuCache() {
   try {
     const raw = localStorage.getItem(PP_MENU_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
 
     const ts = Number(parsed.ts) || 0;
     if (!ts || Date.now() - ts > PP_MENU_CACHE_MAX_AGE_MS) return null;
@@ -5568,7 +5567,7 @@ function readMenuCache() {
     if (!data || !Array.isArray(data.categories) || data.categories.length === 0)
       return null;
 
-    return { ts, data };
+    return data;
   } catch {
     return null;
   }
@@ -5585,7 +5584,7 @@ function writeMenuCache(data) {
   } catch {}
 }
 
-function preloadImageUrl(url, timeoutMs = 1600) {
+function preloadImageUrl(url, timeoutMs = 1400) {
   return new Promise((resolve) => {
     if (!url) return resolve(false);
 
@@ -5623,19 +5622,19 @@ async function preloadProductImage(p) {
   const candidates = getProductImageUrlCandidates(p);
   for (const u of candidates) {
     // eslint-disable-next-line no-await-in-loop
-    const ok = await preloadImageUrl(u, 1400);
+    const ok = await preloadImageUrl(u, 1200);
     if (ok) return true;
   }
   return false;
 }
 
-async function preloadCriticalAssets(menu) {
+async function preloadCriticalAssets(menuData) {
   try {
     const tasks = [preloadImageUrl(ppBanner, 1600)];
 
     // Warm first screen images (keeps the first paint from “popping”)
     const items = [];
-    const cats = Array.isArray(menu?.categories) ? menu.categories : [];
+    const cats = Array.isArray(menuData?.categories) ? menuData.categories : [];
     for (const c of cats) {
       const its = Array.isArray(c?.items) ? c.items : [];
       for (const it of its) {
@@ -5658,7 +5657,7 @@ async function preloadCriticalAssets(menu) {
     if (document?.fonts?.ready) {
       await Promise.race([
         document.fonts.ready,
-        new Promise((r) => setTimeout(r, 700)),
+        new Promise((r) => setTimeout(r, 600)),
       ]);
     }
   } catch {}
@@ -15404,8 +15403,8 @@ function AppLayout({ isMapsLoaded }) {
     if (bootDoneRef.current) return;
     bootDoneRef.current = true;
     setBootPhase("READY");
-    console.warn("[menu][dev] forced ready");
-  }, [setBootPhase]);
+    console.warn("[menu][dev] forced READY");
+  }, []);
 
   const prepareItemForPanel = useCallback((item) => {
     if (!item) return null;
@@ -15924,22 +15923,15 @@ function AppLayout({ isMapsLoaded }) {
   React.useEffect(() => {
     let alive = true;
 
-    const MIN_SPLASH_MS = 350;
-    const startMs = (() => {
-      try {
-        return performance.now();
-      } catch {
-        return Date.now();
-      }
-    })();
+    const MIN_SPLASH_MS = 320;
+    const start = (typeof performance !== "undefined" ? performance.now() : Date.now());
 
-    const cached = typeof window !== "undefined" ? readMenuCache() : null;
-    const cachedMenu = cached?.data || null;
-    const hasCachedMenu = !!(cachedMenu?.categories?.length);
+    const cached = (typeof window !== "undefined") ? readMenuCache() : null;
+    const hasCache = !!(cached?.categories?.length);
 
     // If we have cache, paint immediately after preload (don’t wait for network).
-    if (hasCachedMenu) {
-      setMenuData(cachedMenu);
+    if (hasCache) {
+      setMenuData(cached);
       setMenuError(null);
     }
 
@@ -15952,14 +15944,8 @@ function AppLayout({ isMapsLoaded }) {
       }
 
       // Minimum loader time (prevents flash)
-      const nowMs = (() => {
-        try {
-          return performance.now();
-        } catch {
-          return Date.now();
-        }
-      })();
-      const elapsed = Math.max(0, nowMs - startMs);
+      const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
+      const elapsed = Math.max(0, now - start);
       if (elapsed < MIN_SPLASH_MS) {
         await new Promise((r) => setTimeout(r, MIN_SPLASH_MS - elapsed));
       }
@@ -15970,8 +15956,7 @@ function AppLayout({ isMapsLoaded }) {
         await new Promise((r) => requestAnimationFrame(() => r()));
       } catch {}
 
-      if (!alive) return;
-      if (bootDoneRef.current) return;
+      if (!alive || bootDoneRef.current) return;
       bootDoneRef.current = true;
       setBootPhase("READY");
     };
@@ -16024,7 +16009,7 @@ function AppLayout({ isMapsLoaded }) {
         writeMenuCache(finalMenu);
 
         // If we didn’t have cache, we must boot on the fresh menu.
-        if (!hasCachedMenu) {
+        if (!hasCache) {
           await finishBoot(finalMenu);
         }
       } catch (err) {
@@ -16032,20 +16017,20 @@ function AppLayout({ isMapsLoaded }) {
         if (!alive) return;
 
         // If no cache, show error state (or your existing “no items” state)
-        if (!hasCachedMenu) {
+        if (!hasCache) {
           setMenuData({ categories: [], option_lists: [], optionListsMap: {} });
           setMenuError(err);
           await finishBoot(null);
         } else {
           // Cached menu stays; just finish boot from cache
-          await finishBoot(cachedMenu);
+          await finishBoot(cached);
         }
       }
     })();
 
     // If we DO have cache, boot immediately from cache (don’t wait for fetch).
-    if (hasCachedMenu) {
-      finishBoot(cachedMenu);
+    if (hasCache) {
+      finishBoot(cached);
     }
 
     return () => {
@@ -16082,7 +16067,7 @@ function AppLayout({ isMapsLoaded }) {
     );
   } catch {}
 
-  if (bootPhase === "BOOTING") {
+  if (bootPhase !== "READY") {
     return (
       <LoadingScreen
         title="Loading menu"
