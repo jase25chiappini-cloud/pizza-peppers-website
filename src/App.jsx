@@ -5550,6 +5550,120 @@ async function fetchMenu(url = MENU_URL) {
   return unwrapMenuApi(raw);
 }
 
+// ----------------- MENU CACHE + BOOT PRELOAD -----------------
+const PP_MENU_CACHE_KEY = "pp_menu_cache_v2";
+const PP_MENU_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function readMenuCache() {
+  try {
+    const raw = localStorage.getItem(PP_MENU_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const ts = Number(parsed.ts) || 0;
+    if (!ts || Date.now() - ts > PP_MENU_CACHE_MAX_AGE_MS) return null;
+
+    const data = parsed.data;
+    if (!data || !Array.isArray(data.categories) || data.categories.length === 0)
+      return null;
+
+    return { ts, data };
+  } catch {
+    return null;
+  }
+}
+
+function writeMenuCache(data) {
+  try {
+    if (!data || !Array.isArray(data.categories) || data.categories.length === 0)
+      return;
+    localStorage.setItem(
+      PP_MENU_CACHE_KEY,
+      JSON.stringify({ ts: Date.now(), data }),
+    );
+  } catch {}
+}
+
+function preloadImageUrl(url, timeoutMs = 1600) {
+  return new Promise((resolve) => {
+    if (!url) return resolve(false);
+
+    const img = new Image();
+    let done = false;
+
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      try {
+        img.onload = null;
+        img.onerror = null;
+      } catch {}
+      resolve(!!ok);
+    };
+
+    const t = window.setTimeout(() => finish(false), timeoutMs);
+    img.onload = () => {
+      window.clearTimeout(t);
+      finish(true);
+    };
+    img.onerror = () => {
+      window.clearTimeout(t);
+      finish(false);
+    };
+
+    try {
+      img.decoding = "async";
+    } catch {}
+    img.src = url;
+  });
+}
+
+async function preloadProductImage(p) {
+  const candidates = getProductImageUrlCandidates(p);
+  for (const u of candidates) {
+    // eslint-disable-next-line no-await-in-loop
+    const ok = await preloadImageUrl(u, 1400);
+    if (ok) return true;
+  }
+  return false;
+}
+
+async function preloadCriticalAssets(menu) {
+  try {
+    const tasks = [preloadImageUrl(ppBanner, 1600)];
+
+    // Warm first screen images (keeps the first paint from “popping”)
+    const items = [];
+    const cats = Array.isArray(menu?.categories) ? menu.categories : [];
+    for (const c of cats) {
+      const its = Array.isArray(c?.items) ? c.items : [];
+      for (const it of its) {
+        if (!it || isHalfHalfItem(it)) continue;
+        items.push(it);
+        if (items.length >= 10) break;
+      }
+      if (items.length >= 10) break;
+    }
+
+    for (const it of items) tasks.push(preloadProductImage(it));
+
+    // Never block forever
+    await Promise.race([
+      Promise.allSettled(tasks),
+      new Promise((r) => setTimeout(r, 2200)),
+    ]);
+
+    // Fonts can also pop in late on iOS; best-effort wait
+    if (document?.fonts?.ready) {
+      await Promise.race([
+        document.fonts.ready,
+        new Promise((r) => setTimeout(r, 700)),
+      ]);
+    }
+  } catch {}
+}
+
 // cfg: choose keys from API (kept compatible with your JSON)
 const MENU_CFG = {
   catRefKey: "ref",
@@ -15808,26 +15922,79 @@ function AppLayout({ isMapsLoaded }) {
 
   React.useEffect(() => {
     let alive = true;
+
+    const MIN_SPLASH_MS = 350;
+    const startMs = (() => {
+      try {
+        return performance.now();
+      } catch {
+        return Date.now();
+      }
+    })();
+
+    const cached = typeof window !== "undefined" ? readMenuCache() : null;
+    const cachedMenu = cached?.data || null;
+    const hasCachedMenu = !!(cachedMenu?.categories?.length);
+
+    // If we have cache, paint immediately after preload (don’t wait for network).
+    if (hasCachedMenu) {
+      setMenuData(cachedMenu);
+      setMenuError(null);
+    }
+
     setIsLoading(true);
     setMenuReady(false);
-    console.log("[menu][effect] start");
+
+    const finishBoot = async (menuForPreload) => {
+      // Preload banner + first product images
+      if (menuForPreload?.categories?.length) {
+        await preloadCriticalAssets(menuForPreload);
+      }
+
+      // Minimum loader time (prevents flash)
+      const nowMs = (() => {
+        try {
+          return performance.now();
+        } catch {
+          return Date.now();
+        }
+      })();
+      const elapsed = Math.max(0, nowMs - startMs);
+      if (elapsed < MIN_SPLASH_MS) {
+        await new Promise((r) => setTimeout(r, MIN_SPLASH_MS - elapsed));
+      }
+
+      // Let layout settle
+      try {
+        await new Promise((r) => requestAnimationFrame(() => r()));
+        await new Promise((r) => requestAnimationFrame(() => r()));
+      } catch {}
+
+      if (!alive) return;
+      setIsLoading(false);
+      setMenuReady(true);
+    };
+
+    // Kick off network fetch (always), update cache when it succeeds
     (async () => {
       try {
-        const menuJson = await fetchMenu(MENU_URL);
-        const normalized = transformMenuStable(menuJson);
+        const api = await fetchMenu(MENU_URL);
+        const normalized = transformMenuStable(api);
+
         const optionListsMap = Object.fromEntries(
           (normalized?.option_lists || []).map((ol) => [
             ol?.ref || ol?.id || ol?.name,
             ol,
           ]),
         );
-        if (!alive) return;
+
         let categories = Array.isArray(normalized?.categories)
           ? normalized.categories.map((cat) => ({
               ...cat,
               items: Array.isArray(cat?.items) ? [...cat.items] : [],
             }))
           : [];
+
         categories = categories.map((cat) => {
           const ref = String(cat?.ref || cat?.id || "").toUpperCase();
           if (!isHalfHalfAllowedCategoryRef(ref)) return cat;
@@ -15846,21 +16013,40 @@ function AppLayout({ isMapsLoaded }) {
 
           return { ...cat, items: [hh, ...items] };
         });
-        setMenuData({ ...normalized, categories, optionListsMap });
-        console.log("MENU SETTINGS KEYS:", Object.keys(ppGetMenuSettings(menuJson)));
-        setMenuError(null);
+
+        const finalMenu = { ...normalized, categories, optionListsMap };
+
+        if (alive) {
+          setMenuData(finalMenu);
+          setMenuError(null);
+        }
+        writeMenuCache(finalMenu);
+
+        // If we didn’t have cache, we must boot on the fresh menu.
+        if (!hasCachedMenu) {
+          await finishBoot(finalMenu);
+        }
       } catch (err) {
-        console.warn("[menu][effect] error", err);
+        console.warn("[menu][boot] fetch error", err);
         if (!alive) return;
-        setMenuData({ categories: [], option_lists: [], optionListsMap: {} });
-        setMenuError(err);
-      } finally {
-        if (!alive) return;
-        setIsLoading(false);
-        setMenuReady(true);
-        console.log("[menu][effect] finally -> ready");
+
+        // If no cache, show error state (or your existing “no items” state)
+        if (!hasCachedMenu) {
+          setMenuData({ categories: [], option_lists: [], optionListsMap: {} });
+          setMenuError(err);
+          await finishBoot(null);
+        } else {
+          // Cached menu stays; just finish boot from cache
+          await finishBoot(cachedMenu);
+        }
       }
     })();
+
+    // If we DO have cache, boot immediately from cache (don’t wait for fetch).
+    if (hasCachedMenu) {
+      finishBoot(cachedMenu);
+    }
+
     return () => {
       alive = false;
     };
@@ -15896,10 +16082,17 @@ function AppLayout({ isMapsLoaded }) {
   } catch {}
 
   if (isLoading) {
+    const cached = (() => {
+      try {
+        return !!readMenuCache();
+      } catch {
+        return false;
+      }
+    })();
     return (
       <LoadingScreen
         title="Loading menu"
-        subtitle="Fetching the latest items\u2026"
+        subtitle={cached ? "Warming cache…" : "Fetching the latest items…"}
       />
     );
   }
