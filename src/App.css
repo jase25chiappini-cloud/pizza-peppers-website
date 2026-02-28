@@ -15270,6 +15270,33 @@ body[data-theme="light"] .pp-cart-fab:active,
 }
 
 /* =========================================================
+   Mobile: make disclaimer text small + 1 line (all editors)
+   Applies to: Edit Ingredients, Meal Deal builder, Half&Half editor
+   ========================================================= */
+@media (max-width: 900px){
+
+  /* General disclaimer treatment (covers all the modals/editors) */
+  .pp-disclaimer{
+    font-size: 0.70rem !important;
+    line-height: 1.1 !important;
+
+    /* 1-row ideally */
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+
+    margin-top: 6px !important;
+    opacity: 0.72 !important;
+  }
+
+  /* If any footer container centers text, keep it tidy */
+  .pp-modal-footer .pp-disclaimer{
+    text-align: left !important;
+    max-width: 100% !important;
+  }
+}
+
+/* =========================================================
    Touch devices: disable "sticky hover" in Half & Half editor
    iOS can keep :hover states while/after scrolling.
    ========================================================= */
