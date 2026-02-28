@@ -5551,7 +5551,7 @@ async function fetchMenu(url = MENU_URL) {
 }
 
 // ----------------- BOOT CACHE (prevents 2nd loader on first launch) -----------------
-const PP_MENU_CACHE_KEY = "pp_menu_cache_v4";
+const PP_MENU_CACHE_KEY = "pp_menu_cache_v5"; // bump to flush old Render caches
 const PP_MENU_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function readMenuCache() {
@@ -5561,7 +5561,14 @@ function readMenuCache() {
     const parsed = JSON.parse(raw);
     const ts = Number(parsed?.ts) || 0;
     const data = parsed?.data;
-    if (!ts || !data || !Array.isArray(data.categories) || data.categories.length === 0)
+    if (
+      !ts ||
+      !data ||
+      !Array.isArray(data.categories) ||
+      data.categories.length === 0 ||
+      !Array.isArray(data.option_lists) ||          // IMPORTANT: add-ons depend on this
+      data.option_lists.length === 0
+    )
       return null;
 
     if (Date.now() - ts > PP_MENU_CACHE_MAX_AGE_MS) return null;
