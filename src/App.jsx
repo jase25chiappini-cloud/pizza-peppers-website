@@ -5551,7 +5551,7 @@ async function fetchMenu(url = MENU_URL) {
 }
 
 // ----------------- BOOT CACHE (prevents 2nd loader on first launch) -----------------
-const PP_MENU_CACHE_KEY = "pp_menu_cache_v5"; // bump to flush old Render caches
+const PP_MENU_CACHE_KEY = "pp_menu_cache_v5";
 const PP_MENU_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function readMenuCache() {
@@ -5560,16 +5560,20 @@ function readMenuCache() {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     const ts = Number(parsed?.ts) || 0;
+    const base = String(parsed?.base || "");
     const data = parsed?.data;
     if (
       !ts ||
       !data ||
       !Array.isArray(data.categories) ||
-      data.categories.length === 0 ||
-      !Array.isArray(data.option_lists) ||          // IMPORTANT: add-ons depend on this
-      data.option_lists.length === 0
-    )
-      return null;
+      data.categories.length === 0
+    ) return null;
+
+    // If the cached menu was written under a different MENU_BASE, ignore it
+    if (base && MENU_BASE && base !== MENU_BASE) return null;
+
+    // Add-ons depend on option_lists. If cache doesn't have them, it's stale -> ignore it.
+    if (!Array.isArray(data.option_lists)) return null;
 
     if (Date.now() - ts > PP_MENU_CACHE_MAX_AGE_MS) return null;
 
@@ -5582,7 +5586,10 @@ function readMenuCache() {
 function writeMenuCache(data) {
   try {
     if (!data || !Array.isArray(data.categories) || data.categories.length === 0) return;
-    localStorage.setItem(PP_MENU_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+    localStorage.setItem(
+      PP_MENU_CACHE_KEY,
+      JSON.stringify({ ts: Date.now(), base: MENU_BASE || "", data }),
+    );
   } catch {}
 }
 
