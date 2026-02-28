@@ -8378,34 +8378,58 @@ function ItemDetailPanel({
   );
 
   const ingredientSummary = useMemo(() => {
-    if (!ingredientGroups || !ingredientGroups.length) return [];
     const seen = new Set();
     const result = [];
 
-    ingredientGroups.forEach((group) => {
-      (group.items || []).forEach((ing) => {
-        if (!ing) return;
-        let label;
-        if (typeof ing === "string") {
-          label = ing;
-        } else {
-          label =
-            ing.name ||
-            ing.label ||
-            ing.value ||
-            ing.ref ||
-            ing.id;
-        }
-        if (!label) return;
-        const key = String(label);
-        if (seen.has(key)) return;
-        seen.add(key);
-        result.push(key);
+    // Preferred: structured ingredients (menu.json ingredient groups)
+    if (ingredientGroups && ingredientGroups.length) {
+      ingredientGroups.forEach((group) => {
+        (group.items || []).forEach((ing) => {
+          if (!ing) return;
+          let label;
+          if (typeof ing === "string") {
+            label = ing;
+          } else {
+            label =
+              ing.name ||
+              ing.label ||
+              ing.value ||
+              ing.ref ||
+              ing.id;
+          }
+          if (!label) return;
+          const key = String(label).trim();
+          if (!key) return;
+          if (seen.has(key)) return;
+          seen.add(key);
+          result.push(key);
+        });
       });
-    });
+    }
+
+    // Fallback (some items only have a description string like: "garlic, oregano, ..." )
+    if (!result.length) {
+      const desc = String(
+        item?.description || item?.desc || item?.details || item?.detail || ""
+      ).trim();
+
+      // Only treat it as an ingredient list if it looks like one (comma-separated, not a paragraph).
+      if (desc && desc.includes(",") && desc.length <= 220) {
+        desc
+          .split(",")
+          .map((s) => String(s || "").trim())
+          .filter(Boolean)
+          .slice(0, 18)
+          .forEach((name) => {
+            if (seen.has(name)) return;
+            seen.add(name);
+            result.push(name);
+          });
+      }
+    }
 
     return result;
-  }, [ingredientGroups]);
+  }, [ingredientGroups, item]);
 
   const categoryRefUpper = String(
     item?.category_ref || item?.categoryRef || "",
