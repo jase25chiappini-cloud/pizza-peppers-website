@@ -15153,6 +15153,123 @@ body[data-theme="light"] .pp-cart-fab:active,
 }
 
 /* =========================================================
+   Mobile: Edit Ingredients modal should be a proper full-screen sheet
+   Scoped to #ingredients-modal only (safe).
+   ========================================================= */
+@media (max-width: 900px){
+
+  /* Backdrop becomes full-screen, no padding gaps */
+  #ingredients-modal.pp-modal-backdrop{
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  /* Modal becomes full-screen */
+  #ingredients-modal .pp-modal{
+    width: 100vw !important;
+    max-width: none !important;
+
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+
+    border-radius: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Sticky header with safe-area padding */
+  #ingredients-modal .pp-modal-header{
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 5 !important;
+
+    padding: calc(env(safe-area-inset-top) + 12px) 14px 12px !important;
+    border-bottom: 1px solid var(--line, var(--border-color)) !important;
+  }
+
+  #ingredients-modal .pp-modal-title{
+    font-size: 1.05rem !important;
+    font-weight: 950 !important;
+    color: var(--text-primary) !important;
+  }
+
+  /* Scroll body fills remaining space */
+  #ingredients-modal .pp-modal-body{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+
+    max-height: none !important;
+    padding: 12px 12px 14px !important;
+
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Make ingredient rows easier to tap */
+  #ingredients-modal .pp-option-row{
+    padding: 0.85rem 0.9rem !important;
+    border-radius: 14px !important;
+    gap: 0.9rem !important;
+  }
+
+  #ingredients-modal input[type="checkbox"]{
+    width: 22px !important;
+    height: 22px !important;
+    accent-color: var(--brand-neon-green);
+  }
+
+  /* Ensure the grid stays single-column on mobile */
+  #ingredients-modal .pp-options-grid{
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem !important;
+  }
+
+  /* Sticky footer with safe-area */
+  #ingredients-modal .pp-modal-footer{
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 6 !important;
+
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) !important;
+    border-top: 1px solid var(--line, var(--border-color)) !important;
+
+    background: color-mix(in srgb, var(--pp-surface, var(--panel)) 92%, transparent) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    gap: 10px !important;
+  }
+
+  /* Button row becomes a 2-column grid */
+  #ingredients-modal .pp-modal-footer > div{
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    justify-content: stretch !important;
+  }
+
+  #ingredients-modal .pp-modal-footer .pp-btn{
+    width: 100% !important;
+    min-height: 46px !important;
+    padding: 0.85rem 0.9rem !important;
+  }
+
+  #ingredients-modal .pp-disclaimer{
+    margin-top: 0 !important;
+    font-size: 0.78rem !important;
+    line-height: 1.25 !important;
+    opacity: 0.72 !important;
+    text-align: left !important;
+  }
+}
+
+/* =========================================================
    Touch devices: disable "sticky hover" in Half & Half editor
    iOS can keep :hover states while/after scrolling.
    ========================================================= */
