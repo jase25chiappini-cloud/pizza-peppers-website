@@ -5502,44 +5502,57 @@ const MENU_URL = import.meta.env.DEV
   ? `${PP_PROXY_PREFIX}/public/menu`
   : `${MENU_BASE}/public/menu`;
 
+const MENU_FETCH_BUST = "v7"; // bump this to force fresh menu fetches on Render
+
+const _withCb = (url) => {
+  const u = String(url || "");
+  if (!u) return u;
+  const sep = u.includes("?") ? "&" : "?";
+  return `${u}${sep}cb=${encodeURIComponent(MENU_FETCH_BUST)}`;
+};
+
+const _coerceOptionLists = (val) => {
+  if (Array.isArray(val)) return val;
+  if (val && typeof val === "object") {
+    return Object.entries(val)
+      .map(([k, v]) => {
+        if (!v || typeof v !== "object") return null;
+        const ref = v.ref || v.id || v.name || k;
+        return { ref, ...v };
+      })
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const _extractOptionLists = (obj) => {
+  if (!obj || typeof obj !== "object") return [];
+  const candidates = [
+    obj.option_lists,
+    obj.optionLists,
+    obj.optionListsMap,
+    obj.option_lists_map,
+    obj.optionListsByRef,
+    obj.option_groups,
+    obj.optionGroups,
+  ];
+  for (const c of candidates) {
+    const arr = _coerceOptionLists(c);
+    if (arr.length) return arr;
+  }
+  return [];
+};
+
 // Defensive unwrap so we handle {categories,...} or {data:{...}} or {menu:{...}}
 function unwrapMenuApi(raw) {
   const root = raw && typeof raw === "object" ? raw : {};
   const maybe = root.menu || root.data || root;
-
-  const toArray = (val) => {
-    if (Array.isArray(val)) return val;
-    if (val && typeof val === "object") return Object.values(val);
-    return [];
-  };
-
-  // IMPORTANT: Render/prod may return option_lists as an object-map keyed by ref.
-  // Convert it into an array and preserve the key as `ref` when missing.
-  const coerceOptionLists = (val) => {
-    if (Array.isArray(val)) return val;
-    if (val && typeof val === "object") {
-      return Object.entries(val)
-        .map(([k, v]) => {
-          if (!v || typeof v !== "object") return null;
-          const ref = v.ref || v.id || k;
-          return { ref, ...v };
-        })
-        .filter(Boolean);
-    }
-    return [];
-  };
-
-  const optionListsRaw =
-    maybe.option_lists ??
-    maybe.optionLists ??
-    maybe.option_lists_map ??
-    maybe.optionListsMap ??
-    null;
+  const option_lists = _extractOptionLists(maybe);
 
   const api = {
-    categories: Array.isArray(maybe.categories) ? maybe.categories : toArray(maybe.categories),
-    products: Array.isArray(maybe.products) ? maybe.products : toArray(maybe.products),
-    option_lists: coerceOptionLists(optionListsRaw),
+    categories: Array.isArray(maybe.categories) ? maybe.categories : [],
+    products: Array.isArray(maybe.products) ? maybe.products : [],
+    option_lists,
     globals: maybe.globals || {},
     settings: maybe.settings || {},
     delivery_zones: Array.isArray(maybe.delivery_zones)
@@ -5559,8 +5572,12 @@ function unwrapMenuApi(raw) {
 }
 
 async function fetchMenu(url = MENU_URL) {
-  console.log("[menu] GET", url);
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const primaryUrl = _withCb(url);
+  console.log("[menu] GET", primaryUrl);
+  const res = await fetch(primaryUrl, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
   const ct = res.headers.get("content-type") || "";
   console.log("[menu][debug] status:", res.status, "content-type:", ct);
 
@@ -5577,11 +5594,44 @@ async function fetchMenu(url = MENU_URL) {
   }
 
   const raw = await res.json();
-  return unwrapMenuApi(raw);
+  const api = unwrapMenuApi(raw);
+
+  // If option_lists are missing/empty, try fallback menu endpoints (common in prod/proxy setups).
+  if (!Array.isArray(api.option_lists) || api.option_lists.length === 0) {
+    const base = String(MENU_BASE || "").replace(/\/+$/, "");
+    const fallbacks = [
+      base ? `${base}/public/menu.json` : "",
+      base ? `${base}/menu.json` : "",
+      "/menu.json",
+    ].filter(Boolean);
+
+    for (const fb of fallbacks) {
+      try {
+        const fbUrl = _withCb(fb);
+        console.warn("[menu][fallback] trying", fbUrl);
+        const r = await fetch(fbUrl, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const fbApi = unwrapMenuApi(j);
+        if (Array.isArray(fbApi.option_lists) && fbApi.option_lists.length) {
+          console.warn("[menu][fallback] recovered option_lists from", fbUrl);
+          api.option_lists = fbApi.option_lists;
+          break;
+        }
+      } catch {
+        // ignore and keep trying
+      }
+    }
+  }
+
+  return api;
 }
 
 // ----------------- BOOT CACHE (prevents 2nd loader on first launch) -----------------
-const PP_MENU_CACHE_KEY = "pp_menu_cache_v6";
+const PP_MENU_CACHE_KEY = "pp_menu_cache_v7";
 const PP_MENU_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function readMenuCache() {
@@ -7967,21 +8017,9 @@ function getAddOnsForProduct(product, menu) {
   if (__categoryGuards.isMealDeal(categoryRef)) return [];
 
   // Option lists catalog from the API (option_lists in menu.json)
-  const coerceOptionLists = (val) => {
-    if (Array.isArray(val)) return val;
-    if (val && typeof val === "object") {
-      return Object.entries(val)
-        .map(([k, v]) =>
-          v && typeof v === "object" ? ({ ref: v.ref || v.id || k, ...v }) : null,
-        )
-        .filter(Boolean);
-    }
-    return [];
-  };
-
-  const optionLists = coerceOptionLists(apiRoot?.option_lists) || [];
-  const optionListsFallback = optionLists.length ? optionLists : coerceOptionLists(menu?.option_lists);
-  const optionListsFinal = optionListsFallback || [];
+  const optionLists =
+    _extractOptionLists(apiRoot).length ? _extractOptionLists(apiRoot) : _extractOptionLists(menu);
+  const optionListsFinal = optionLists || [];
 
   // Per-product allowed addon categories (EXTRAS_CHEESE, EXTRAS_MEAT, etc)
   const explicitRefs =
