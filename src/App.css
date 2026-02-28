@@ -6668,13 +6668,6 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   text-transform: uppercase !important;
 }
 
-@media (max-width: 520px){
-  .detail-panel--mealdeal_pick .pp-mdp-chipMini{
-    font-size: 0.68rem;
-    padding: 0.16rem 0.45rem;
-  }
-}
-
 /* Meal deal pick: verification strip */
 .pp-mdp-summary{
   display: grid;
@@ -12820,13 +12813,20 @@ body[data-theme="light"] .menu-content::after{
 
 @media (max-width: 520px){
   .detail-panel .pp-ingredients-summary .pp-chip{
-    font-size: 0.72rem;
-    padding: 0.18rem 0.50rem;
+    font-size: 0.78rem;
+    padding: 0.22rem 0.56rem;
     line-height: 1.1;
   }
   .detail-panel .pp-ingredients-summary__title{
     font-size: 0.68rem;
     margin-bottom: 0.35rem;
+  }
+
+  /* Meal Deal picker chip (global mobile bump) */
+  .detail-panel--mealdeal_pick .pp-mdp-chipMini{
+    font-size: 0.76rem;
+    padding: 0.22rem 0.56rem;
+    line-height: 1.12;
   }
 }
 
