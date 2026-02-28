@@ -5506,14 +5506,40 @@ const MENU_URL = import.meta.env.DEV
 function unwrapMenuApi(raw) {
   const root = raw && typeof raw === "object" ? raw : {};
   const maybe = root.menu || root.data || root;
+
+  const toArray = (val) => {
+    if (Array.isArray(val)) return val;
+    if (val && typeof val === "object") return Object.values(val);
+    return [];
+  };
+
+  // IMPORTANT: Render/prod may return option_lists as an object-map keyed by ref.
+  // Convert it into an array and preserve the key as `ref` when missing.
+  const coerceOptionLists = (val) => {
+    if (Array.isArray(val)) return val;
+    if (val && typeof val === "object") {
+      return Object.entries(val)
+        .map(([k, v]) => {
+          if (!v || typeof v !== "object") return null;
+          const ref = v.ref || v.id || v.name || k;
+          return { ref, ...v };
+        })
+        .filter(Boolean);
+    }
+    return [];
+  };
+
+  const optionListsRaw =
+    maybe.option_lists ??
+    maybe.optionLists ??
+    maybe.option_lists_map ??
+    maybe.optionListsMap ??
+    null;
+
   const api = {
-    categories: Array.isArray(maybe.categories) ? maybe.categories : [],
-    products: Array.isArray(maybe.products) ? maybe.products : [],
-    option_lists: Array.isArray(maybe.option_lists)
-      ? maybe.option_lists
-      : Array.isArray(maybe.optionLists)
-        ? maybe.optionLists
-        : [],
+    categories: Array.isArray(maybe.categories) ? maybe.categories : toArray(maybe.categories),
+    products: Array.isArray(maybe.products) ? maybe.products : toArray(maybe.products),
+    option_lists: coerceOptionLists(optionListsRaw),
     globals: maybe.globals || {},
     settings: maybe.settings || {},
     delivery_zones: Array.isArray(maybe.delivery_zones)
@@ -5523,7 +5549,11 @@ function unwrapMenuApi(raw) {
         : [],
   };
   try {
-    console.log("[menu][client] keys:", Object.keys(api));
+    console.log("[menu][client] counts:", {
+      categories: api.categories?.length,
+      products: api.products?.length,
+      option_lists: api.option_lists?.length,
+    });
   } catch {}
   return api;
 }
