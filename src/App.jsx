@@ -8407,14 +8407,13 @@ function ItemDetailPanel({
       });
     }
 
-    // Fallback (some items only have a description string like: "garlic, oregano, ..." )
+    // Fallback: some items only have a comma-separated description
     if (!result.length) {
-      const desc = String(
-        item?.description || item?.desc || item?.details || item?.detail || ""
-      ).trim();
+      const desc = String(item?.description || "").trim();
+      const looksLikeIngredientList =
+        desc && desc.includes(",") && desc.length <= 240;
 
-      // Only treat it as an ingredient list if it looks like one (comma-separated, not a paragraph).
-      if (desc && desc.includes(",") && desc.length <= 220) {
+      if (looksLikeIngredientList) {
         desc
           .split(",")
           .map((s) => String(s || "").trim())
@@ -8672,9 +8671,15 @@ function ItemDetailPanel({
           {isMealDealPick ? (
             <div className="pp-mdp-headCard">
               <div className="pp-mdp-headTitle">{item?.name || ""}</div>
-              {item?.description ? (
-                <div className="pp-mdp-headDesc">{item.description}</div>
-              ) : null}
+              {(() => {
+                const desc = String(item?.description || "").trim();
+                const looksLikeIngredientList =
+                  desc && desc.includes(",") && desc.length <= 240;
+                const shouldHide =
+                  looksLikeIngredientList && ingredientSummary.length > 0;
+                if (!desc || shouldHide) return null;
+                return <div className="pp-mdp-headDesc">{desc}</div>;
+              })()}
 
               {ingredientSummary.length > 0 ? (
                 <div className="pp-mdp-headChips">

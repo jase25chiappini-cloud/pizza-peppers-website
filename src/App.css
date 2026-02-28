@@ -6546,6 +6546,45 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
    ItemDetailPanel - Meal Deal Quick Confirm (less cramped)
    ========================================================= */
 
+.detail-panel--mealdeal_pick .pp-mdp-headCard{
+  display: grid;
+  gap: 0.55rem;
+}
+
+.detail-panel--mealdeal_pick .pp-mdp-headTitle{
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.detail-panel--mealdeal_pick .pp-mdp-headDesc{
+  font-size: 0.88rem;
+  color: var(--text-medium);
+  line-height: 1.25;
+}
+
+.detail-panel--mealdeal_pick .pp-mdp-headChips{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.detail-panel--mealdeal_pick .pp-mdp-chipMini{
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(190,242,100,0.28);
+  background: rgba(190,242,100,0.10);
+  color: var(--text-primary);
+  font-weight: 800;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
 .detail-panel--mealdeal_pick .panel-title{
   margin-top: 0.55rem !important;
   margin-bottom: 0.25rem !important;
@@ -6627,6 +6666,13 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   font-weight: 900 !important;
   letter-spacing: 0.10em !important;
   text-transform: uppercase !important;
+}
+
+@media (max-width: 520px){
+  .detail-panel--mealdeal_pick .pp-mdp-chipMini{
+    font-size: 0.68rem;
+    padding: 0.16rem 0.45rem;
+  }
 }
 
 /* Meal deal pick: verification strip */
