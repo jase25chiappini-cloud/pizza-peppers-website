@@ -6615,6 +6615,16 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+.pp-mdp-footerTools--3 .pp-mdp-toolBtn{
+  font-size: 0.66rem !important;       /* smaller so it always fits */
+  letter-spacing: 0.04em !important;   /* tracking was the main cause */
+}
+
+.pp-mdp-footerTools--3 .pp-mdp-toolText{
+  letter-spacing: 0.04em !important;
+  white-space: nowrap;
+}
+
 .pp-mdp-toolBtn{
   width: 100%;
   min-height: 44px;
@@ -6622,12 +6632,15 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   align-items: center;
   justify-content: center;
   gap: .45rem;
+  flex-wrap: nowrap;
+  padding: .55rem .85rem; /* give text a little more breathing room */
+  overflow: visible;            /* stop pill clipping the last letters */
   border-radius: 999px;
   border: 1px solid rgba(148,163,184,0.30);
   background: rgba(255,255,255,0.06);
   box-shadow: var(--shadow-card);
   font-weight: 900;
-  letter-spacing: 0.10em !important;
+  letter-spacing: 0 !important;          /* IMPORTANT: prevent clipping */
   text-transform: uppercase !important;
   color: var(--text-primary) !important;
   font-size: 0.78rem !important;
@@ -6663,9 +6676,78 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 }
 
 .pp-mdp-toolText{
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
   font-weight: 900 !important;
-  letter-spacing: 0.10em !important;
+  width: 100%;
+  justify-content: center; /* ensures INGREDIENTS is visually centered */
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
+  white-space: nowrap;
+  min-width: 0; /* allow flex children to shrink correctly */
+  overflow: visible;
+}
+
+/* Ingredients pill: force true visual centering of icon+label as a group */
+.pp-mdp-toolBtn--ingredients{
+  justify-content: center !important;
+}
+
+.pp-mdp-toolBtn--ingredients .pp-mdp-toolText{
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  justify-content: center;
+
+  /* key part: don't let it stretch */
+  width: max-content !important;
+  margin: 0 auto !important;
+}
+
+.pp-mdp-toolBtn--ingredients .pp-mdp-toolIcon,
+.pp-mdp-toolBtn--ingredients .pp-mdp-toolLabel{
+  flex: 0 0 auto;
+}
+
+.pp-mdp-toolBtn--ingredients .pp-mdp-toolText{
+  transform: translateX(0.5px);
+}
+
+.pp-mdp-toolIcon{
+  flex: 0 0 auto;
+}
+
+.pp-mdp-toolLabel{
+  flex: 0 1 auto;
+  white-space: nowrap;
+  word-break: keep-all;
+  hyphens: none;
+  min-width: 0;
+  overflow: visible;
+}
+
+.pp-mdp-toolFee{
+  margin-left: .35rem;
+  opacity: .92;
+}
+
+@media (max-width: 520px){
+  .pp-mdp-footerTools{
+    gap: 0.5rem; /* slightly tighter so each pill gets more width */
+  }
+
+  .pp-mdp-footerTools--3 .pp-mdp-toolBtn{
+    font-size: clamp(0.58rem, 2.0vw, 0.70rem) !important;
+    letter-spacing: 0.03em !important;
+  }
+}
+
+@media (max-width: 420px){
+  .pp-mdp-footerTools--3 .pp-mdp-toolBtn{
+    font-size: 0.56rem !important;
+    letter-spacing: 0.02em !important;
+  }
 }
 
 /* Meal deal pick: verification strip */
@@ -6989,10 +7071,29 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 }
 
 .detail-panel .pp-mdp-toolText{
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 900;
-  letter-spacing: 0.10em;
+  letter-spacing: 0.06em;     /* lower tracking to prevent clipping */
   text-transform: uppercase;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* When we have 3 pills in a row, force-fit the label so it never clips */
+.detail-panel .pp-mdp-footerTools--3 .pp-mdp-toolBtn{
+  padding-inline: 0.62rem; /* more width for text */
+}
+
+.detail-panel .pp-mdp-footerTools--3 .pp-mdp-toolText{
+  letter-spacing: 0.03em !important;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 520px){
+  .detail-panel .pp-mdp-footerTools--3 .pp-mdp-toolText{
+    font-size: clamp(0.60rem, 2.05vw, 0.74rem) !important; /* shrink if needed */
+    letter-spacing: 0.02em !important;
+  }
 }
 
 /* GF button: warm + clear state */
@@ -15651,5 +15752,29 @@ Bigger tap targets and readable layout
 @media (max-width: 420px){
   #ingredients-modal .pp-disclaimer{
     -webkit-line-clamp: 1 !important;
+  }
+}
+
+@media (max-width: 520px){
+  /* Keep GF short on mobile */
+  .pp-mdp-toolFee{ display: none; }
+
+  /* Make tool buttons fit (no cut-off) */
+  .pp-mdp-toolBtn{
+    padding: .46rem .58rem;
+    font-size: clamp(0.66rem, 2.15vw, 0.78rem) !important;
+  }
+  .pp-mdp-toolText{
+    gap: .35rem;
+    letter-spacing: 0.03em !important;   /* tracking was the main offender */
+  }
+
+  .pp-mdp-toolIcon{
+    font-size: 0.92rem !important;
+  }
+
+  /* GF label is longest */
+  .pp-mdp-toolBtn--gf{
+    font-size: clamp(0.62rem, 2.0vw, 0.76rem) !important;
   }
 }

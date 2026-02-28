@@ -8907,18 +8907,28 @@ function ItemDetailPanel({
                 aria-haspopup="dialog"
                 aria-controls="addons-modal"
               >
-                <span className="pp-mdp-toolText">{"\uD83E\uDDC0"} Add-ons</span>
+                <span className="pp-mdp-toolText">
+                  <span className="pp-mdp-toolIcon" aria-hidden>
+                    {"\uD83E\uDDC0"}
+                  </span>
+                  <span className="pp-mdp-toolLabel">Add-ons</span>
+                </span>
               </button>
             )}
             {canEditIngredients && (
               <button
                 type="button"
                 onClick={() => setShowIngredientsModal(true)}
-                className="pp-mdp-toolBtn"
+                className="pp-mdp-toolBtn pp-mdp-toolBtn--ingredients"
                 aria-haspopup="dialog"
                 aria-controls="ingredients-modal"
               >
-                <span className="pp-mdp-toolText">{"\uD83E\uDDC5"} Ingredients</span>
+                <span className="pp-mdp-toolText">
+                  <span className="pp-mdp-toolIcon" aria-hidden>
+                    {"\uD83E\uDDC5"}
+                  </span>
+                  <span className="pp-mdp-toolLabel">Ingredients</span>
+                </span>
               </button>
             )}
             {gfPossible && (
@@ -8937,10 +8947,21 @@ function ItemDetailPanel({
                 }
               >
                 <span className="pp-mdp-toolText">
-                  {"\uD83C\uDF3E"}{" "}
-                  {gfIsLargeNow
-                    ? `GF ${isGlutenFree ? `ON${gfFeeText}` : "OFF"}`
-                    : "GF (Large only)"}
+                  <span className="pp-mdp-toolIcon" aria-hidden>
+                    {"\uD83C\uDF3E"}
+                  </span>
+                  <span className="pp-mdp-toolLabel">
+                    {gfIsLargeNow ? (
+                      <>
+                        {`GF ${isGlutenFree ? "ON" : "OFF"}`}
+                        {isGlutenFree && gfFeeText ? (
+                          <span className="pp-mdp-toolFee">{gfFeeText}</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      "GF LARGE"
+                    )}
+                  </span>
                 </span>
               </button>
             )}
