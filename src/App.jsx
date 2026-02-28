@@ -5521,7 +5521,7 @@ function unwrapMenuApi(raw) {
       return Object.entries(val)
         .map(([k, v]) => {
           if (!v || typeof v !== "object") return null;
-          const ref = v.ref || v.id || v.name || k;
+          const ref = v.ref || v.id || k;
           return { ref, ...v };
         })
         .filter(Boolean);
@@ -5581,7 +5581,7 @@ async function fetchMenu(url = MENU_URL) {
 }
 
 // ----------------- BOOT CACHE (prevents 2nd loader on first launch) -----------------
-const PP_MENU_CACHE_KEY = "pp_menu_cache_v5";
+const PP_MENU_CACHE_KEY = "pp_menu_cache_v6";
 const PP_MENU_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function readMenuCache() {
@@ -5603,7 +5603,7 @@ function readMenuCache() {
     if (base && MENU_BASE && base !== MENU_BASE) return null;
 
     // Add-ons depend on option_lists. If cache doesn't have them, it's stale -> ignore it.
-    if (!Array.isArray(data.option_lists)) return null;
+    if (!Array.isArray(data.option_lists) || data.option_lists.length === 0) return null;
 
     if (Date.now() - ts > PP_MENU_CACHE_MAX_AGE_MS) return null;
 
@@ -5769,7 +5769,15 @@ function transformMenu(api, cfg = MENU_CFG) {
 
   const normalized = {
     categories: Array.from(byCatRef.values()),
-    option_lists: Array.isArray(api?.option_lists) ? api.option_lists : [],
+    option_lists: Array.isArray(api?.option_lists)
+      ? api.option_lists
+      : api?.option_lists && typeof api.option_lists === "object"
+        ? Object.entries(api.option_lists)
+            .map(([k, v]) =>
+              v && typeof v === "object" ? { ref: v.ref || v.id || k, ...v } : null
+            )
+            .filter(Boolean)
+        : [],
     globals: api?.globals || {},
     settings: api?.settings || {},
     raw: api,
@@ -7959,11 +7967,21 @@ function getAddOnsForProduct(product, menu) {
   if (__categoryGuards.isMealDeal(categoryRef)) return [];
 
   // Option lists catalog from the API (option_lists in menu.json)
-  const optionLists = Array.isArray(apiRoot?.option_lists)
-    ? apiRoot.option_lists
-    : Array.isArray(menu?.option_lists)
-      ? menu.option_lists
-      : [];
+  const coerceOptionLists = (val) => {
+    if (Array.isArray(val)) return val;
+    if (val && typeof val === "object") {
+      return Object.entries(val)
+        .map(([k, v]) =>
+          v && typeof v === "object" ? ({ ref: v.ref || v.id || k, ...v }) : null,
+        )
+        .filter(Boolean);
+    }
+    return [];
+  };
+
+  const optionLists = coerceOptionLists(apiRoot?.option_lists) || [];
+  const optionListsFallback = optionLists.length ? optionLists : coerceOptionLists(menu?.option_lists);
+  const optionListsFinal = optionListsFallback || [];
 
   // Per-product allowed addon categories (EXTRAS_CHEESE, EXTRAS_MEAT, etc)
   const explicitRefs =
@@ -7980,7 +7998,7 @@ function getAddOnsForProduct(product, menu) {
   let lists = [];
   if (Array.isArray(explicitRefs) && explicitRefs.length) {
     const refSet = new Set(explicitRefs.map((ref) => normalizeListRef(ref)));
-    lists = optionLists.filter((ol) => {
+    lists = optionListsFinal.filter((ol) => {
       if (!ol) return false;
       const rawRef = ol.ref || ol.id || "";
       return refSet.has(normalizeListRef(rawRef));
