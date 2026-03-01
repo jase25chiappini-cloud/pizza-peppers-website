@@ -443,6 +443,9 @@ const HalfAndHalfSelector = ({
     if (typeof window === "undefined") return false;
     return ppIsMobileViewport();
   });
+  // "Mobile pick UI" means: we are picking pizzas INSIDE this component (not external menu routing)
+  const isMobilePickUi =
+    isNarrowScreen || (!useExternalMenuSelection && !hidePizzaPicker);
   // --- Mobile wizard step (authoritative) ---
   const [wizardStep, setWizardStep] = React.useState("A"); // "A" | "B" | "CONFIRM"
   const wizardStepRef = React.useRef("A");
@@ -454,7 +457,7 @@ const HalfAndHalfSelector = ({
 
   // whenever halves change, derive the correct step (prevents desync)
   React.useEffect(() => {
-    if (!isNarrowScreen) return;
+    if (!isMobilePickUi) return;
 
     const next =
       !halfA ? "A" :
@@ -465,11 +468,11 @@ const HalfAndHalfSelector = ({
       wizardStepRef.current = next;
       setWizardStep(next);
     }
-  }, [isNarrowScreen, halfA, halfB]);
+  }, [isMobilePickUi, halfA, halfB]);
   const [halfEditorSide, setHalfEditorSide] = React.useState(null);
   const [halfEditorItem, setHalfEditorItem] = React.useState(null);
   const [halfEditorInitialModal, setHalfEditorInitialModal] = React.useState(null);
-  const [halfEditorSuppressPanel, setHalfEditorSuppressPanel] = React.useState(false);
+  const [halfEditorSuppressPanel, setHalfEditorSuppressPanel] = React.useState(true);
   const [isHalfGlutenFree, setIsHalfGlutenFree] = React.useState(
     !!initialIsGlutenFree,
   );
@@ -493,7 +496,7 @@ const HalfAndHalfSelector = ({
   // compactUiMode is ONLY for the meal-deal overlay / tight layouts
   const compactUi = !!compactUiMode;
   // Mobile compact (meal deal overlay): prefer ONE scroll container (not body + footer split)
-  const singleScrollMode = isNarrowScreen;
+  const singleScrollMode = isMobilePickUi;
 
   // For this new pattern: we pick from the MENU (external), not inside the builder.
   const allowInlinePicker =
@@ -1169,51 +1172,70 @@ const HalfAndHalfSelector = ({
         removedIngredients: [],
       };
 
-      if (isNarrowScreen) {
+      if (isMobilePickUi) {
         const stepNow = wizardStepRef.current || wizardStep;
 
         // Always fill the step we are currently on (never rely on halfSelectionSide)
-        if (stepNow === "A") {
-          setHalfSelectionSide("A");
-          wizardStepRef.current = "B";
-          setWizardStep("B");
+      if (stepNow === "A") {
+        setHalfSelectionSide("A");
+        wizardStepRef.current = "B";
+        setWizardStep("B");
 
-          setPendingHalfA(base);
-          setHalfA(base);
+        setPendingHalfA(base);
+        setHalfA(base);
 
-          // Move focus to Pizza 2.
-          setHalfSelectionSide("B");
-          return;
-        }
+        // Open the FULL pizza modal so user can view/edit before proceeding
+        setHalfEditorSide("A");
+        setHalfEditorInitialModal(null);
+        setHalfEditorSuppressPanel(false); // show base panel (full modal)
+        setHalfEditorItem(base);
+
+        // Move focus to Pizza 2 after they confirm in modal
+        setHalfSelectionSide("B");
+        return;
+      }
 
         if (stepNow === "B") {
           setHalfSelectionSide("B");
           wizardStepRef.current = "CONFIRM";
           setWizardStep("CONFIRM");
 
-          setPendingHalfB(base);
-          setHalfB(base);
+        setPendingHalfB(base);
+        setHalfB(base);
 
-          // Default to showing Pizza 1 as active once both are chosen.
-          setHalfSelectionSide("A");
+        // Default to showing Pizza 1 as active once both are chosen.
+        setHalfSelectionSide("A");
 
-          // Jump up so the confirm view is visible
-          try {
-            halfBodyRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
-          } catch {}
-          return;
-        }
+        // Open the FULL pizza modal for half B
+        setHalfEditorSide("B");
+        setHalfEditorInitialModal(null);
+        setHalfEditorSuppressPanel(false); // show base panel (full modal)
+        setHalfEditorItem(base);
 
-        // CONFIRM step: treat taps as "replace the active half"
-        if (halfSelectionSide === "B") {
-          setPendingHalfB(base);
-          setHalfB(base);
-        } else {
-          setPendingHalfA(base);
-          setHalfA(base);
-        }
+        // Jump up so the confirm view is visible
+        try {
+          halfBodyRef.current?.scrollTo?.({ top: 0, behavior: "smooth" });
+        } catch {}
         return;
       }
+
+      // CONFIRM step: treat taps as "replace the active half"
+      const targetSide = halfSelectionSide === "B" ? "B" : "A";
+      if (targetSide === "B") {
+        setPendingHalfB(base);
+        setHalfB(base);
+      } else {
+        setPendingHalfA(base);
+        setHalfA(base);
+      }
+
+      // Open full modal for whichever half they are replacing
+      setHalfEditorSide(targetSide);
+      setHalfEditorInitialModal(null);
+      setHalfEditorSuppressPanel(false);
+      setHalfEditorItem(base);
+      return;
+    }
 
       if (halfSelectionSide === "A") {
         setPendingHalfA(base);
@@ -1229,11 +1251,11 @@ const HalfAndHalfSelector = ({
       setHalfEditorItem(null);
       setHalfEditorSide(null);
       setHalfEditorInitialModal(null);
-      setHalfEditorSuppressPanel(false);
+      setHalfEditorSuppressPanel(true);
     },
     [
       halfSelectionSide,
-      isNarrowScreen,
+      isMobilePickUi,
       wizardStep,
       getCurrentSizeToken,
       selectedSizeKey,
@@ -2377,53 +2399,73 @@ const HalfAndHalfSelector = ({
       </div>
 
       {halfEditorItem && (
-        isNarrowScreen ? (
-          <div className="pp-hh-editorModal" role="dialog" aria-modal="true">
-            <div
-              className="pp-hh-editorModal__backdrop"
-              onClick={() => {
-                setHalfEditorItem(null);
-                setHalfEditorSide(null);
-                setHalfEditorInitialModal(null);
-                setHalfEditorSuppressPanel(false);
-              }}
-            />
-            <div className="pp-hh-editorModal__panel">
-              <ItemDetailPanel
-                item={halfEditorItem}
-                menuData={menuData}
-                onClose={() => {
-                  // No base panel shown (suppressBasePanel=true), but TS requires onClose.
-                  // If user taps outside, we already close via the backdrop.
-                }}
-                editingIndex={null}
-                editingItem={halfEditorItem}
-                onSaveIngredients={(newRemoved) => {
-                  setHalfEditorItem((prev) =>
-                    prev ? { ...prev, removedIngredients: newRemoved || [] } : prev,
-                  );
-                }}
-                onApplyAddOns={(newAddOns) => {
-                  setHalfEditorItem((prev) =>
-                    prev ? { ...prev, add_ons: newAddOns || [] } : prev,
-                  );
-                }}
-                initialModal={halfEditorInitialModal}
-                suppressBasePanel={true}
-                onModalsSettled={handleQuickModalSettled}
-                forcedPriceSizeRef={getCurrentSizeToken()}
-                compactHalfMode
-                lockQty
-              />
-            </div>
-          </div>
+        isMobilePickUi ? (
+          (typeof document !== "undefined"
+            ? createPortal(
+                <div className="pp-hh-editorModal" role="dialog" aria-modal="true">
+                  <div
+                    className="pp-hh-editorModal__backdrop"
+                    onClick={() => {
+                      setHalfEditorItem(null);
+                      setHalfEditorSide(null);
+                      setHalfEditorInitialModal(null);
+                      setHalfEditorSuppressPanel(true);
+                    }}
+                  />
+                  <div className="pp-hh-editorModal__panel">
+      <ItemDetailPanel
+        item={halfEditorItem}
+        menuData={menuData}
+        uiMode="hh_pick_confirm"
+        onClose={(itemsToAdd, isGlutenFree, addOnSelections) => {
+                        const didConfirm = Array.isArray(itemsToAdd) && itemsToAdd.length > 0;
+                        if (didConfirm) {
+                          applyHalfEditorResult(itemsToAdd, isGlutenFree, addOnSelections || []);
+                        }
+                        setHalfEditorItem(null);
+                        setHalfEditorSide(null);
+                        setHalfEditorInitialModal(null);
+                        setHalfEditorSuppressPanel(true); // reset to quick-modal mode
+                      }}
+                      editingIndex={null}
+                      editingItem={halfEditorItem}
+                      onSaveIngredients={(newRemoved) => {
+                        setHalfEditorItem((prev) =>
+                          prev ? { ...prev, removedIngredients: newRemoved || [] } : prev,
+                        );
+                      }}
+                      onApplyAddOns={(newAddOns) => {
+                        setHalfEditorItem((prev) =>
+                          prev ? { ...prev, add_ons: newAddOns || [] } : prev,
+                        );
+                      }}
+                      initialModal={halfEditorInitialModal}
+                      suppressBasePanel={halfEditorSuppressPanel}
+                      lockSize
+                      onModalsSettled={handleQuickModalSettled}
+                      forcedPriceSizeRef={getCurrentSizeToken()}
+                      compactHalfMode
+                      lockQty
+                    />
+                  </div>
+                </div>,
+                document.body,
+              )
+            : null)
         ) : (
-          <ItemDetailPanel
-            item={halfEditorItem}
-            menuData={menuData}
-            onClose={() => {
-              // No base panel shown (suppressBasePanel=true), but TS requires onClose.
-              // If user taps outside, we already close via the backdrop.
+      <ItemDetailPanel
+        item={halfEditorItem}
+        menuData={menuData}
+        uiMode="hh_pick_confirm"
+        onClose={(itemsToAdd, isGlutenFree, addOnSelections) => {
+              const didConfirm = Array.isArray(itemsToAdd) && itemsToAdd.length > 0;
+              if (didConfirm) {
+                applyHalfEditorResult(itemsToAdd, isGlutenFree, addOnSelections || []);
+              }
+              setHalfEditorItem(null);
+              setHalfEditorSide(null);
+              setHalfEditorInitialModal(null);
+              setHalfEditorSuppressPanel(true); // reset to quick-modal mode
             }}
             editingIndex={null}
             editingItem={halfEditorItem}
@@ -2438,7 +2480,8 @@ const HalfAndHalfSelector = ({
               );
             }}
             initialModal={halfEditorInitialModal}
-            suppressBasePanel={true}
+            suppressBasePanel={halfEditorSuppressPanel}
+            lockSize
             onModalsSettled={handleQuickModalSettled}
             forcedPriceSizeRef={getCurrentSizeToken()}
             compactHalfMode
@@ -2806,6 +2849,11 @@ const MealDealBuilderPanel = ({
   const [halfHalfSeed, setHalfHalfSeed] = React.useState(null);
   const [hhMealStage, setHhMealStage] = React.useState("review"); // "pick" | "review"
   const [hhMealPickSide, setHhMealPickSide] = React.useState("A"); // "A" | "B"
+  // Mobile HH selection: open the normal pizza modal after choosing each half
+  const [hhPickEditorSide, setHhPickEditorSide] = React.useState(null); // "A" | "B"
+  const [hhPickEditorItem, setHhPickEditorItem] = React.useState(null); // prepared item
+  const [hhPickEditorForcedSizeRef, setHhPickEditorForcedSizeRef] =
+    React.useState(null); // "LARGE" etc
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const halfHalfApplyPizzaRef = React.useRef(null);
   const [activeCategoryRef, setActiveCategoryRef] = React.useState(null);
@@ -3166,30 +3214,12 @@ const MealDealBuilderPanel = ({
         removedIngredients: [],
       };
 
-      // Build the next seed synchronously so we can decide whether we still need the other half.
-      const prevSeed = halfHalfSeed || { halfA: null, halfB: null, sizeRef: forced };
-      const nextSeed = {
-        ...prevSeed,
-        sizeRef: forced,
-        ...(hhMealPickSide === "A" ? { halfA: base } : { halfB: base }),
-      };
-
-      setHalfHalfSeed(nextSeed);
-
-      // If BOTH halves exist after this pick, go straight to review/editor.
-      if (nextSeed.halfA && nextSeed.halfB) {
-        setHhMealPickSide("A");
-        setHhMealStage("review");
-        return;
-      }
-
-      // Otherwise continue picking the missing half.
-      if (!nextSeed.halfA) {
-        setHhMealPickSide("A");
-      } else {
-        setHhMealPickSide("B");
-      }
+      // NEW FLOW (mobile): pick pizza -> open the normal pizza modal -> confirm -> then commit as half A/B
+      setHhPickEditorSide(hhMealPickSide === "B" ? "B" : "A");
+      setHhPickEditorForcedSizeRef(forced);
+      setHhPickEditorItem(base);
       setHhMealStage("pick");
+      return;
     },
     [
       prepareItemForPanel,
@@ -3197,6 +3227,85 @@ const MealDealBuilderPanel = ({
       hhMealPickSide,
       forcedHalfHalfSizeRef,
       halfHalfSeed,
+      getForcedSizeForStep,
+    ],
+  );
+
+  const applyHhPickEditorResult = React.useCallback(
+    (itemsToAdd, isGlutenFree, addOnSelections = []) => {
+      const didConfirm = Array.isArray(itemsToAdd) && itemsToAdd.length > 0;
+
+      // Close-only / cancel
+      if (!didConfirm) {
+        setHhPickEditorItem(null);
+        setHhPickEditorSide(null);
+        setHhPickEditorForcedSizeRef(null);
+        return;
+      }
+
+      const forced = (
+        hhPickEditorForcedSizeRef ||
+        forcedHalfHalfSizeRef ||
+        halfHalfSeed?.sizeRef ||
+        getForcedSizeForStep(step) ||
+        "LARGE"
+      )
+        .toString()
+        .toUpperCase();
+
+      const sizeRec = makeSizeRecord(forced);
+      const side = hhPickEditorSide === "B" ? "B" : "A";
+
+      const committed = {
+        ...(hhPickEditorItem || {}),
+        qty: 1,
+        size: sizeRec,
+        isGlutenFree: !!isGlutenFree,
+        add_ons: (addOnSelections || []).map((o) => ({ ...o })),
+        removedIngredients: Array.isArray(hhPickEditorItem?.removedIngredients)
+          ? [...hhPickEditorItem.removedIngredients]
+          : [],
+      };
+
+      const prevSeed = halfHalfSeed || {
+        halfA: null,
+        halfB: null,
+        sizeRef: forced,
+        isGlutenFree: false,
+        qty: 1,
+      };
+
+      const nextSeed = {
+        ...prevSeed,
+        sizeRef: forced,
+        isGlutenFree: !!isGlutenFree,
+        qty: 1,
+        ...(side === "B" ? { halfB: committed } : { halfA: committed }),
+      };
+
+      setHalfHalfSeed(nextSeed);
+
+      // Close editor
+      setHhPickEditorItem(null);
+      setHhPickEditorSide(null);
+      setHhPickEditorForcedSizeRef(null);
+
+      // Advance the wizard
+      if (nextSeed.halfA && nextSeed.halfB) {
+        setHhMealPickSide("A");
+        setHhMealStage("review");
+      } else {
+        setHhMealPickSide(nextSeed.halfA ? "B" : "A");
+        setHhMealStage("pick");
+      }
+    },
+    [
+      hhPickEditorItem,
+      hhPickEditorSide,
+      hhPickEditorForcedSizeRef,
+      forcedHalfHalfSizeRef,
+      halfHalfSeed,
+      step,
       getForcedSizeForStep,
     ],
   );
@@ -3749,6 +3858,70 @@ const MealDealBuilderPanel = ({
           </div>
         </div>
       )}
+
+      {isMobile && hhPickEditorItem && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="pp-md-editorOverlay"
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 10080,
+              background: "rgba(2, 6, 23, 0.72)",
+              backdropFilter: "blur(4px)",
+              WebkitBackdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "stretch",
+              justifyContent: "center",
+              padding:
+                "calc(0.85rem + env(safe-area-inset-top)) 0 calc(0.85rem + env(safe-area-inset-bottom))",
+            }}
+            onClick={() => applyHhPickEditorResult(null)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              style={{
+                height: "100%",
+                width: "100%",
+                minHeight: 0,
+                borderRadius: 18,
+                background: "var(--pp-surface, var(--panel))",
+                border: "1px solid var(--border-color)",
+                boxShadow: "var(--shadow-modal)",
+                overflow: "hidden",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ItemDetailPanel
+                item={hhPickEditorItem}
+                menuData={menuData}
+                editingIndex={null}
+                editingItem={hhPickEditorItem}
+                lockQty
+                lockSize
+                forcedPriceSizeRef={normalizeMenuSizeRef(
+                  (hhPickEditorForcedSizeRef || "LARGE").toString().toUpperCase(),
+                )}
+                primaryActionLabel={
+                  hhPickEditorSide === "B" ? "Confirm Half 2" : "Confirm Half 1"
+                }
+                onSaveIngredients={(newRemoved) => {
+                  setHhPickEditorItem((prev) =>
+                    prev ? { ...prev, removedIngredients: newRemoved || [] } : prev,
+                  );
+                }}
+                onApplyAddOns={(newAddOns) => {
+                  setHhPickEditorItem((prev) =>
+                    prev ? { ...prev, add_ons: newAddOns || [] } : prev,
+                  );
+                }}
+                onClose={applyHhPickEditorResult}
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {!isMobile && halfHalfOpenDesktop && (
         <div
@@ -8140,6 +8313,7 @@ function ItemDetailPanel({
   suppressBasePanel = false,
   onModalsSettled = null,
   variant = "",
+  uiMode = "",
   lockSize = false,
   forcedPriceSizeRef = null,
   compactHalfMode = false,
@@ -8147,6 +8321,7 @@ function ItemDetailPanel({
   lockQty = false,
 }) {
   const isMealDealPick = variant === "mealdeal_pick";
+  const isHalfPickConfirm = uiMode === "hh_pick_confirm";
   // Meal deal quick-pick: footer must always be visible on mobile sheets.
   const mdPickFooterPad = isMealDealPick
     ? "calc(150px + env(safe-area-inset-bottom))"
@@ -8602,6 +8777,13 @@ function ItemDetailPanel({
     sizeOptions.length > 0 &&
     sizeOptions.some((sz) => gfAllowedFor(sz));
 
+  // HH pick-confirm modal: GF must be handled later in the HH editor
+  const gfPossibleUi = gfPossible && !isHalfPickConfirm;
+  useEffect(() => {
+    if (!isHalfPickConfirm) return;
+    if (isGlutenFree) setIsGlutenFree(false);
+  }, [isHalfPickConfirm, isGlutenFree]);
+
   const gfIsLargeNow =
     normalizeProductSizeRef(lockedSizeRef || selectedSizeToken) === "LARGE";
 
@@ -8621,11 +8803,12 @@ function ItemDetailPanel({
     }
   }, [isGlutenFree, gfIsLargeNow, sizeOptions, gfAllowedFor, lockSize]);
 
-  const supportsGF = gfPossible;
+  const supportsGF = gfPossibleUi;
   useEffect(() => {
     if (isMealDealPick) return;
+    if (isHalfPickConfirm) return;
     if (!supportsGF && isGlutenFree) setIsGlutenFree(false);
-  }, [supportsGF, isGlutenFree, isMealDealPick]);
+  }, [supportsGF, isGlutenFree, isMealDealPick, isHalfPickConfirm]);
   useEffect(() => {
     if (!supportsGF) return;
     if (!isGlutenFree) return;
@@ -8671,7 +8854,7 @@ function ItemDetailPanel({
     [isGlutenFree, gfAllowedFor],
   );
   const handleGlutenFreeToggle = useCallback(() => {
-    if (!gfPossible) return;
+    if (!gfPossibleUi) return;
     if (gfDisabled) return;
 
     setIsGlutenFree((prev) => {
@@ -8682,7 +8865,7 @@ function ItemDetailPanel({
       }
       return next;
     });
-  }, [gfPossible, gfDisabled, gfIsLargeNow, lockSize, sizeOptions, gfAllowedFor]);
+  }, [gfPossibleUi, gfDisabled, gfIsLargeNow, lockSize, sizeOptions, gfAllowedFor]);
   const getPriceCents = (sizeKey) => {
     const key = sizeKey || "Default";
     if (item?.priceCents && Number.isFinite(item.priceCents[key]))
@@ -8862,7 +9045,7 @@ function ItemDetailPanel({
           </div>
         )}
 
-        {!compactHalfMode && (
+        {!compactHalfMode && !isHalfPickConfirm && (
           <>
             {lockedSizeRef ? (
               <div className="pp-md-sizeLock">
@@ -8995,9 +9178,9 @@ function ItemDetailPanel({
           paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
         }}
       >
-        {(hasAddOns || canEditIngredients || gfPossible) && (
+        {(hasAddOns || canEditIngredients || gfPossibleUi) && (
           <div
-            className={`pp-mdp-footerTools ${gfPossible ? "pp-mdp-footerTools--3" : ""}`}
+            className={`pp-mdp-footerTools ${gfPossibleUi ? "pp-mdp-footerTools--3" : ""}`}
           >
             {hasAddOns && (
               <button
@@ -9031,7 +9214,7 @@ function ItemDetailPanel({
                 </span>
               </button>
             )}
-            {gfPossible && (
+            {gfPossibleUi && (
               <button
                 type="button"
                 onClick={handleGlutenFreeToggle}
@@ -15261,6 +15444,9 @@ function AppLayout({ isMapsLoaded }) {
 
   // Mobile Half & Half flow draft: pick pizzas in menu first, then open editor modal
   const [hhMobileDraft, setHhMobileDraft] = useState(null);
+  // When picking half/half on mobile, we open the normal pizza modal after each half selection.
+  // { side: "A"|"B", forcedSizeRef: "LARGE"|"FAMILY"|"PARTY"|"REGULAR" }
+  const [hhMobilePickEditor, setHhMobilePickEditor] = useState(null);
   /**
    * hhMobileDraft shape:
    * {
@@ -15684,45 +15870,21 @@ function AppLayout({ isMapsLoaded }) {
         // Only accept eligible pizzas
         if (!isPizzaForHalfHalf) return;
 
-        const base = {
+        const side = (hhMobileDraft?.side || "A") === "B" ? "B" : "A";
+        const forcedSizeRef = (hhMobileDraft?.sizeRef || "LARGE")
+          .toString()
+          .toUpperCase();
+
+        // Open the normal pizza modal for the half they’re currently picking.
+        setHhMobilePickEditor({ side, forcedSizeRef });
+        setSelectedItem(prepared);
+        setCustomizingItem({
           ...prepared,
-          qty: 1,
           add_ons: [],
           removedIngredients: [],
-          size: hhMobileDraft?.sizeRef || "LARGE",
-        };
-
-        const selectionSide = hhMobileDraft?.side || "A";
-        const otherPicked =
-          selectionSide === "A"
-            ? Boolean(hhMobileDraft?.halfB)
-            : Boolean(hhMobileDraft?.halfA);
-
-        setHhMobileDraft((prev) => {
-          const side = prev?.side || "A";
-          const next = { ...(prev || {}), step: otherPicked ? "edit" : "pick" };
-
-          if (side === "A") {
-            next.halfA = base;
-            next.side = "B";
-            return next;
-          }
-
-          next.halfB = base;
-          next.side = "A";
-          return next;
         });
-
-        // If the other half already exists, open the modal editor.
-        if (otherPicked) {
-          const catRef = hhMobileDraft?.halfHalfCategoryRef || "";
-          const catName = hhMobileDraft?.halfHalfCategoryName || "";
-          const hhItem =
-            catRef || catName
-              ? makeHalfHalfItemForCategory({ ref: catRef, name: catName })
-              : HALF_HALF_TEMPLATE_ITEM;
-          setSelectedItem(hhItem);
-        }
+        setEditingIndex(null);
+        setRightPanelView("order");
 
         return;
       }
@@ -15970,6 +16132,78 @@ function AppLayout({ isMapsLoaded }) {
   };
 
   const handleClosePanel = (itemsToAdd, isGlutenFree, addOnSelections = []) => {
+    // Mobile Half & Half pick flow: confirming the pizza should fill Half A/B, not add to cart.
+    if (hhMobilePickEditor && hhMobileDraft?.step === "pick") {
+      const didConfirm = Array.isArray(itemsToAdd) && itemsToAdd.length > 0;
+
+      if (didConfirm) {
+        const first = itemsToAdd[0];
+        const sizeInfo = makeSizeRecord(first.size);
+        const sizeLabel = sizeInfo.name || "Default";
+        const basePriceCents = getBasePriceCents(selectedItem, sizeLabel);
+        const basePrice =
+          Number.isFinite(basePriceCents) && basePriceCents > 0
+            ? basePriceCents / 100
+            : (selectedItem.prices?.[sizeLabel] ?? selectedItem.basePrice ?? 0);
+
+        const normalizedSizeRef = normalizeAddonSizeRef(sizeInfo.id || sizeLabel);
+        const addOnUnit =
+          calcExtrasCentsForSize(
+            addOnSelections,
+            normalizedSizeRef,
+            menuData,
+          ) / 100;
+        const isLarge = normalizeProductSizeRef(normalizedSizeRef) === "LARGE";
+        const gfUpcharge =
+          isGlutenFree && isLarge
+            ? (getGfSurchargeCentsForProduct(selectedItem, menuData) || 0) / 100
+            : 0;
+
+        const committed = {
+          ...selectedItem,
+          size: sizeInfo,
+          qty: 1,
+          price: basePrice + gfUpcharge + addOnUnit,
+          isGlutenFree: isGlutenFree && isLarge,
+          add_ons: (addOnSelections || []).map((opt) => ({ ...opt })),
+          removedIngredients: customizingItem?.removedIngredients || [],
+        };
+
+        const side = hhMobilePickEditor.side === "B" ? "B" : "A";
+        const nextDraft = {
+          ...(hhMobileDraft || {}),
+          halfA: side === "A" ? committed : hhMobileDraft?.halfA || null,
+          halfB: side === "B" ? committed : hhMobileDraft?.halfB || null,
+          side: side === "A" ? "B" : "A",
+        };
+
+        const complete = Boolean(nextDraft.halfA && nextDraft.halfB);
+        nextDraft.step = complete ? "edit" : "pick";
+        setHhMobileDraft(nextDraft);
+
+        // If both halves are now chosen, open the HH editor to add the combined item.
+        if (complete) {
+          const catRef = nextDraft.halfHalfCategoryRef || "";
+          const catName = nextDraft.halfHalfCategoryName || "";
+          const hhItem =
+            catRef || catName
+              ? makeHalfHalfItemForCategory({ ref: catRef, name: catName })
+              : HALF_HALF_TEMPLATE_ITEM;
+          setSelectedItem(hhItem);
+        } else {
+          setSelectedItem(null);
+        }
+      } else {
+        // Cancel / close only
+        setSelectedItem(null);
+      }
+
+      setHhMobilePickEditor(null);
+      setEditingIndex(null);
+      setCustomizingItem(null);
+      return;
+    }
+
     if (itemsToAdd && itemsToAdd.length > 0) {
       const finalItems = itemsToAdd.map(({ size, qty }) => {
         const sizeInfo = makeSizeRecord(size);
@@ -16313,11 +16547,29 @@ function AppLayout({ isMapsLoaded }) {
                 item={selectedItem}
                 menuData={menuData}
                 onClose={handleClosePanel}
+                uiMode={
+                  hhMobilePicking && selectedItem && !isHalfHalfItem(selectedItem)
+                    ? "hh_pick_confirm"
+                    : ""
+                }
                 editingIndex={editingIndex}
                 editingItem={customizingItem}
                 onSaveIngredients={handleSaveIngredients}
                 onApplyAddOns={handleApplyAddOns}
-                primaryActionLabel={undefined}
+                primaryActionLabel={
+                  hhMobilePickEditor
+                    ? hhMobilePickEditor.side === "B"
+                      ? "Confirm Half 2"
+                      : "Confirm Half 1"
+                    : undefined
+                }
+                lockQty={!!hhMobilePickEditor}
+                lockSize={!!hhMobilePickEditor}
+                forcedPriceSizeRef={
+                  hhMobilePickEditor
+                    ? normalizeMenuSizeRef(hhMobilePickEditor.forcedSizeRef)
+                    : undefined
+                }
                 initialModal={undefined}
                 onModalsSettled={() => {}}
               />
