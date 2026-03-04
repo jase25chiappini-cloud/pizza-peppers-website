@@ -2541,6 +2541,109 @@ h1, h2, h3, h4, .panel-title, .card-item-name { font-family: var(--font-heading)
   align-items: center;
   gap: 8px;
 }
+
+/* =========================================================
+   Cart item: title/meta + right-side qty controls
+   ========================================================= */
+.cart-item{
+  align-items: flex-start; /* allow multi-line left side */
+}
+
+.pp-cartItemMain{
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 12px;
+}
+
+.pp-cartItemTitleRow{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pp-cartItemTitle{
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-cartItemBadge{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.12);
+  color: rgba(250, 204, 21, 0.95);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pp-cartItemMeta{
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: var(--text-medium);
+  opacity: 0.95;
+}
+
+.pp-cartItemMeta--hh{
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: #c4b5fd;
+}
+
+.pp-cartItemRight{
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.pp-cartItemLineTotal{
+  font-weight: 950;
+}
+
+.pp-cartItemControls{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pp-cartQtyCtl{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.28);
+  background: rgba(255,255,255,0.04);
+}
+
+.pp-cartQtyBtn{
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.26);
+  background: rgba(255,255,255,0.03);
+  color: var(--text-primary);
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.pp-cartQtyVal{
+  min-width: 22px;
+  text-align: center;
+  font-weight: 950;
+}
 /* Cart item remove: clean red X (no bubble) */
 .pp-removeItemBtn{
   width: 28px;
@@ -4455,15 +4558,15 @@ body[data-theme="light"] .pp-halfhalf-panel{
   animation: hhBreathe var(--hh-d4) var(--hh-ease) 1;
 }
 @keyframes hhBreathe{
-  0%   { transform: scale(0.996); }
-  55%  { transform: scale(1.012); }
-  100% { transform: scale(1); }
+  0%   { transform: translateY(0px); }
+  55%  { transform: translateY(-2px); }
+  100% { transform: translateY(0px); }
 }
 
 @media (prefers-reduced-motion: reduce){
   .pp-halfhalf-panel .pp-halfhalf-svg{
     animation: none !important;
-    transform: translate(-50%, -50%) !important;
+    transform: translate(-50%, -50%) scale(var(--pp-hh-scale, 1)) !important;
   }
   .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="A"],
   .pp-halfhalf-panel .pp-halfhalf-heroStage[data-side="B"]{ animation: none !important; }
@@ -4603,9 +4706,17 @@ body[data-theme="light"] .pp-halfhalf-panel{
   animation: hhFloatCentered 9.5s cubic-bezier(.25, .8, .25, 1) infinite;
 }
 
+/* Half & Half hero can be bigger on desktop */
+@media (min-width: 1024px){
+  .pp-halfhalf-panel .pp-halfhalf-svg{
+    max-width: min(100%, 680px) !important;
+    max-height: min(100%, 680px) !important;
+  }
+}
+
 @keyframes hhFloatCentered{
-  0%, 100% { transform: translate(-50%, -50%) scale(var(--pp-hh-scale, 1)) translateY(0px) rotate(0deg); }
-  50%      { transform: translate(-50%, -50%) scale(var(--pp-hh-scale, 1)) translateY(-7px) rotate(-0.35deg); }
+  0%,100% { transform: translate(-50%,-50%) scale(var(--pp-hh-scale,1)) translateY(0px) rotate(0deg); }
+  50%     { transform: translate(-50%,-50%) scale(var(--pp-hh-scale,1)) translateY(-7px) rotate(-0.35deg); }
 }
 
 /* =========================
@@ -5580,6 +5691,38 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
 }
 
 /* =========================================================
+   Half & Half — editor overlay INSIDE the detail panel (desktop)
+   ========================================================= */
+.pp-hh-editorPanelOverlay{
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.pp-hh-editorPanelOverlay__backdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.66);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.pp-hh-editorPanelOverlay__panel{
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  background: var(--pp-surface, var(--panel));
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+/* =========================================================
    Half & Half panel as mobile modal
    ========================================================= */
 
@@ -5804,6 +5947,134 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   }
   .pp-hh-halfHeader{
     justify-content: space-between;
+  }
+}
+
+/* =========================================================
+   Half & Half — Desktop polish (detail panel)
+   ========================================================= */
+@media (min-width: 1024px){
+  /* Keep the content centered + consistent inside right sidebar */
+  .pp-halfhalf-panel .pp-halfhalf-body{
+    padding-left: .4rem;
+    padding-right: .4rem;
+  }
+
+  .pp-halfhalf-panel .pp-halfhalf-sideSwitch{
+    width: min(640px, 100%);
+    margin: 0.75rem auto 0.9rem;
+  }
+
+  /* Size block becomes a “header control” on desktop */
+  .pp-halfhalf-panel .pp-hh-sizeBlock{
+    width: min(720px, 100%);
+    margin: 0.9rem auto 0.85rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizeLabel{
+    text-align: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-medium);
+    font-weight: 850;
+    margin-bottom: 0.65rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizeWrap{
+    display: flex;
+    justify-content: center;
+    gap: .55rem;
+    flex-wrap: wrap;
+    padding: .5rem .65rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.24);
+    background: rgba(0,0,0,0.10);
+    box-shadow: inset 0 0 0 1px rgba(2,6,23,0.08);
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill{
+    min-height: 40px;
+    padding: .42rem .95rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.26);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-primary);
+    font-weight: 950;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-size: .78rem;
+    cursor: pointer;
+    transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 140ms ease, filter 140ms ease;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill:hover{
+    transform: translateY(-1px);
+    border-color: rgba(190,242,100,0.30);
+    box-shadow: 0 18px 42px rgba(0,0,0,0.14);
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill.is-active{
+    border-color: rgba(190,242,100,0.62);
+    background: rgba(190,242,100,0.92);
+    color: rgba(15,23,42,0.95);
+    box-shadow: 0 0 22px rgba(190,242,100,0.70);
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill.is-disabled,
+  .pp-halfhalf-panel .pp-hh-sizePill:disabled{
+    opacity: .45;
+    filter: grayscale(.25);
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Details card spacing + max width so it doesn’t feel “warped” */
+  .pp-halfhalf-panel .pp-hh-detailsCard{
+    max-width: 980px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sharedLabel{
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #c4b5fd;
+    font-weight: 900;
+    margin-bottom: 0.55rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sharedRow{
+    display: flex;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sharedRow .pp-hh-gfToggle{
+    flex: 1 1 320px;
+    margin: 0; /* keep tight */
+  }
+
+  .pp-halfhalf-panel .pp-hh-sharedRow .pp-hh-qtyRow{
+    flex: 0 0 280px;
+    margin: 0;
+  }
+
+  /* Action buttons: 2x2 grid on desktop (cleaner + less tall) */
+  .pp-halfhalf-panel .pp-hh-actions{
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+  }
+
+  /* Chips: prevent long lists from blowing layout */
+  .pp-halfhalf-panel .pp-hh-chip{
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -8546,6 +8817,136 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
    Half & Half -- GF toggle (shared settings)
    Clear + premium in both themes
    ========================================================= */
+.pp-halfhalf-panel .pp-hh-titleBar{
+  padding: 0.85rem 0.9rem 0.2rem;
+  text-align: center;
+}
+
+.pp-halfhalf-panel .pp-hh-titleBar__title{
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+  color: var(--brand-neon-green);
+  opacity: 0.98;
+}
+
+/* =========================================================
+   Half & Half (MOBILE) — clean controls card
+   ========================================================= */
+@media (max-width: 1023.98px){
+  .pp-halfhalf-panel .pp-hh-controlsCard{
+    width: min(560px, 100%);
+    margin: 0.75rem auto 1rem;
+    padding: 0.9rem 0.9rem 1rem;
+    border-radius: 20px;
+    border: 1px solid rgba(148,163,184,0.22);
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.10));
+    box-shadow: 0 18px 44px rgba(0,0,0,0.14);
+  }
+
+  .pp-halfhalf-panel .pp-hh-controlsCard.is-compact{
+    margin: 0.55rem auto 0.75rem;
+    padding: 0.8rem 0.8rem 0.9rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-controlsCard__label{
+    text-align: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text-medium);
+    font-weight: 800;
+    margin-bottom: 0.65rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePills{
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.45rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.24);
+    background: rgba(0,0,0,0.10);
+    box-shadow: inset 0 0 0 1px rgba(2,6,23,0.08);
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill{
+    min-height: 40px;
+    padding: 0.42rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.26);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-primary);
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 140ms ease, filter 140ms ease;
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill:hover{
+    transform: translateY(-1px);
+    border-color: rgba(190,242,100,0.30);
+    box-shadow: 0 18px 42px rgba(0,0,0,0.14);
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill.is-active{
+    border-color: rgba(190,242,100,0.62);
+    background: rgba(190,242,100,0.92);
+    color: rgba(15,23,42,0.95);
+    box-shadow: 0 0 22px rgba(190,242,100,0.70);
+  }
+
+  .pp-halfhalf-panel .pp-hh-sizePill.is-disabled,
+  .pp-halfhalf-panel .pp-hh-sizePill:disabled{
+    opacity: 0.45;
+    filter: grayscale(0.25);
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .pp-halfhalf-panel .pp-hh-controlsCard .pp-hh-gfToggle{
+    margin-top: 0.75rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-controlsCard .pp-hh-qtyRow{
+    margin-top: 0.75rem;
+  }
+}
+
+.pp-halfhalf-panel .pp-hh-gfRow{
+  display: flex;
+  justify-content: center;
+  margin: 0.4rem 0 0.8rem;
+}
+
+.pp-halfhalf-panel .pp-hh-gfRow .pp-hh-gfToggle{
+  width: min(560px, 100%);
+}
+
+.pp-halfhalf-panel .pp-hh-underControls{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: -0.2rem;
+  margin-bottom: 0.75rem;
+}
+
+.pp-halfhalf-panel .pp-hh-underControls .pp-hh-gfToggle{
+  width: min(560px, 100%);
+}
+
+.pp-halfhalf-panel .pp-hh-gfToggle.is-disabled{
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
 .pp-halfhalf-panel .pp-hh-gfToggle{
   width: 100%;
   min-height: 48px;
@@ -8631,6 +9032,11 @@ html[data-theme="light"] .pp-halfhalf-panel .pp-hh-actionBtn--danger{
   grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 0.65rem;
+}
+
+.pp-halfhalf-panel .pp-hh-qtyRow--center{
+  width: min(420px, 100%);
+  justify-content: center;
 }
 
 .pp-halfhalf-panel .pp-hh-qtyRow .pp-hh-qtyLabel{
@@ -15425,6 +15831,176 @@ body[data-theme="light"] .pp-cart-fab:active,
     line-height: 1.25 !important;
     opacity: 0.72 !important;
     text-align: left !important;
+  }
+}
+
+/* =========================================================
+   Half & Half (MOBILE) -- simplified stepper + compact pick rows
+   ========================================================= */
+@media (max-width: 1023.98px){
+  .pp-halfhalf-panel .pp-hh-stepper{
+    border: 1px solid rgba(148,163,184,0.22);
+    background: rgba(255,255,255,0.04);
+    border-radius: 16px;
+    padding: 0.75rem 0.85rem;
+    margin-bottom: 0.85rem;
+    box-shadow: var(--shadow-card);
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepper__row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepper__title{
+    font-weight: 950;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    color: var(--brand-neon-green);
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepper__meta{
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--text-medium);
+    white-space: nowrap;
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepper__pills{
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.55rem;
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepPill{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.24rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.22);
+    background: rgba(255,255,255,0.04);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    color: var(--text-primary);
+    opacity: 0.75;
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepPill.is-active{
+    opacity: 1;
+    border-color: rgba(190,242,100,0.45);
+    background: rgba(190,242,100,0.12);
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepPill.is-done{
+    opacity: 0.92;
+    border-color: rgba(190,242,100,0.30);
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepper__help{
+    color: var(--text-medium);
+    font-size: 0.86rem;
+    line-height: 1.25;
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepper__actions{
+    margin-top: 0.6rem;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .pp-halfhalf-panel .pp-hh-stepper__btn{
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.35);
+    background: rgba(148,163,184,0.10);
+    color: var(--text-primary);
+    font-weight: 900;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-size: 0.70rem;
+    padding: 0.36rem 0.75rem;
+    cursor: pointer;
+  }
+
+  /* Compact pick card content */
+  .pp-halfhalf-panel .pp-hh-pickCard{
+    padding: 0.75rem 0.8rem !important;
+  }
+
+  .pp-halfhalf-panel .pp-hh-pickRow2{
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .pp-halfhalf-panel .pp-hh-pickMiniThumb{
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    object-fit: cover;
+    border: 1px solid rgba(148,163,184,0.22);
+    background: rgba(255,255,255,0.03);
+    flex: 0 0 auto;
+  }
+
+  .pp-halfhalf-panel .pp-hh-pickMain{
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .pp-halfhalf-panel .pp-hh-pickName{
+    font-weight: 950;
+    font-size: 0.96rem;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+
+  .pp-halfhalf-panel .pp-hh-pickDesc{
+    font-size: 0.84rem;
+    color: var(--text-medium);
+    margin-top: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pp-halfhalf-panel .pp-hh-pickPill{
+    flex: 0 0 auto;
+    padding: 0.26rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(190,242,100,0.28);
+    background: rgba(190,242,100,0.10);
+    font-weight: 950;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-size: 0.66rem;
+    white-space: nowrap;
+  }
+
+  .pp-halfhalf-panel .pp-hh-pickPill.is-selected{
+    border-color: rgba(190,242,100,0.55);
+    background: rgba(190,242,100,0.16);
+  }
+
+  /* With only 2 buttons now, make actions more compact on small screens */
+  @media (max-width: 640px){
+    .pp-hh-actions{
+      grid-template-columns: 1fr 1fr;
+      gap: 0.55rem;
+    }
+    .pp-halfhalf-panel .pp-hh-actionBtn{
+      min-height: 42px;
+      padding: 0.62rem 0.7rem;
+    }
   }
 }
 
